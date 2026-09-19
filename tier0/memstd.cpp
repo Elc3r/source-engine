@@ -6,6 +6,7 @@
 //=============================================================================//
 
 #include "pch_tier0.h"
+#include <stdlib.h>
 
 #if !defined(STEAM) && !defined(NO_MALLOC_OVERRIDE)
 

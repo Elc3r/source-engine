@@ -109,6 +109,7 @@
 #endif
 
 #include <time.h>
+#include <stdlib.h>
 #include "zip/XZip.h"
 
 #ifdef __clang__
@@ -3030,5 +3031,4 @@ bool IsZipHandleZ(HZIP hz)
   TZipHandleData *han = (TZipHandleData*)hz;
   return (han->flag==2);
 }
-
 

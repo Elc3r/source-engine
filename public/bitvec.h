@@ -11,6 +11,7 @@
 #endif
 
 #include <limits.h>
+#include <stdlib.h>
 #include "tier0/dbg.h"
 #include "tier0/basetypes.h"
 

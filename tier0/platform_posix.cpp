@@ -9,6 +9,7 @@
 #include "tier0/vcrmode.h"
 #include "tier0/memalloc.h"
 #include "tier0/dbg.h"
+#include <stdlib.h>
 #include <algorithm>
 #include <vector>
 
@@ -1078,5 +1079,4 @@ void DumpMemorySummary( void )
 
 // Turn off memdbg macros (turned on up top) since this is included like a header
 #include "tier0/memdbgoff.h"
-
 
