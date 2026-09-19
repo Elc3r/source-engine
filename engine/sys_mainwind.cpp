@@ -1397,7 +1397,18 @@ void CGame::PlayVideoAndWait( const char *filename, bool bNeedHealthWarning )
     
 #endif
 
-	VideoResult_t status = 	g_pVideo->PlayVideoFileFullScreen( filename, "GAME", GetMainWindowPlatformSpecificHandle (),
+	// The modern macOS video module takes the Cocoa window, not Carbon's WindowRef.
+	void *videoWindow;
+#if defined(OSX) && defined(USE_SDL) && defined(PLATFORM_64BITS)
+	SDL_SysWMinfo videoWindowInfo;
+	SDL_VERSION( &videoWindowInfo.version );
+	if ( !SDL_GetWindowWMInfo( (SDL_Window *)m_pSDLWindow, &videoWindowInfo ) )
+		return;
+	videoWindow = (void *)videoWindowInfo.info.cocoa.window;
+#else
+	videoWindow = GetMainWindowPlatformSpecificHandle();
+#endif
+	VideoResult_t status = 	g_pVideo->PlayVideoFileFullScreen( filename, "GAME", videoWindow,
 	                                                           m_width, m_height, m_iDesktopWidth, m_iDesktopHeight, videomode->IsWindowedMode(),
 	                                                           forcedMinTime, VideoPlaybackFlags::DEFAULT_FULLSCREEN_OPTIONS | VideoPlaybackFlags::FILL_WINDOW );
 
@@ -1752,4 +1763,3 @@ void CGame::SetActiveApp( bool active )
 {
 	m_bActiveApp = active;
 }
-

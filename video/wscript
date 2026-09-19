@@ -15,6 +15,11 @@ def configure(conf):
 	return
 
 def build(bld):
+	# QuickTime's C API is legacy 32-bit; use AVFoundation on both 64-bit Macs.
+	if (bld.env.DEST_OS == 'darwin' and not bld.env.BIT32_MANDATORY
+		and bld.env.DEST_CPU in ('aarch64', 'x86_64', 'amd64')):
+		bld.recurse('video_avfoundation')
+
 	source = [
 		'videoservices.cpp',
 		'../public/tier0/memoverride.cpp'
@@ -51,4 +56,3 @@ def build(bld):
 		subsystem = bld.env.MSVC_SUBSYSTEM,
 		idx      = bld.get_taskgen_count()
 	)
-

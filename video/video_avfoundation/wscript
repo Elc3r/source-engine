@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+
+def build(bld):
+    # Keep the existing module name and interface; only the implementation changes.
+    bld.shlib(
+        features='cxx cxxshlib',
+        source='video_avfoundation.mm',
+        target='video_quicktime',
+        name='video_quicktime',
+        includes=['..', '../../public', '../../public/tier0', '../../public/tier1'],
+        use=['tier0', 'tier1', 'SDL2'],
+        framework=['Cocoa', 'AVFoundation', 'AVKit', 'CoreMedia'],
+        cxxflags=['-fobjc-arc', '-fblocks'],
+        install_path=bld.env.LIBDIR,
+    )
