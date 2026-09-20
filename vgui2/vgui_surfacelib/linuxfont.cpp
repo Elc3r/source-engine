@@ -212,6 +212,37 @@ static FcPattern* FontMatch(const char* type, ...)
 }
 #endif
 
+// Collections may contain regular, bold and italic faces in the same file.
+// Keep the first face as a fallback if the requested style is not present.
+static FT_Error OpenFontFace( FT_Library library, const FT_Byte *data, FT_Long size,
+	FT_Long style, FT_Face *face )
+{
+	FT_Error error = FT_New_Memory_Face( library, data, size, 0, face );
+	if ( error )
+		return error;
+
+	const FT_Long styleMask = FT_STYLE_FLAG_BOLD | FT_STYLE_FLAG_ITALIC;
+	if ( ( (*face)->style_flags & styleMask ) == style )
+		return 0;
+
+	for ( FT_Long index = 1; index < (*face)->num_faces; ++index )
+	{
+		FT_Face candidate = NULL;
+		if ( FT_New_Memory_Face( library, data, size, index, &candidate ) )
+			continue;
+		if ( ( candidate->style_flags & styleMask ) == style &&
+			candidate->family_name && (*face)->family_name &&
+			!strcmp( candidate->family_name, (*face)->family_name ) )
+		{
+			FT_Done_Face( *face );
+			*face = candidate;
+			return 0;
+		}
+		FT_Done_Face( candidate );
+	}
+	return 0;
+}
+
 bool CLinuxFont::CreateFromMemory(const char *windowsFontName, void *data, int datasize, int tall, int weight, int blur, int scanlines, int flags)
 {
 	// setup font properties
@@ -237,7 +268,12 @@ bool CLinuxFont::CreateFromMemory(const char *windowsFontName, void *data, int d
 	}
 
 	Assert( !m_faceValid );
-	FT_Error error = FT_New_Memory_Face( FontManager().GetFontLibraryHandle(), (FT_Byte *)data, datasize, 0, &m_face );
+	FT_Long faceStyle = 0;
+	if ( weight >= 600 || Q_stristr( windowsFontName, "bold" ) || !Q_stricmp( windowsFontName, "Arial Black" ) )
+		faceStyle |= FT_STYLE_FLAG_BOLD;
+	if ( flags & vgui::ISurface::FONTFLAG_ITALIC )
+		faceStyle |= FT_STYLE_FLAG_ITALIC;
+	FT_Error error = OpenFontFace( FontManager().GetFontLibraryHandle(), (FT_Byte *)data, datasize, faceStyle, &m_face );
 	if ( error ) 
 	{
 		// FT_Err_Unknown_File_Format?
@@ -507,6 +543,11 @@ char *CLinuxFont::GetFontFileName( const char *windowsFontName, int flags )
 		pchFontName = "Bitstream Vera Sans";
 	else if ( !Q_stricmp( pchFontName, "Arial Black" ) || Q_stristr( pchFontName, "bold" ) )
 		bBold = true;
+
+	// Valve's macOS schemes use a face name; Fontconfig expects a family name
+	// with the weight supplied separately.
+	if ( !Q_stricmp( pchFontName, "Helvetica Bold" ) )
+		pchFontName = "Helvetica";
 
 #if !HAVE_FC
 	char *filename = TryFindFont( windowsFontName, bBold, flags & vgui::ISurface::FONTFLAG_ITALIC );

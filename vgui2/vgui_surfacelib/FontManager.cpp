@@ -209,6 +209,29 @@ bool CFontManager::SetFontGlyphSet(HFont font, const char *windowsFontName, int 
 
 				m_FontAmalgams[font].AddFont( winFont, nMin, nMax );
 
+#if defined(OSX)
+				// Keep accented Latin letters in the requested face when available.
+				// The old U+00FF cutoff mixed Czech glyphs with Helvetica even when
+				// the requested font contained them. Preserve explicit glyph ranges.
+				if ( nRangeMin == 0 && nRangeMax == 0 )
+				{
+					int runStart = 0x0100;
+					font_t *runFont = winFont->HasChar( runStart ) ? winFont : pExtendedFont;
+					for ( int ch = runStart + 1; ch <= 0x024F; ++ch )
+					{
+						font_t *glyphFont = winFont->HasChar( ch ) ? winFont : pExtendedFont;
+						if ( glyphFont != runFont )
+						{
+							m_FontAmalgams[font].AddFont( runFont, runStart, ch - 1 );
+							runStart = ch;
+							runFont = glyphFont;
+						}
+					}
+					m_FontAmalgams[font].AddFont( runFont, runStart, 0x024F );
+					nMax = 0x024F;
+				}
+#endif
+
 				if ( nMax < 0xFFFF )
 				{
 					m_FontAmalgams[font].AddFont( pExtendedFont, nMax + 1, 0xFFFF );
@@ -784,4 +807,3 @@ void CFontManager::Validate( CValidator &validator, char *pchName )
 	validator.Pop();
 }
 #endif // DBGFLAG_VALIDATE
-
