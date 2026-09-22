@@ -392,7 +392,7 @@ typedef __m64 v2si;   // vector of 2 int (mmx)
 void _SSE_SinCos(float x, float* s, float* c)
 {
 #if defined(__arm__) || defined(__aarch64__)
-#if defined( OSX )
+#if defined( OSX ) || defined(IOS)
     __sincosf(x, s, c);
 #elif defined( POSIX )
         sincosf(x, s, c);

@@ -27,6 +27,7 @@
 //===============================================================================
 
 #include "togles/rendermechanism.h"
+#include "texture_upload.h"
 
 extern "C" {
 #include "decompress.h"
@@ -672,6 +673,17 @@ GLMTexLayout *CGLMTexLayoutTable::NewLayoutRef( GLMTexLayoutKey *pDesiredKey )
 		m_layoutMap.Insert( layout->m_key, layout );
 		
 		return layout;
+	}
+}
+
+CGLMTexLayoutTable::~CGLMTexLayoutTable()
+{
+	FOR_EACH_MAP( m_layoutMap, i )
+	{
+		GLMTexLayout *layout = m_layoutMap[i];
+		Assert( layout->m_refCount == 0 );
+		free( layout->m_layoutSummary );
+		free( layout );
 	}
 }
 
@@ -3364,140 +3376,6 @@ void convert_texture( GLenum &internalformat, GLsizei width, GLsizei height, GLe
 
 	if( type == GL_UNSIGNED_INT_8_8_8_8_REV )
 		type = GL_UNSIGNED_BYTE;
-}
-
-GLboolean isDXTc(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-GLboolean isDXTcSRGB(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-static GLboolean isDXTcAlpha(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-GLvoid *uncompressDXTc(GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, int transparent0, int* simpleAlpha, int* complexAlpha, const GLvoid *data) {
-    // uncompress a DXTc image
-    // get pixel size of uncompressed image => fixed RGBA
-    int pixelsize = 4;
-    if (format == GL_COMPRESSED_RGB_S3TC_DXT1_EXT || format == GL_COMPRESSED_SRGB_S3TC_DXT1_EXT)
-        pixelsize = 3;
-    // check with the size of the input data stream if the stream is in fact uncompressed
-    if (imageSize == width*height*pixelsize || data==NULL) {
-        // uncompressed stream
-        return (GLvoid*)data;
-    }
-    // alloc memory
-    GLvoid *pixels = malloc(((width+3)&~3)*((height+3)&~3)*pixelsize);
-    // uncompress loop
-    int blocksize;
-    switch (format) {
-        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-            blocksize = 8;
-            break;
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            blocksize = 16;
-            break;
-    }
-    uintptr_t src = (uintptr_t) data;
-    for (int y=0; y<height; y+=4) {
-        for (int x=0; x<width; x+=4) {
-            switch(format) {
-                case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-                    DecompressBlockDXT1(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-                case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-                    DecompressBlockDXT3(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-                case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-                    DecompressBlockDXT5(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-            }
-            src+=blocksize;
-        }
-    }
-    return pixels;
-}
-
-void CompressedTexImage2D(GLenum target, GLint level, GLenum internalformat,
-                            GLsizei width, GLsizei height, GLint border,
-                            GLsizei imageSize, const GLvoid *data) 
-{
-    if (internalformat==GL_RGBA8)
-        internalformat = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
-
-	if ((width<=0) || (height<=0)) {
-        return;
-    }
-
-	bool hasAlpha = (internalformat != GL_COMPRESSED_RGB_S3TC_DXT1_EXT) && (internalformat != GL_COMPRESSED_SRGB_S3TC_DXT1_EXT);
-
-   	GLenum format = hasAlpha ? GL_RGBA : GL_RGB;
-	GLenum intformat = hasAlpha ? GL_RGBA8 : GL_RGB8;
-	GLenum type = GL_UNSIGNED_BYTE;
-	GLvoid *pixels = NULL;
-
-    if (isDXTc(internalformat))
-    {
-        int srgb = isDXTcSRGB(internalformat);
-        int simpleAlpha = 0;
-        int complexAlpha = 0;
-        int transparent0 = (internalformat==GL_COMPRESSED_RGBA_S3TC_DXT1_EXT || internalformat==GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT)?1:0;
-        if (data) {
-            pixels = uncompressDXTc(width, height, internalformat, imageSize, transparent0, &simpleAlpha, &complexAlpha, data);
-        } else {
-            if(isDXTcAlpha(internalformat)) {
-                simpleAlpha = complexAlpha = 1;
-            }
-        }
-
-		if( srgb )
-			intformat = hasAlpha ? GL_SRGB8_ALPHA8 : GL_SRGB8;
-	}
-
-	gGL->glTexImage2D(target, level, intformat, width, height, border, format, type, pixels);
-	if( data != pixels )
-		free(pixels);
 }
 
 // TexSubImage should work properly on every driver stack and GPU--enabling by default.

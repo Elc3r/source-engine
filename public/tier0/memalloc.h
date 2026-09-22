@@ -33,7 +33,7 @@
 #endif
 
 #include <stddef.h>
-#if defined( OSX )
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #endif
 
@@ -474,7 +474,7 @@ inline void MemAlloc_CheckAlloc( void *ptr, size_t nSize )
 		MemAllocOOMError( nSize );
 }
 
-#if defined( OSX )
+#if defined(OSX) || defined(IOS)
 inline void *memalign(size_t alignment, size_t size) {
     // MoeMod : 64bit fix
     if(alignment < sizeof(void *))
@@ -495,7 +495,7 @@ inline void *MemAlloc_AllocAligned( size_t size, size_t align, const char *pszFi
 inline void *MemAlloc_AllocAlignedFileLine( size_t size, size_t align, const char *pszFile = NULL, int nLine = 0 )	{ void *ptr = memalign( align, size ); MemAlloc_CheckAlloc( ptr, size ); return ptr; }
 inline void MemAlloc_FreeAligned( void *pMemBlock, const char *pszFile = NULL, int nLine = 0 ) 						{ free( pMemBlock ); }
 
-#if defined( OSX )
+#if defined(OSX) || defined(IOS)
 inline size_t _msize( void *ptr )																					{ return malloc_size( ptr ); }
 #else
 inline size_t _msize( void *ptr )																					{ return malloc_usable_size( ptr ); }

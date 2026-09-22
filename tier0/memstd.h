@@ -18,7 +18,7 @@
 #endif
 #endif
 
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

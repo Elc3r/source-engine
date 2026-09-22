@@ -3904,7 +3904,7 @@ HRESULT IDirect3DDevice9::CreatePixelShader(CONST DWORD* pFunction,IDirect3DPixe
 			}
 		}
 
-		g_D3DToOpenGLTranslatorGLSL.TranslateShader( (uint32 *) pFunction, &tempbuf, &bVertexShader, glslPixelShaderOptions, nShadowDepthSamplerMask, nCentroidMask, pDebugLabel );
+		g_D3DToOpenGLTranslatorGLSL.TranslateShader( (uint32 *) pFunction, &tempbuf, &bVertexShader, glslPixelShaderOptions, nShadowDepthSamplerMask, nCentroidMask, pDebugLabel, gGL->m_bHave_GL_QCOM_alpha_test );
 			
 		transbuf.PutString( (char*)tempbuf.Base() );
 		transbuf.PutString( "\n\n" );	// whitespace
@@ -4186,7 +4186,7 @@ HRESULT IDirect3DDevice9::CreateVertexShader(CONST DWORD* pFunction, IDirect3DVe
 			glslVertexShaderOptions |= D3DToGL_OptionGenerateBoneUniformBuffer;
 		}
 
-		g_D3DToOpenGLTranslatorGLSL.TranslateShader( (uint32 *) pFunction, &tempbuf, &bVertexShader, glslVertexShaderOptions, -1, nCentroidMask, pDebugLabel );
+		g_D3DToOpenGLTranslatorGLSL.TranslateShader( (uint32 *) pFunction, &tempbuf, &bVertexShader, glslVertexShaderOptions, -1, nCentroidMask, pDebugLabel, gGL->m_bHave_GL_QCOM_alpha_test );
 			
 		transbuf.PutString( (char*)tempbuf.Base() );
 		transbuf.PutString( "\n\n" );	// whitespace

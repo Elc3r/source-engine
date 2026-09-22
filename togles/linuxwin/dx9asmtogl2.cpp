@@ -24,12 +24,18 @@
 //------------------------------------------------------------------------------
 // DX9AsmToGL2.cpp
 //------------------------------------------------------------------------------
-// Immediately include gl.h, etc. here to avoid compilation warnings.
+// Only the GL scalar types/constants used by dxabstract_types.h are needed;
+// shader translation must not pull in the platform window/context manager.
+#ifdef IOS
+#include <GLES3/gl3.h>
+#else
 #include <GL/gl.h>
 #include <GL/glext.h>
-
-#include "togles/rendermechanism.h"
+#endif
+#include "tier0/basetypes.h"
 #include "tier0/dbg.h"
+#include "bitmap/imageformat.h"
+#include "togles/linuxwin/dxabstract_types.h"
 #include "tier1/strtools.h"
 #include "tier1/utlbuffer.h"
 #include "dx9asmtogl2.h"
@@ -52,10 +58,6 @@
 
 #define UNDECLARED_OUTPUT	0xFFFFFFFF
 #define UNDECLARED_INPUT	0xFFFFFFFF
-
-#ifndef POSIX
-#define Debugger() Assert(0)
-#endif
 
 //#define Assert(n) if( !(n) ){ TranslationError(); }
 
@@ -418,7 +420,7 @@ CUtlString EnsureNumSwizzleComponents( const char *pSrcRegisterName, int nCompon
 
 static void TranslationError()
 {
-	GLMDebugPrintf( "D3DToGL: GLSL translation error!\n" );
+	Msg( "D3DToGL: GLSL translation error!\n" );
 	DebuggerBreakIfDebugging();
 	
 	Error( "D3DToGL: GLSL translation error!\n" );
@@ -969,7 +971,7 @@ void D3DToGL::PrintUsageAndIndexToString( uint32 dwToken, char* strUsageUsageInd
 			V_snprintf( strUsageUsageIndexName, nBufLen, "_sample" );					// no analog
 			break;
 		default:
-			Debugger();
+			DebuggerBreakIfDebugging();
 		break;
 	}
 }
@@ -1781,13 +1783,13 @@ uint32 D3DToGL::MaintainAttributeMap( uint32 dwToken, uint32 dwRegToken )
 		// avoid writing 0xBB since runtime code uses that for an 'unused' marker
 		if ( m_dwAttribMap[ dwRegIndex ] == 0xBB )
 		{
-			Debugger();
+			DebuggerBreakIfDebugging();
 		}
 	}
 	else
 	{
 		//not OK
-		Debugger();
+		DebuggerBreakIfDebugging();
 	}
 
 	return dwRegIndex;
@@ -2294,7 +2296,7 @@ static void TestFloatConversion()
 
 		if ( flMaxErr1 > flMaxErr2 )
 		{
-			GLMDebugPrintf( "!\n" );
+			Msg( "!\n" );
 		}
 	}
 }
@@ -2387,7 +2389,7 @@ void D3DToGL::Handle_DEF()
 
 		if ( flMaxErr1 > flMaxErr2 )
 		{
-			GLMDebugPrintf( "!\n" );
+			Msg( "!\n" );
 		}
 #endif
 
@@ -3172,7 +3174,7 @@ void D3DToGL::InsertMoveFromAddressRegister( CUtlBuffer *pCode, int nARLComp0, i
 //------------------------------------------------------------------------------
 
 
-int D3DToGL::TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bool *bVertexShader, uint32 options, int32 nShadowDepthSamplerMask, uint32 nCentroidMask, char *debugLabel )
+int D3DToGL::TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bool *bVertexShader, uint32 options, int32 nShadowDepthSamplerMask, uint32 nCentroidMask, char *debugLabel, bool nativeAlphaTest )
 {
 	CUtlString sLine, sParamName;
 	uint32 i, dwToken, nInstruction, nNumTokensToSkip;
@@ -3287,13 +3289,13 @@ int D3DToGL::TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bo
 	if ( ( dwToken & 0xFFFF0000 ) == 0xFFFF0000 )
 	{
 		// must explicitly enable extensions if emitting GLSL
-		V_snprintf( (char *)m_pBufHeaderCode->Base(), m_pBufHeaderCode->Size(), GLSL_VERSION "precision highp float;\n#define varying in\n\n%s", glslExtText );
+		V_snprintf( (char *)m_pBufHeaderCode->Base(), m_pBufHeaderCode->Size(), "#version 300 es\nprecision highp float;\n#define varying in\n\n%s", glslExtText );
 		m_bVertexShader = false;
 	}
 	else // vertex shader
 	{
 		m_bGenerateSRGBWriteSuffix = false;
-		V_snprintf( (char *)m_pBufHeaderCode->Base(), m_pBufHeaderCode->Size(), GLSL_VERSION "precision highp float;\n#define attribute in\n#define varying out\n%s//ATTRIBMAP-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx\n", glslExtText );
+		V_snprintf( (char *)m_pBufHeaderCode->Base(), m_pBufHeaderCode->Size(), "#version 300 es\nprecision highp float;\n#define attribute in\n#define varying out\n%s//ATTRIBMAP-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx-xx\n", glslExtText );
 
 		// find that first '-xx' which is where the attrib map will be written later.
 		pAttribMapStart = strstr( (char *)m_pBufHeaderCode->Base(), "-xx" ) + 1;
@@ -3337,7 +3339,8 @@ int D3DToGL::TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bo
 		if ( m_bSpew )
 		{
 #ifdef POSIX
-			printf("\n** token# %04x inst# %04d  opcode %s (%08x)", tokenIndex, opcounter, GLMDecode(eD3D_SIO, nInstruction), dwToken );
+			PrintOpcode( nInstruction, buff, sizeof( buff ) );
+			printf("\n** token# %04x inst# %04d  opcode %s (%08x)", tokenIndex, opcounter, buff, dwToken );
 #endif
 			opcounter++;
 		}
@@ -3914,7 +3917,7 @@ int D3DToGL::TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bo
 	if( FindSubcode("_gl_FrontSecondaryColor") && !m_bFrontSecondaryColor )
 		StrcatToHeaderCode( "in vec4 _gl_FrontSecondaryColor;\n" );
 
-	if( !gGL->m_bHave_GL_QCOM_alpha_test && m_iFragDataCount && bVertexShader )
+	if( !nativeAlphaTest && m_iFragDataCount && !m_bVertexShader )
 		StrcatToHeaderCode( "\nuniform float alpha_ref;\n" );	
 
 	StrcatToHeaderCode( "\nvoid main()\n{\n" );
@@ -3933,7 +3936,7 @@ int D3DToGL::TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bo
 		StrcatToALUCode( "gl_FragData[0].xyz = mix( gl_FragData[0].xyz, sRGBFragData, flSRGBWrite );\n" );
 	}
 
-	if( !gGL->m_bHave_GL_QCOM_alpha_test && m_iFragDataCount && bVertexShader )
+	if( !nativeAlphaTest && m_iFragDataCount && !m_bVertexShader )
 		StrcatToALUCode( "if( gl_FragData[0].a < alpha_ref ) { discard; };\n" );
 
 	strcat_s( (char*)m_pBufALUCode->Base(), m_pBufALUCode->Size(), "}\n" );

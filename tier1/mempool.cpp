@@ -12,7 +12,7 @@
 #include "tier1/strtools.h"
 
 #ifndef _PS3
-#ifdef _OSX
+#if defined(_OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

@@ -93,6 +93,21 @@ extern TelemetryGPUStats_t g_TelemetryGPUStats;
 struct GLMRect;
 typedef void *PseudoGLContextPtr;
 
+class CShowPixelsParams;
+
+// Optional native-context host. All callbacks are required. The host and its
+// native context must outlive GLMContext, which borrows the application window.
+// NewContext binds this context before state member constructors issue GL calls.
+struct GLMContextHost
+{
+    void *context;
+    void *userData;
+    bool (*makeCurrent)(void *userData, void *context);
+    bool (*showPixels)(void *userData, CShowPixelsParams *params);
+    void (*displayedSize)(void *userData, uint &width, uint &height);
+    GLMRendererInfoFields caps;
+};
+
 // parrot the D3D present parameters, more or less... "adapter" translates into "active display index" per the m_activeDisplayCount below.
 class GLMDisplayParams
 {
@@ -158,7 +173,7 @@ public:
 						void			SetDisplayMode( GLMDisplayParams *params );								// set the display res (only useful for FS)
 					#endif
 	
-	GLMContext		*NewContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params );		// this will have to change
+	GLMContext		*NewContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, const GLMContextHost *host = NULL );		// this will have to change
 	void			DelContext( GLMContext *context );
 
 		// with usage of CGLMacro.h we could dispense with the "current context" thing
@@ -736,6 +751,10 @@ FORCEINLINE void GLContextSet( GLBlendEnableSRGB_t *src )
 //	GLint encoding = 0;
 //	gGL->glGetFramebufferAttachmentParameteriv( GL_DRAW_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &encoding );
 
+#ifdef IOS
+	// GLES converts sRGB attachments automatically; toggling requires this extension.
+	if ( gGL->m_bHave_GL_EXT_sRGB_write_control )
+#endif
 	glSetEnable( GL_FRAMEBUFFER_SRGB_EXT, src->enable != 0 );
 }
 
@@ -1471,7 +1490,7 @@ class GLMContext
 		// methods------------------------------------------
 		
 				// old GLMContext( GLint displayMask, GLint rendererID, PseudoNSGLContextPtr nsglShareCtx );
-		GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params );
+		GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, const GLMContextHost *host = NULL );
 		~GLMContext();
 
 #ifndef OSX
@@ -1583,6 +1602,10 @@ class GLMContext
 
 		IDirect3DDevice9				*m_pDevice;
 		GLMRendererInfoFields			m_caps;
+        const GLMContextHost *m_host;
+        bool BindNativeContext(void *context);
+        void HostShowPixels(CShowPixelsParams *params);
+        void HostDisplayedSize(uint &width, uint &height);
 	
 		bool							m_displayParamsValid;		// is there a param block copied in yet
 		GLMDisplayParams				m_displayParams;			// last known display config, either via constructor, or by SetDisplayParams...

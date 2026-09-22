@@ -177,6 +177,7 @@ class	CGLMTexLayoutTable
 {
 public:
 					CGLMTexLayoutTable();
+	~CGLMTexLayoutTable();
 	
 	GLMTexLayout	*NewLayoutRef( GLMTexLayoutKey *pDesiredKey );		// pass in a pointer to layout key - receive ptr to completed layout
 	void			DelLayoutRef( GLMTexLayout *layout );		// pass in pointer to completed layout.  refcount is dropped.
@@ -313,6 +314,9 @@ struct GLMTexSamplingParams
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_WRAP_R, dxtogl_addressMode[m_packed.m_addressW] );
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_MIN_FILTER, dxtogl_minFilter[m_packed.m_minFilter][m_packed.m_mipFilter] );
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_MAG_FILTER, dxtogl_magFilter[m_packed.m_magFilter] );
+#ifdef IOS
+		if ( gGL->m_bHave_GL_EXT_texture_filter_anisotropic )
+#endif
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_MAX_ANISOTROPY_EXT, m_packed.m_maxAniso );
 
 		float flBorderColor[4] = { 0, 0, 0, 0 };
@@ -323,6 +327,9 @@ struct GLMTexSamplingParams
 			flBorderColor[2] = ((m_borderColor      ) & 0xFF) * (1.0f/255.0f);	//B
 			flBorderColor[3] = ((m_borderColor >> 24) & 0xFF) * (1.0f/255.0f);	//A
 		}
+#ifdef IOS
+		if ( gGL->m_bHave_GL_EXT_texture_border_clamp || gGL->m_bHave_GL_OES_texture_border_clamp )
+#endif
 		gGL->glSamplerParameterfv( nSamplerObject, GL_TEXTURE_BORDER_COLOR, flBorderColor ); // <-- this crashes ATI's driver, remark it out
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_MIN_LOD, m_packed.m_minLOD );
 //		gGL->glSamplerParameterfv( nSamplerObject, GL_TEXTURE_LOD_BIAS, &m_lodBias );
@@ -373,6 +380,9 @@ struct GLMTexSamplingParams
 		{
 			gGL->glTexParameteri( target, GL_TEXTURE_MIN_FILTER, dxtogl_minFilter[m_packed.m_minFilter][m_packed.m_mipFilter] );
 			gGL->glTexParameteri( target, GL_TEXTURE_MAG_FILTER, dxtogl_magFilter[m_packed.m_magFilter] );
+#ifdef IOS
+		if ( gGL->m_bHave_GL_EXT_texture_filter_anisotropic )
+#endif
 			gGL->glTexParameteri( target, GL_TEXTURE_MAX_ANISOTROPY_EXT, m_packed.m_maxAniso );
 		}
 
@@ -387,6 +397,9 @@ struct GLMTexSamplingParams
 				flBorderColor[3] = ((m_borderColor >> 24) & 0xFF) * (1.0f/255.0f);	//A
 			}
 		
+#ifdef IOS
+		if ( gGL->m_bHave_GL_EXT_texture_border_clamp || gGL->m_bHave_GL_OES_texture_border_clamp )
+#endif
 			gGL->glTexParameterfv( target, GL_TEXTURE_BORDER_COLOR, flBorderColor ); // <-- this crashes ATI's driver, remark it out
 		}
 
@@ -433,6 +446,9 @@ struct GLMTexSamplingParams
 		gGL->glTexParameteri( target, GL_TEXTURE_WRAP_R, dxtogl_addressMode[m_packed.m_addressW] );
 		gGL->glTexParameteri( target, GL_TEXTURE_MIN_FILTER, dxtogl_minFilter[m_packed.m_minFilter][m_packed.m_mipFilter] );
 		gGL->glTexParameteri( target, GL_TEXTURE_MAG_FILTER, dxtogl_magFilter[m_packed.m_magFilter] );
+#ifdef IOS
+		if ( gGL->m_bHave_GL_EXT_texture_filter_anisotropic )
+#endif
 		gGL->glTexParameteri( target, GL_TEXTURE_MAX_ANISOTROPY_EXT, m_packed.m_maxAniso );
 
 		float flBorderColor[4] = { 0, 0, 0, 0 };
@@ -443,6 +459,9 @@ struct GLMTexSamplingParams
 			flBorderColor[2] = ((m_borderColor      ) & 0xFF) * (1.0f/255.0f);	//B
 			flBorderColor[3] = ((m_borderColor >> 24) & 0xFF) * (1.0f/255.0f);	//A
 		}
+#ifdef IOS
+		if ( gGL->m_bHave_GL_EXT_texture_border_clamp || gGL->m_bHave_GL_OES_texture_border_clamp )
+#endif
 		gGL->glTexParameterfv( target, GL_TEXTURE_BORDER_COLOR, flBorderColor ); // <-- this crashes ATI's driver, remark it out
 		gGL->glTexParameteri( target, GL_TEXTURE_MIN_LOD, m_packed.m_minLOD );
 //		gGL->glTexParameterfv( target, GL_TEXTURE_LOD_BIAS, &m_lodBias );

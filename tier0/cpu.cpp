@@ -11,7 +11,7 @@
 #include <windows.h>
 #elif defined(_LINUX)
 #include <stdlib.h>
-#elif defined(OSX) || defined(PLATFORM_BSD)
+#elif defined(OSX) || defined(IOS) || defined(PLATFORM_BSD)
 #include <sys/sysctl.h>
 #endif
 
@@ -584,7 +584,7 @@ const CPUInformation* GetCPUInformation()
 		pi.m_nLogicalProcessors  = 1;
 		Assert( !"couldn't read cpu information from /proc/cpuinfo" );
 	}
-#elif defined(OSX) || defined(PLATFORM_BSD)
+#elif defined(OSX) || defined(IOS) || defined(PLATFORM_BSD)
 	int mib[2], num_cpu = 1;
 	size_t len;
 	mib[0] = CTL_HW;

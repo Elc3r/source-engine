@@ -283,6 +283,7 @@ def define_platform(conf):
 
 
 def options(opt):
+	opt.load('ios')
 	grp = opt.add_option_group('Common options')
 
 	grp.add_option('-4', '--32bits', action = 'store_true', dest = 'TARGET32', default = False,
@@ -434,6 +435,9 @@ def check_deps(conf):
 		# conf.multicheck(*a, run_all_tests = True, mandatory = True)
 
 def configure(conf):
+	if conf.options.IOS_TARGET:
+		conf.load('ios')
+		return
 	conf.load('fwgslib reconfigure compiler_optimizations')
 
 	# Force XP compability, all build targets should add
@@ -625,6 +629,9 @@ def configure(conf):
 		conf.add_subproject(projects['game'])
 
 def build(bld):
+	if bld.env.IOS:
+		bld.load('ios')
+		return
 	os.environ["CCACHE_DIR"] = os.path.abspath('.ccache/'+bld.env.COMPILER_CC+'/'+bld.env.DEST_OS+'/'+bld.env.DEST_CPU)
 
 	if bld.env.DEST_OS in ['win32', 'android']:

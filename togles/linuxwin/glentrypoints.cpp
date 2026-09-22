@@ -29,8 +29,6 @@
 
 #include "togles/rendermechanism.h"
 
-#include "appframework/AppFramework.h"
-#include "appframework/IAppSystemGroup.h"
 #include "tier0/dbg.h"
 #include "tier0/icommandline.h"
 #include "tier0/platform.h"
@@ -54,7 +52,7 @@
 #error
 #endif
 
-#if defined(PLATFORM_BSD) || defined(OSX) || defined(LINUX) || (defined (WIN32) && defined( DX_TO_GL_ABSTRACTION ))
+#if defined(PLATFORM_BSD) || defined(OSX) || defined(IOS) || defined(LINUX) || (defined (WIN32) && defined( DX_TO_GL_ABSTRACTION ))
 	#include "appframework/ilaunchermgr.h"
 	ILauncherMgr *g_pLauncherMgr = NULL;
 #endif
@@ -250,7 +248,11 @@ static int GetOpenGLVersionPatch()
 static bool CheckBaseOpenGLVersion()
 {
 	const int NEED_MAJOR = 3;
+#ifdef IOS
+	const int NEED_MINOR = 0; // ANGLE Metal currently exposes GLES 3.0.
+#else
 	const int NEED_MINOR = 2;
+#endif
 	const int NEED_PATCH = 0;
 
 	int major, minor, patch;
@@ -269,7 +271,16 @@ static bool CheckBaseOpenGLVersion()
 
 static bool CheckOpenGLExtension_internal(const char *ext, const int coremajor, const int coreminor)
 {
-	if ((coremajor >= 0) && (coreminor >= 0))  // we know that this extension is part of the base spec as of GL_VERSION coremajor.coreminor.
+#ifdef IOS
+    // Desktop GL version numbers do not describe the GLES feature set.
+    if (!strcmp(ext, "GL_ARB_framebuffer_object") || !strcmp(ext, "GL_EXT_framebuffer_object") ||
+        !strcmp(ext, "GL_EXT_framebuffer_blit") || !strcmp(ext, "GL_ARB_map_buffer_range") ||
+        !strcmp(ext, "GL_ARB_vertex_buffer_object") || !strcmp(ext, "GL_ARB_occlusion_query") ||
+        !strcmp(ext, "GL_ARB_sync") || !strcmp(ext, "GL_ARB_uniform_buffer"))
+        return CheckBaseOpenGLVersion(); // All are supplied by our GLES 3 baseline.
+    if (!strcmp(ext, "GL_ARB_debug_output")) ext = "GL_KHR_debug";
+#else
+    if ((coremajor >= 0) && (coreminor >= 0))  // we know that this extension is part of the base spec as of GL_VERSION coremajor.coreminor.
 	{
 		int major, minor, patch;
 		GetOpenGLVersion(&major, &minor, &patch);
@@ -279,6 +290,7 @@ static bool CheckOpenGLExtension_internal(const char *ext, const int coremajor, 
 			return true;  // we definitely have access to this "extension," as it is part of this version of the GL's core functionality.
 	}
 
+#endif
 	// okay, see if the GL_EXTENSIONS string reports it.
 	static CDynamicFunctionOpenGL< true, const GLubyte *( _APIENTRY *)(GLenum name), const GLubyte * > glGetString("glGetString");
 	if (!glGetString)
@@ -412,7 +424,9 @@ COpenGLEntryPoints::COpenGLEntryPoints()
 		m_bHave_GL_ARB_occlusion_query = true;
 		m_bHave_GL_EXT_buffer_storage = false;
 		m_bHave_GL_ARB_vertex_buffer_object = true;
+#ifndef IOS
 		m_bHave_GL_ARB_debug_output = true;
+#endif
 		m_bHave_GL_ARB_sync = true;
 
 		//	m_bHave_GL_EXT_texture_sRGB_decode = true;
@@ -512,7 +526,7 @@ COpenGLEntryPoints::COpenGLEntryPoints()
 
 COpenGLEntryPoints::~COpenGLEntryPoints()
 {
-	for ( uint i = 0; i < cGLTotalDriverProviders; ++i )
+	for ( uint i = 0; i < cGLTotalDriverStrings; ++i )
 	{
 		free( m_pGLDriverStrings[i] );
 		m_pGLDriverStrings[i] = NULL;

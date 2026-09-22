@@ -420,7 +420,7 @@ void inline SinCos( float radians, float *sine, float *cosine )
 #elif defined( PLATFORM_WINDOWS_PC64 )
 	*sine = sin( radians );
 	*cosine = cos( radians );
-#elif defined( OSX )
+#elif defined( OSX ) || defined(IOS)
     __sincosf(radians, sine, cosine);
 #elif defined( POSIX )
 	sincosf(radians, sine, cosine);

@@ -21,7 +21,7 @@
 #define VA_RESERVE_FLAGS (MEM_RESERVE|MEM_LARGE_PAGES)
 #endif
 
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>
@@ -1588,7 +1588,7 @@ void *CStdMemAlloc::Expand_NoLongerSupported( void *pMem, size_t nSize, const ch
 
 #if defined (LINUX)
 #include <malloc.h>
-#elif defined (OSX)
+#elif defined (OSX) || defined(IOS)
 #define malloc_usable_size( ptr ) malloc_size( ptr )
 extern "C" {
 	extern size_t malloc_size( const void *ptr );

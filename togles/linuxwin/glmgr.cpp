@@ -26,6 +26,7 @@
 //
 //===============================================================================
 #include "togles/rendermechanism.h"
+#include "texture_upload.h"
 
 #include "tier0/icommandline.h"
 
@@ -74,7 +75,6 @@ const int kGLMHighWaterUndeleted = 2048;
 const int kDeletedTextureDim = 4;
 const uint32 g_garbageTextureBits[ 4 * kDeletedTextureDim * kDeletedTextureDim ] = { 0 };
 
-extern void CompressedTexImage2D(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid *data);
 extern void convert_texture( GLenum &internalformat, GLsizei width, GLsizei height, GLenum &format, GLenum &type, void *data );
 
 char g_nullFragmentProgramText [] =
@@ -454,11 +454,14 @@ GLMgr::~GLMgr()
 
 //===============================================================================
 
-GLMContext *GLMgr::NewContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
+GLMContext *GLMgr::NewContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, const GLMContextHost *host )
 {
-	// this now becomes really simple.  We just pass through the params.
-	
-	return new GLMContext( pDevice, params );
+	// GLState members write defaults before the constructor body runs.
+	// Bind a borrowed context before constructing any of those members.
+	if ( host && ( !host->context || !host->makeCurrent || !host->displayedSize ||
+		!host->showPixels || !host->makeCurrent( host->userData, host->context ) ) )
+		return NULL;
+	return new GLMContext( pDevice, params, host );
 }
 
 void GLMgr::DelContext( GLMContext *context )
@@ -496,6 +499,25 @@ GLMContext *GLMgr::GetCurrentContext( void )
 
 //===============================================================================
 // GLMContext public methods
+bool GLMContext::BindNativeContext(void *context)
+{
+    return m_host ? m_host->makeCurrent(m_host->userData, context) : MakeContextCurrent(context);
+}
+
+void GLMContext::HostShowPixels(CShowPixelsParams *params)
+{
+    if (m_host) {
+        if (!m_host->showPixels || !m_host->showPixels(m_host->userData, params))
+            Error("GLM host presentation failed\n");
+    } else ShowPixels(params);
+}
+
+void GLMContext::HostDisplayedSize(uint &width, uint &height)
+{
+    if (m_host) m_host->displayedSize(m_host->userData,width,height);
+    else DisplayedSize(width,height);
+}
+
 void GLMContext::MakeCurrent( bool bRenderThread )
 {
 	tmZone( TELEMETRY_LEVEL0, 0, "GLMContext::MakeCurrent" );
@@ -508,7 +530,7 @@ void GLMContext::MakeCurrent( bool bRenderThread )
 	{
 //		Msg( "********************************************  %08x Acquiring Context\n", ThreadGetCurrentId() );
 		m_nCurOwnerThreadId = ThreadGetCurrentId();
-		bool bSuccess = MakeContextCurrent( m_ctx );
+		bool bSuccess = BindNativeContext( m_ctx );
 		if ( !bSuccess )
 		{
 			Assert( 0 );
@@ -521,13 +543,13 @@ void GLMContext::MakeCurrent( bool bRenderThread )
 	{
 		m_nCurOwnerThreadId = ThreadGetCurrentId();
 		m_dwRenderThreadId = dwThreadId;
-		MakeContextCurrent( m_ctx );
+		BindNativeContext( m_ctx );
 		m_bIsThreading = true;
 	}
 	else if ( !m_bIsThreading )
 	{
 		m_nCurOwnerThreadId = ThreadGetCurrentId();
-		MakeContextCurrent( m_ctx );
+		BindNativeContext( m_ctx );
 	}
 	else
 	{
@@ -554,12 +576,12 @@ void GLMContext::ReleaseCurrent( bool bRenderThread )
 //		Msg( "********************************************  %08x Releasing Context\n", ThreadGetCurrentId() );
 		m_nCurOwnerThreadId = 0;
 		m_nThreadOwnershipReleaseCounter++;
-		MakeContextCurrent( NULL );
+		BindNativeContext( NULL );
 	}
 #else
 	m_nCurOwnerThreadId = 0;
 	m_nThreadOwnershipReleaseCounter++;
-	MakeContextCurrent( NULL );
+	BindNativeContext( NULL );
 	if ( bRenderThread )
 	{
 		m_bIsThreading = false;
@@ -2236,7 +2258,7 @@ void GLMContext::Present( CGLMTex *tex )
 
 		// we call showpixels once with the "only sync view" arg set, so we know what the latest surface size is, before trying to do our own blit !
 		showparams.m_onlySyncView = true;
-		ShowPixels(&showparams);	// doesn't actually show anything, just syncs window/fs state (would make a useful separate call)
+		HostShowPixels(&showparams);	// doesn't actually show anything, just syncs window/fs state (would make a useful separate call)
 		showparams.m_onlySyncView = false;
 	
 		bool refresh = true;
@@ -2266,7 +2288,7 @@ void GLMContext::Present( CGLMTex *tex )
 				GLMRect	srcRect, dstRect;
 			
 				uint dstWidth,dstHeight;
-				DisplayedSize( dstWidth,dstHeight );
+				HostDisplayedSize( dstWidth,dstHeight );
 
 				srcRect.xmin	=	0;
 				srcRect.ymin	=	0;
@@ -2299,7 +2321,7 @@ void GLMContext::Present( CGLMTex *tex )
 				// showparams.m_noBlit is left set to 0.  CocoaMgr does the blit.
 			}
 
-			ShowPixels(&showparams);
+			HostShowPixels(&showparams);
 		}
 
 		//	put the original FB back in place (both read and draw)
@@ -2357,8 +2379,9 @@ static uint gPersistentBufferSize[kGLMNumBufferTypes] =
 	0,					// kGLMPixelBuffer
 };
 
-GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
+GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, const GLMContextHost *host )
 {
+	m_host = host;
 	m_nNumDirtySamplers = 0;
 
 	if( gGL->m_nDriverProvider == cGLDriverProviderARM )
@@ -2443,16 +2466,17 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 	uint					selWords	=	0;
 
 	memset( &m_caps, 0, sizeof( m_caps ) );
-	GetDesiredPixelFormatAttribsAndRendererInfo( (uint**)&selAttribs, &selWords, &m_caps );
+	if (m_host) m_caps = m_host->caps;
+    else GetDesiredPixelFormatAttribsAndRendererInfo( (uint**)&selAttribs, &selWords, &m_caps );
 	uint selBytes = selWords * sizeof( uint ); selBytes;
 
 #if defined( USE_SDL )
-	m_ctx = (SDL_GLContext)GetGLContextForWindow( params ? (void*)params->m_focusWindow : NULL );
+	m_ctx = m_host ? m_host->context : (SDL_GLContext)GetGLContextForWindow( params ? (void*)params->m_focusWindow : NULL );
 	MakeCurrent( true );
 #else
 #error
 #endif
-	IncrementWindowRefCount();
+	if (!m_host) IncrementWindowRefCount();
 
 	// If we're using GL_ARB_debug_output, go ahead and setup the callback here.
 	if ( CommandLine()->FindParm( "-gl_debug" ) ) 
@@ -2744,13 +2768,14 @@ GLMContext::~GLMContext	()
 		m_pNullFragmentProgram = NULL;
 	}
 	
-	// walk m_fboTable and free them up..
-	FOR_EACH_VEC( m_fboTable, i )
-	{
-		CGLMFBO *fbo = m_fboTable[i];
-		DelFBO( fbo );
-	}
-	m_fboTable.SetSize( 0 );
+	DelProgram( m_preloadTexVertexProgram );
+	DelProgram( m_preload2DTexFragmentProgram );
+	DelProgram( m_preload3DTexFragmentProgram );
+	DelProgram( m_preloadCubeTexFragmentProgram );
+
+	// DelFBO removes its entry; iterating forward would skip half the objects.
+	while ( m_fboTable.Count() )
+		DelFBO( m_fboTable.Tail() );
 
 	if (m_pairCache)
 	{
@@ -2760,13 +2785,22 @@ GLMContext::~GLMContext	()
 	
 	// we need a m_texTable I think..
 
-	// m_texLayoutTable can be scrubbed once we know that all the tex are freed
+	delete m_texLayoutTable;
+	m_texLayoutTable = NULL;
+
+#ifndef OSX
+	if ( m_bUseSamplerObjects )
+	{
+		for ( uint i = 0; i < cSamplerObjectHashSize; ++i )
+			gGL->glDeleteSamplers( 1, &m_samplerObjectHash[i].m_samplerObject );
+	}
+#endif
 
 	gGL->glDeleteBuffers( 1, &m_destroyPBO );
 
 	PurgeTexCache();
 
-	DecrementWindowRefCount();
+	if (!m_host) DecrementWindowRefCount();
 }
 
 // This method must call SelectTMU()/glActiveTexture() (it's expected as a side effect).

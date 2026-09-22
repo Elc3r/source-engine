@@ -3530,11 +3530,15 @@ void CGLMFileMirror::WriteFile( void )
 
 void	CGLMFileMirror::OpenInEditor( bool foreground )
 {
+#ifndef IOS
 	char temp[64000];
 	
 	// pass -b if no desire to bring editor to foreground
 	sprintf(temp,"/usr/bin/bbedit %s %s", foreground ? "" : "-b", m_path );
 	system( temp );
+#else
+    Warning("External shader editors are unavailable on iOS\n");
+#endif
 }
 
 
