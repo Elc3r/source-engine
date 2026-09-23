@@ -6,6 +6,7 @@
 #include "tier1/utlbuffer.h"
 #include "dx9asmtogl2.h"
 #include "ToGLESChecks.h"
+#include "ToGLESFixtures.h"
 #include "ToGLESRuntime.h"
 #include <stdio.h>
 #include <string.h>
@@ -17,36 +18,10 @@ void DecompressBlockDXT3(uint32_t, uint32_t, uint32_t, const uint8_t *, int, int
 void DecompressBlockDXT5(uint32_t, uint32_t, uint32_t, const uint8_t *, int, int *, int *, uint32_t *);
 }
 
-// Original, small SM2 fixtures expressed with the engine's D3D9 token constants.
-static uint32 Register(unsigned type, unsigned index) {
-    return 0x80000000u | ((type << D3DSP_REGTYPE_SHIFT) & D3DSP_REGTYPE_MASK) |
-        ((type << D3DSP_REGTYPE_SHIFT2) & D3DSP_REGTYPE_MASK2) | index;
-}
-static uint32 Dst(unsigned type, unsigned index) { return Register(type, index) | D3DSP_WRITEMASK_ALL; }
-static uint32 Src(unsigned type, unsigned index) { return Register(type, index) | D3DVS_NOSWIZZLE; }
-static uint32 Op(unsigned opcode, unsigned length) { return opcode | (length << D3DSI_INSTLENGTH_SHIFT); }
-
 static GLuint Translate(GLenum stage, const char *directory, char *detail, size_t capacity) {
-    uint32 vertex[] = {0xfffe0200,
-        Op(D3DSIO_DCL,2), 0x80000000u | D3DDECLUSAGE_POSITION, Dst(D3DSPR_INPUT,0),
-        Op(D3DSIO_DCL,2), 0x80000000u | D3DDECLUSAGE_TEXCOORD, Dst(D3DSPR_INPUT,1),
-        Op(D3DSIO_MOV,2), Dst(D3DSPR_RASTOUT,0), Src(D3DSPR_INPUT,0),
-        Op(D3DSIO_MOV,2), Dst(D3DSPR_TEXCRDOUT,0), Src(D3DSPR_INPUT,1), D3DPS_END()};
-    uint32 pixel[] = {0xffff0200,
-        Op(D3DSIO_DCL,2), 0x80000000u, Dst(D3DSPR_TEXTURE,0),
-        Op(D3DSIO_DCL,2), 0x80000000u | D3DSTT_2D, Dst(D3DSPR_SAMPLER,0),
-        Op(D3DSIO_TEX,3), Dst(D3DSPR_TEMP,0), Src(D3DSPR_TEXTURE,0), Src(D3DSPR_SAMPLER,0),
-        Op(D3DSIO_MOV,2), Dst(D3DSPR_COLOROUT,0), Src(D3DSPR_TEMP,0), D3DPS_END()};
-    D3DToGL translator;
     CUtlBuffer output(0, 65536, CUtlBuffer::TEXT_BUFFER);
-    bool isVertex = false;
-    char label[] = "ios-togles-fixture";
     bool vertexStage = stage == GL_VERTEX_SHADER;
-    int status = translator.TranslateShader(vertexStage ? vertex : pixel, &output, &isVertex,
-        D3DToGL_OptionUseEnvParams | (vertexStage ? D3DToGL_OptionDoFixupZ : 0), 0, 0, label, false);
-    if (status != DISASM_OK || isVertex != vertexStage) {
-        snprintf(detail, capacity, "D3D9 translation failed"); return 0;
-    }
+    if (!ToGLESFixtures::Translate(vertexStage,output,detail,capacity)) return 0;
     const char *source = static_cast<const char *>(output.Base());
     char path[1024];
     snprintf(path, sizeof(path), "%s/togles-%s.glsl", directory, vertexStage ? "vertex" : "fragment");

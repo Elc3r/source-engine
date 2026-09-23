@@ -1,5 +1,6 @@
 #include "togles/rendermechanism.h"
 #include "ToGLESRuntime.h"
+#include "ToGLESShaderChecks.h"
 #include <EGL/egl.h>
 
 namespace {
@@ -123,12 +124,13 @@ int CheckToGLESObjects(char *detail, size_t capacity)
                 gGL->glBindFramebuffer(GL_FRAMEBUFFER,0); gGL->glDeleteFramebuffers(1,&fbo);
                 context->DelTex(texture);
             }
+            if (valid) valid=CheckToGLESShaderDraw(context,detail,capacity);
             if (context) GLMgr::aGLMgr()->DelContext(context);
             error=gGL->glGetError();
             if (error!=GL_NO_ERROR) { valid=false; snprintf(detail,capacity,"GLM teardown: GL error 0x%x",error); }
         }
         GLMgr::DelGLMgr();
-        if (valid) snprintf(detail,capacity,"2 GLM lifecycles + %d CGLMTex mip uploads: PASS",uploads);
+        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS",uploads);
     }
     if (!eglMakeCurrent(display,draw,read,previous)) {
         valid=false; snprintf(detail,capacity,"GLM objects: restoring host EGL context failed");

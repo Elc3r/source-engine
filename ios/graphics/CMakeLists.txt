@@ -53,7 +53,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../common ../../togles/linuxwin "${ANGLE_ROOT}/include")
     add_library(ToGLESRuntime STATIC ToGLESRuntime.cpp ../ToGLESBackend.cpp
         ../../togles/linuxwin/glentrypoints.cpp ../../togles/linuxwin/cglmbuffer.cpp
-        ../../togles/linuxwin/texture_upload.cpp ToGLESObjectChecks.cpp
+        ../../togles/linuxwin/texture_upload.cpp ToGLESObjectChecks.cpp ToGLESShaderChecks.cpp
         ../../togles/linuxwin/glmgr.cpp ../../togles/linuxwin/glmgrbasics.cpp
         ../../togles/linuxwin/cglmtex.cpp ../../togles/linuxwin/cglmfbo.cpp
         ../../togles/linuxwin/cglmprogram.cpp ../../togles/linuxwin/cglmquery.cpp

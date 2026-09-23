@@ -237,11 +237,29 @@ Context teardown releases all scratch FBOs, preload shaders, sampler objects and
 cached texture layouts. Callers must still delete their textures before the
 context, as required by the existing ownership model.
 
+Each GLM cycle also creates real `CGLMProgram` / `CGLMShaderPair` objects from
+shared original D3D9 SM2 fixtures, plus vertex/index `CGLMBuffer` objects filled
+through `Lock` / `Unlock`. Four indexed draws per cycle sample a `CGLMTex` DXT3
+texture. GPU readback verifies the original colors, a second translated shader
+with a tint constant, a constant change without relinking, and switching back
+with alpha discard. All **8 draws** pass; fractional color conversion allows
+at most one byte of rounding error per channel.
+
+The same shader-pair object first rejects compiled stages with incompatible
+varying types, then successfully relinks and renders. This caught an existing
+error in link-failure diagnostics: the code queried a program with
+`glGetShaderiv`, causing `GL_INVALID_OPERATION`. It now uses `glGetProgramiv`.
+The regression failed with GL error `0x502` before the fix and passes after it.
+The context's shader-pair cache is separately checked for insertion, reuse of
+an existing pair, a second pair and explicit purge.
+
 These are synthetic rendering fixtures, not full engine materials or game
 assets. Native compressed uploads, other DXT endpoint modes, uncompressed texture
 channel ordering, shader model 3, depth/stencil, border sampling and full sRGB
 semantics remain outside this probe. The Source material system, D3D9 device
-and actual material draw still need integration. The host presentation callback
+and actual material draw still need integration. The shader fixture binds
+attributes and uniforms directly and submits through the existing GLES backend;
+it does not yet exercise `FlushDrawStates` or D3D9 `DrawIndexedPrimitive`. The host presentation callback
 is connected but GLM presentation is not tested by the pbuffer checks.
 EGL rebinding does not validate context loss, thread handoff or iOS lifecycle.
 
