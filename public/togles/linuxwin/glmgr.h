@@ -100,6 +100,8 @@ class CShowPixelsParams;
 // NewContext binds this context before state member constructors issue GL calls.
 // showPixels synchronizes the view when m_onlySyncView is set; otherwise GLM
 // has blitted to framebuffer zero (m_noBlit) and the host only swaps buffers.
+#define TOGLES_CONTEXT_HOST_INTERFACE_VERSION "ToGLESContextHost001"
+
 struct GLMContextHost
 {
     void *context;

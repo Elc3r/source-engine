@@ -26,7 +26,8 @@
 #include "winutils.h"
 #include "tier0/vprof_telemetry.h"
 
-#if defined ( DX_TO_GL_ABSTRACTION )
+#if defined ( DX_TO_GL_ABSTRACTION ) && !defined( TOGLES )
+// ToGLES owns gGL in its entry-point module.
 // Placed here so inlines placed in dxabstract.h can access gGL
 COpenGLEntryPoints *gGL = NULL;
 #endif
@@ -189,7 +190,9 @@ bool CShaderDeviceMgrDx8::Connect( CreateInterfaceFn factory )
 	
 	mat_supports_d3d9ex.SetValue( bD3D9ExAvailable ? 1 : 0 );
 #else
-	#if defined( DO_DX9_HOOK )
+	#if defined( IOS ) && defined( TOGLES )
+		m_pD3D = ToGLESCreateD3D9(D3D_SDK_VERSION, factory);
+	#elif defined( DO_DX9_HOOK )
 		m_pD3D = Direct3DCreate9Hook(D3D_SDK_VERSION);
 	#else
 		m_pD3D = Direct3DCreate9(D3D_SDK_VERSION);

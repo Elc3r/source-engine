@@ -253,10 +253,13 @@ The regression failed with GL error `0x502` before the fix and passes after it.
 The context's shader-pair cache is separately checked for insertion, reuse of
 an existing pair, a second pair and explicit purge.
 
-The probe also links the actual `dxabstract.cpp`. An `IDirect3D9` constructed
-with a borrowed `GLMContextHost` exposes one windowed adapter and creates devices
-through `CreateDevice`. The host must outlive the adapter and its devices.
-Without a host, the existing desktop path remains the default. Adapter queries
+The probe also links the actual `dxabstract.cpp`. `ToGLESCreateD3D9` obtains a
+borrowed `GLMContextHost` through the application's `CreateInterfaceFn` under
+`ToGLESContextHost001`. It rejects missing or invalid hosts instead of falling
+back to the desktop launcher. The resulting `IDirect3D9` exposes one windowed
+adapter and creates devices through `CreateDevice`. The host must outlive the
+adapter and its devices. The plain `Direct3DCreate9` entry point preserves the
+desktop path. Adapter queries
 report the GLES renderer/version, current drawable size and queried texture-size
 limits; unknown PCI IDs and video-memory capacity remain zero. The remaining
 shader/format capabilities still come from the existing ToGLES tables and are
@@ -289,7 +292,9 @@ For hosted presentation, GLM always blits to framebuffer zero; the host only
 synchronizes the view and swaps EGL buffers. A failed host callback now returns
 `D3DERR_DEVICELOST` from D3D9 `Present` instead of terminating the process.
 Injected view-sync and swap failures, followed by successful retries, are checked
-for every device. This checks error propagation, not real EGL context-loss recovery.
+for every device. Both `gl_blitmode=0` and `gl_blitmode=1` are exercised, with
+the original value restored. This checks error propagation, not real EGL
+context-loss recovery.
 
 The repeated frames exposed a stale vertex attribute cache: `BeginFrame` disabled
 arrays but an unchanged declaration prevented their re-enabling. It now clears
@@ -304,16 +309,35 @@ The ARM64 device target compiles, packages and passes ad-hoc signature validatio
 it has not run on a physical iPhone. The changed `dxabstract.cpp` and `glmgr.cpp`
 also pass macOS x86_64 syntax checks, not a complete desktop renderer build.
 
-These are synthetic fixtures, not full engine materials or game assets. The
-Source startup still needs to supply the hosted adapter to the shader API;
-the exported `Direct3DCreate9` factory still selects the desktop path. The probe
-also has no connected cvar service, so runtime console-variable changes are not
-supported yet (their global change callbacks require that service). Device
-`Reset`, vsync timing and physical-device presentation are not runtime-tested here.
-Native compressed uploads, other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
+### Engine services and shader-API connection
+
+The probe links the real `vstdlib/cvar.cpp`, obtains `ICvar` through
+`VStdLib_GetICVarFactory`, connects tier1 and registers the linked engine ConVars.
+The service is process-owned, matching the lifetime of the statically linked
+ConVars; repeated scene initialization reuses it. The checks verify lookup,
+integer/string changes, global callbacks with previous values, unchanged-value
+suppression, clamping, deferred material-thread updates and explicit cleanup of
+a temporary ConVar. This fixes the probe's previous crash when `SetValue`
+dispatched global callbacks through a null `g_pCVar`.
+
+`CShaderDeviceMgrDx8::Connect` now selects `ToGLESCreateD3D9` on iOS/ToGLES.
+ToGLES retains ownership of its existing `gGL` definition, avoiding a duplicate
+in the shader API. The same factory used by this production connection is
+runtime-tested by the probe, including absent and invalid host cases. The actual
+`shaderdevicedx8.cpp` is compiled by the `ShaderAPICompileCheck` dependency for
+both iOS targets. This is a compile check, not a linked or running shader-device
+manager: its base connection still requires a real filesystem and `IShaderUtil`
+from the material system. The changed manager also passes the desktop macOS
+syntax check using the normal ToGL path.
+
+These are synthetic fixtures, not full engine materials or game assets. Full
+shader-API startup and a material draw still need filesystem/material-system
+integration. The plain `Direct3DCreate9` export remains the desktop factory;
+iOS uses the explicit factory above. Device `Reset`, vsync timing and physical-
+device presentation are not runtime-tested here. Native compressed uploads,
+other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
 stencil operations, border sampling and full sRGB semantics remain outside this
-probe. The Source material system and actual material draw remain unconnected.
-EGL rebinding does not validate context loss, thread handoff or iOS lifecycle.
+probe. EGL rebinding does not validate context loss, thread handoff or iOS lifecycle.
 
 ## Build boundaries
 
@@ -338,7 +362,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Supply the hosted D3D9 adapter to the Source shader API and exercise a material
-   draw, auditing its remaining platform and capability assumptions.
+1. Connect the real filesystem and material-system services needed by shader-API
+   startup, then exercise a material draw and audit its capability assumptions.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

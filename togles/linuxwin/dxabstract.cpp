@@ -6903,6 +6903,15 @@ D3DXPLANE* D3DXPlaneTransform( D3DXPLANE *pOut, CONST D3DXPLANE *pP, CONST D3DXM
 
 // ------------------------------------------------------------------------------------------------------------------------------ //
 
+IDirect3D9 *ToGLESCreateD3D9(UINT SDKVersion, CreateInterfaceFn factory)
+{
+	if ( SDKVersion != D3D_SDK_VERSION || !factory || !gGL ) return NULL;
+	const GLMContextHost *host = static_cast<const GLMContextHost *>(
+		factory( TOGLES_CONTEXT_HOST_INTERFACE_VERSION, NULL ) );
+	if ( !host || !BindD3DHost( host ) ) return NULL;
+	return new IDirect3D9( host );
+}
+
 IDirect3D9 *Direct3DCreate9(UINT SDKVersion)
 {
 	GLMPRINTF(( "-X- Direct3DCreate9: %d", SDKVersion ));

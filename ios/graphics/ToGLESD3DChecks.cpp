@@ -1,8 +1,20 @@
 #include "togles/rendermechanism.h"
 #include "ToGLESFixtures.h"
+#include "vstdlib/cvar.h"
+
+extern ConVar gl_blitmode;
 
 
 namespace {
+const GLMContextHost *factoryHost=NULL;
+void *AppFactory(const char *name, int *status)
+{
+    if (!strcmp(name,TOGLES_CONTEXT_HOST_INTERFACE_VERSION)) {
+        if (status) *status=factoryHost ? IFACE_OK : IFACE_FAILED;
+        return const_cast<GLMContextHost *>(factoryHost);
+    }
+    return VStdLib_GetICVarFactory()(name,status);
+}
 struct PresentCheck {
     const GLMContextHost *base;
     float expected[4*4];
@@ -202,7 +214,18 @@ bool CheckToGLESD3DDevice(const GLMContextHost *host, char *detail, size_t capac
     host->displayedSize(host->userData,width,height);
     GLMContextHost hosted=*host;
     hosted.userData=&presentation; hosted.makeCurrent=Bind; hosted.displayedSize=Size; hosted.showPixels=Swap;
-    IDirect3D9 *adapter=new IDirect3D9(&hosted);
+    factoryHost=NULL;
+    IDirect3D9 *missing=ToGLESCreateD3D9(D3D_SDK_VERSION,AppFactory);
+    valid=valid && !missing;
+    if (missing) missing->Release();
+    factoryHost=&invalidHost;
+    IDirect3D9 *invalid=ToGLESCreateD3D9(D3D_SDK_VERSION,AppFactory);
+    valid=valid && !invalid;
+    if (invalid) invalid->Release();
+    factoryHost=&hosted;
+    IDirect3D9 *adapter=ToGLESCreateD3D9(D3D_SDK_VERSION,AppFactory);
+    factoryHost=NULL;
+    if (!adapter) { snprintf(detail,capacity,"Shader API hosted D3D9 factory failed"); return false; }
     D3DCAPS9 caps={};
     D3DADAPTER_IDENTIFIER9 identifier={};
     D3DDISPLAYMODE mode={};
@@ -223,7 +246,9 @@ bool CheckToGLESD3DDevice(const GLMContextHost *host, char *detail, size_t capac
     valid=valid && adapter->CreateDevice(1,D3DDEVTYPE_HAL,NULL,0,&present,&invalidDevice)==D3DERR_INVALIDCALL && !invalidDevice;
     if (invalidDevice) invalidDevice->Release();
     snprintf(detail,capacity,"Hosted D3D9 adapter checks failed");
+    const int oldBlitMode=gl_blitmode.GetInt();
     for (int cycle=0;cycle<2 && valid;++cycle) {
+        gl_blitmode.SetValue(cycle);
         IDirect3DDevice9 *device=NULL;
         result=adapter->CreateDevice(0,D3DDEVTYPE_HAL,NULL,0,&present,&device);
         GLenum error=gGL->glGetError();
@@ -238,6 +263,7 @@ bool CheckToGLESD3DDevice(const GLMContextHost *host, char *detail, size_t capac
         error=gGL->glGetError();
         if (error!=GL_NO_ERROR) { valid=false; snprintf(detail,capacity,"D3D9 teardown: GL 0x%x",error); }
     }
+    gl_blitmode.SetValue(oldBlitMode);
     adapter->Release();
     return valid;
 }

@@ -2,6 +2,7 @@
 #include "tier0/icommandline.h"
 #include "texture_upload.h"
 #include "ToGLESRuntime.h"
+#include "EngineServices.h"
 #include <EGL/egl.h>
 #include <string.h>
 
@@ -15,7 +16,7 @@ int InitializeToGLESRuntime(char *detail, size_t capacity)
         snprintf(detail,capacity,"EGL context release/rebind failed"); return 0;
     }
     CommandLine()->CreateCmdLine("source-ios-probe");
-    return InitializeToGLESBackend(detail,capacity);
+    return InitializeEngineServices(detail,capacity) && CheckEngineServices(detail,capacity) && InitializeToGLESBackend(detail,capacity);
 }
 
 int CheckToGLESUploads(char *detail, size_t capacity)

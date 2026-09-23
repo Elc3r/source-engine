@@ -151,7 +151,7 @@ int CheckToGLESObjects(char *detail, size_t capacity)
             if (windowContext!=EGL_NO_CONTEXT) eglDestroyContext(display,windowContext);
         }
         GLMgr::DelGLMgr();
-        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS\nD3D9 adapter + 32 draws/presents: PASS",uploads);
+        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS",uploads);
     }
     if (!eglMakeCurrent(display,draw,read,previous)) {
         valid=false; snprintf(detail,capacity,"GLM objects: restoring host EGL context failed");
