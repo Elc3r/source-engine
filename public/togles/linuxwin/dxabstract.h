@@ -421,7 +421,7 @@ struct TOGL_CLASS IDirect3DDevice9 : public IUnknown
 	virtual	~IDirect3DDevice9();
 	
 	// Create call invoked from IDirect3D9
-	HRESULT	TOGLMETHODCALLTYPE Create( IDirect3DDevice9Params *params );
+	HRESULT	TOGLMETHODCALLTYPE Create( IDirect3DDevice9Params *params, const GLMContextHost *host = NULL );
 	
 	//
 	// Basics

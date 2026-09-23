@@ -38,7 +38,7 @@
 
 #include "glmgr_flush.inl"
 
-#if defined(PLATFORM_BSD) || defined(OSX) || defined(LINUX) || (defined (WIN32) && defined( DX_TO_GL_ABSTRACTION ))
+#if defined(PLATFORM_BSD) || defined(OSX) || defined(IOS) || defined(LINUX) || (defined (WIN32) && defined( DX_TO_GL_ABSTRACTION ))
 	#include "appframework/ilaunchermgr.h"
 	extern ILauncherMgr *g_pLauncherMgr;
 #endif
@@ -2297,7 +2297,7 @@ void	ConvertPresentationParamsToGLMDisplayParams( D3DPRESENT_PARAMETERS *d3dp, G
 
 void	UnpackD3DRSITable( void );
 
-HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params )
+HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params, const GLMContextHost *host )
 {
 	g_pD3D_Device = this;
 
@@ -2376,7 +2376,7 @@ HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params )
 				// glmParams.m_modeIndex  hmmmmm, client doesn't give us a mode number, just a resolution..
 		#endif
 	
-	m_ctx = GLMgr::aGLMgr()->NewContext( this, &glmParams );
+	m_ctx = GLMgr::aGLMgr()->NewContext( this, &glmParams, host );
 	if (!m_ctx)
 	{
 		GLMPRINTF(("<-X- IDirect3DDevice9::Create (error out)"));
@@ -2496,7 +2496,7 @@ HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params )
 
 	// so GetClientRect can return sane answers
 	//uint width, height;		
-	RenderedSize( m_params.m_presentationParameters.BackBufferWidth, m_params.m_presentationParameters.BackBufferHeight, true );	// true = set
+	if ( !host ) RenderedSize( m_params.m_presentationParameters.BackBufferWidth, m_params.m_presentationParameters.BackBufferHeight, true );	// true = set
 			
 #if GL_TELEMETRY_GPU_ZONES
 	g_TelemetryGPUStats.Clear();
@@ -2524,6 +2524,12 @@ HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params )
 IDirect3DDevice9::IDirect3DDevice9() :
 	m_nValidMarker( D3D_DEVICE_VALID_MARKER )
 {
+	m_ctx = NULL;
+	m_pFBOs = NULL;
+	m_pDummy_vtx_buffer = NULL;
+	m_pDefaultColorSurface = m_pDefaultDepthStencilSurface = NULL;
+	m_pDepthStencil = NULL;
+	memset( m_pRenderTargets, 0, sizeof(m_pRenderTargets) );
 }
 IDirect3DDevice9::~IDirect3DDevice9()
 {
@@ -2532,6 +2538,12 @@ IDirect3DDevice9::~IDirect3DDevice9()
 	delete m_pBatch_vis_bitmap;
 #endif
 	
+	if ( !m_ctx )
+	{
+		if ( g_pD3D_Device == this ) g_pD3D_Device = NULL;
+		m_nValidMarker = 0xDEADBEEF;
+		return;
+	}
 	delete m_pDummy_vtx_buffer;
 	for ( int i = 0; i < 4; i++ )
 		SetRenderTarget( i, NULL );
@@ -2549,7 +2561,9 @@ IDirect3DDevice9::~IDirect3DDevice9()
 	
 	if ( m_pFBOs )
 	{
-	ResetFBOMap();
+		ResetFBOMap();
+		delete m_pFBOs;
+		m_pFBOs = NULL;
 	}
 
 	GLMPRINTF(( "-D- IDirect3DDevice9::~IDirect3DDevice9 signpost" ));	// want to know when this is called, if ever
@@ -2729,7 +2743,7 @@ HRESULT IDirect3DDevice9::Reset(D3DPRESENT_PARAMETERS* pPresentationParameters)
 
 	// so GetClientRect can return sane answers
 	//uint width, height;		
-	RenderedSize( pPresentationParameters->BackBufferWidth, pPresentationParameters->BackBufferHeight, true );	// true = set
+	if ( !m_ctx->m_host ) RenderedSize( pPresentationParameters->BackBufferWidth, pPresentationParameters->BackBufferHeight, true );	// true = set
 
 	m_ctx->Reset();
 		

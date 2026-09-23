@@ -253,15 +253,44 @@ The regression failed with GL error `0x502` before the fix and passes after it.
 The context's shader-pair cache is separately checked for insertion, reuse of
 an existing pair, a second pair and explicit purge.
 
-These are synthetic rendering fixtures, not full engine materials or game
-assets. Native compressed uploads, other DXT endpoint modes, uncompressed texture
-channel ordering, shader model 3, depth/stencil, border sampling and full sRGB
-semantics remain outside this probe. The Source material system, D3D9 device
-and actual material draw still need integration. The shader fixture binds
-attributes and uniforms directly and submits through the existing GLES backend;
-it does not yet exercise `FlushDrawStates` or D3D9 `DrawIndexedPrimitive`. The host presentation callback
-is connected but GLM presentation is not tested by the pbuffer checks.
-EGL rebinding does not validate context loss, thread handoff or iOS lifecycle.
+The probe now also links the actual `dxabstract.cpp` and creates two
+`IDirect3DDevice9` instances through their internal `Create` method with the
+borrowed `GLMContextHost`. A rejected host is released safely before the valid
+cycles. Each device creates its color and D24S8 depth/stencil targets, shaders
+from D3D9 bytecode, vertex declaration, vertex/index buffers and a DXT3 texture.
+Texture upload uses `GetSurfaceLevel` and surface `LockRect` / `UnlockRect`;
+the existing texture-level `LockRect` / `UnlockRect` stubs remain unimplemented.
+
+All **14 D3D9 indexed draws** pass GPU readback of every 8x8 pixel. These use
+`BeginScene`, `DrawIndexedPrimitive`, `EndScene` and the real `FlushDrawStates`,
+including shader constants, sampler and vertex attribute binding. Seven frames
+per device check color, changed tint, alpha rejection, gamma conversion enabled
+then disabled, and depth rejection then acceptance. Resource/device teardown
+and restoration of the original EGL window rendering also pass without GL errors.
+
+The repeated frames exposed a stale vertex attribute cache: `BeginFrame` disabled
+arrays but an unchanged declaration prevented their re-enabling. It now clears
+the cached attributes. Half-intensity output also exposed unconditional GLES
+encoding on sRGB render targets. On iOS without `EXT_sRGB_write_control`, GLM
+uses linear targets and delivers the existing shader gamma-enable uniform.
+This fallback approximates gamma with a power of 1/2.2; it does not implement
+exact sRGB transfer or linear-space blending. Teardown now frees the device FBO
+map and GLM debug-font buffers as well.
+
+The ARM64 device target compiles, packages and passes ad-hoc signature validation;
+it has not run on a physical iPhone. The changed `dxabstract.cpp` and `glmgr.cpp`
+also pass macOS x86_64 syntax checks, not a complete desktop renderer build.
+
+These are synthetic fixtures, not full engine materials or game assets. The
+normal `IDirect3D9::CreateDevice` adapter/display enumeration and device-capability
+queries still depend on the desktop launcher and need iOS integration. Device
+`Reset` and `Present` are not runtime-tested here. Native compressed uploads,
+other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
+stencil operations, border sampling and full sRGB semantics remain outside this
+probe. The Source material system and actual material draw remain unconnected.
+The host presentation callback is connected but GLM presentation is not tested
+by the pbuffer checks. EGL rebinding does not validate context loss, thread
+handoff or iOS lifecycle.
 
 ## Build boundaries
 
@@ -286,7 +315,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Connect the ToGLES D3D9 device and shader-pair draw path to the verified
-   GLM context, then exercise a material draw through the engine's rendering API.
+1. Connect iOS adapter/capability discovery and validate D3D9 presentation,
+   then exercise a material draw through the Source material/shader API.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

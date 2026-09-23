@@ -480,6 +480,16 @@ FORCEINLINE void GLMContext::FlushDrawStates( uint nStartIndex, uint nEndIndex, 
 	}
 
 
+	if ( !m_caps.m_hasGammaWrites && m_pBoundPair->m_locFragmentFakeSRGBEnable >= 0 )
+	{
+		const float enabled = m_FakeBlendEnableSRGB ? 1.0f : 0.0f;
+		if ( enabled != m_pBoundPair->m_fakeSRGBEnableValue )
+		{
+			gGL->glUniform1f( m_pBoundPair->m_locFragmentFakeSRGBEnable, enabled );
+			m_pBoundPair->m_fakeSRGBEnableValue = enabled;
+		}
+	}
+
 	if( !gGL->m_bHave_GL_QCOM_alpha_test && m_pBoundPair->m_locAlphaRef != -1 )
 	{
 		if( !m_AlphaTestEnable.GetData().enable )

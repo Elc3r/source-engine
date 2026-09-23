@@ -2132,7 +2132,9 @@ void GLMContext::BeginFrame( void )
 	m_lastKnownVertexAttribMask = 0;
 	m_nNumSetVertexAttributes = 0;
 	
-	//FIXME should we also zap the m_lastKnownAttribs array ? (worst case it just sets them all again on first batch)
+	// BeginFrame disabled the arrays even when the next draw uses the same
+	// declaration and streams. Force FlushDrawStates to enable them again.
+	ClearCurAttribs();
 
 	BindBufferToCtx( kGLMVertexBuffer, NULL, true );
 	BindBufferToCtx( kGLMIndexBuffer, NULL, true );
@@ -2382,6 +2384,7 @@ static uint gPersistentBufferSize[kGLMNumBufferTypes] =
 GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, const GLMContextHost *host )
 {
 	m_host = host;
+	m_FakeBlendEnableSRGB = false;
 	m_nNumDirtySamplers = 0;
 
 	if( gGL->m_nDriverProvider == cGLDriverProviderARM )
@@ -2468,6 +2471,13 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, con
 	memset( &m_caps, 0, sizeof( m_caps ) );
 	if (m_host) m_caps = m_host->caps;
     else GetDesiredPixelFormatAttribsAndRendererInfo( (uint**)&selAttribs, &selWords, &m_caps );
+#ifdef IOS
+	// GLES always encodes writes to sRGB attachments unless write control is
+	// available. Use linear targets and the existing shader fallback otherwise,
+	// so D3DRS_SRGBWRITEENABLE=false really produces linear output.
+	m_caps.m_hasGammaWrites = gGL->m_bHave_GL_EXT_sRGB_write_control;
+	m_caps.m_cantAttachSRGB = !m_caps.m_hasGammaWrites;
+#endif
 	uint selBytes = selWords * sizeof( uint ); selBytes;
 
 #if defined( USE_SDL )
@@ -2758,6 +2768,8 @@ GLMContext::~GLMContext	()
 	{
 		DelTex( m_debugFontTex );
 		m_debugFontTex = NULL;
+		DelBuffer( m_debugFontIndices );
+		DelBuffer( m_debugFontVertices );
 	}
 
 	ProcessTextureDeletes();

@@ -17,28 +17,33 @@ static uint32 Dst(unsigned type, unsigned index) { return Register(type, index) 
 static uint32 Src(unsigned type, unsigned index) { return Register(type, index) | D3DVS_NOSWIZZLE; }
 static uint32 Op(unsigned opcode, unsigned length) { return opcode | (length << D3DSI_INSTLENGTH_SHIFT); }
 
-inline bool Translate(bool vertexStage, CUtlBuffer &output, char *detail, size_t capacity, bool tinted=false)
+inline uint32 *Tokens(bool vertexStage, bool tinted=false)
 {
-    uint32 vertex[] = {0xfffe0200,
+    static uint32 vertex[] = {0xfffe0200,
         Op(D3DSIO_DCL,2), 0x80000000u | D3DDECLUSAGE_POSITION, Dst(D3DSPR_INPUT,0),
         Op(D3DSIO_DCL,2), 0x80000000u | D3DDECLUSAGE_TEXCOORD, Dst(D3DSPR_INPUT,1),
         Op(D3DSIO_MOV,2), Dst(D3DSPR_RASTOUT,0), Src(D3DSPR_INPUT,0),
         Op(D3DSIO_MOV,2), Dst(D3DSPR_TEXCRDOUT,0), Src(D3DSPR_INPUT,1), D3DPS_END()};
-    uint32 pixel[] = {0xffff0200,
+    static uint32 pixel[] = {0xffff0200,
         Op(D3DSIO_DCL,2), 0x80000000u, Dst(D3DSPR_TEXTURE,0),
         Op(D3DSIO_DCL,2), 0x80000000u | D3DSTT_2D, Dst(D3DSPR_SAMPLER,0),
         Op(D3DSIO_TEX,3), Dst(D3DSPR_TEMP,0), Src(D3DSPR_TEXTURE,0), Src(D3DSPR_SAMPLER,0),
         Op(D3DSIO_MOV,2), Dst(D3DSPR_COLOROUT,0), Src(D3DSPR_TEMP,0), D3DPS_END()};
-    uint32 tintedPixel[] = {0xffff0200,
+    static uint32 tintedPixel[] = {0xffff0200,
         Op(D3DSIO_DCL,2), 0x80000000u, Dst(D3DSPR_TEXTURE,0),
         Op(D3DSIO_DCL,2), 0x80000000u | D3DSTT_2D, Dst(D3DSPR_SAMPLER,0),
         Op(D3DSIO_TEX,3), Dst(D3DSPR_TEMP,0), Src(D3DSPR_TEXTURE,0), Src(D3DSPR_SAMPLER,0),
         Op(D3DSIO_MUL,3), Dst(D3DSPR_TEMP,0), Src(D3DSPR_TEMP,0), Src(D3DSPR_CONST,0),
         Op(D3DSIO_MOV,2), Dst(D3DSPR_COLOROUT,0), Src(D3DSPR_TEMP,0), D3DPS_END()};
+    return vertexStage ? vertex : tinted ? tintedPixel : pixel;
+}
+
+inline bool Translate(bool vertexStage, CUtlBuffer &output, char *detail, size_t capacity, bool tinted=false)
+{
     D3DToGL translator;
     bool isVertex = false;
     char label[] = "ios-togles-fixture";
-    int status = translator.TranslateShader(vertexStage ? vertex : tinted ? tintedPixel : pixel, &output, &isVertex,
+    int status = translator.TranslateShader(Tokens(vertexStage,tinted), &output, &isVertex,
         D3DToGL_OptionUseEnvParams | (vertexStage ? D3DToGL_OptionDoFixupZ : 0), 0, 0, label, false);
     if (status != DISASM_OK || isVertex != vertexStage) {
         snprintf(detail, capacity, "D3D9 translation failed"); return false;

@@ -2,6 +2,7 @@
 #include "ToGLESRuntime.h"
 #include "ToGLESShaderChecks.h"
 #include <EGL/egl.h>
+bool CheckToGLESD3DDevice(const GLMContextHost *host, char *detail, size_t capacity);
 
 namespace {
 struct HostSurface { EGLDisplay display; EGLSurface surface; };
@@ -129,8 +130,9 @@ int CheckToGLESObjects(char *detail, size_t capacity)
             error=gGL->glGetError();
             if (error!=GL_NO_ERROR) { valid=false; snprintf(detail,capacity,"GLM teardown: GL error 0x%x",error); }
         }
+        if (valid) valid=CheckToGLESD3DDevice(&host,detail,capacity);
         GLMgr::DelGLMgr();
-        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS",uploads);
+        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS\n2 D3D9 devices + 14 indexed draws: PASS",uploads);
     }
     if (!eglMakeCurrent(display,draw,read,previous)) {
         valid=false; snprintf(detail,capacity,"GLM objects: restoring host EGL context failed");
