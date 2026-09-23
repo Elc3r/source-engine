@@ -157,11 +157,19 @@ static BOOL StartRenderer(void)
     if (!InitializeToGLESRuntime(detail, sizeof(detail))) {
         engineDetail = @(detail); SaveResult(NO, engineDetail, @{}); return NO;
     }
+    NSString *assets = [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"probe-assets"];
+    NSString *writable = [documents.path stringByAppendingPathComponent:@"engine-probe"];
+    for (int cycle=0; cycle<2; ++cycle) {
+        if (!CheckToGLESFilesystem(assets.fileSystemRepresentation, writable.fileSystemRepresentation, detail, sizeof(detail))) {
+            engineDetail = @(detail); SaveResult(NO, engineDetail, @{}); ShutdownToGLESBackend(); return NO;
+        }
+    }
+    runtimeDetail = @(detail);
     engineChecksPassed = RunToGLESChecks(documents.path.fileSystemRepresentation, detail, sizeof(detail));
     engineDetail = @(detail);
     if (engineChecksPassed) {
         engineChecksPassed = CheckToGLESUploads(detail, sizeof(detail));
-        runtimeDetail = @(detail);
+        runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
     }
     if (engineChecksPassed) {
         engineChecksPassed = CheckToGLESObjects(detail, sizeof(detail));
@@ -273,7 +281,7 @@ static void StartGraphics(UIWindowScene *scene)
     UIView *view = (__bridge UIView *)metalView;
     label = [[UILabel alloc] initWithFrame:CGRectMake(20, 60, view.bounds.size.width - 40, 140)];
 #ifdef SOURCE_TOGLES_PROBE
-    label.frame = CGRectMake(20, 60, view.bounds.size.width - 40, 290);
+    label.frame = CGRectMake(20, 60, view.bounds.size.width - 40, 330);
 #endif
     label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     label.numberOfLines = 0;

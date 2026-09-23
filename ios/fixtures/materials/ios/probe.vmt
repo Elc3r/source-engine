@@ -1,0 +1,7 @@
+"UnlitGeneric"
+{
+    "$basetexture" "ios/probe"
+    "$vertexcolor" "1"
+    "$vertexalpha" "1"
+    "$color" "[1 0.5 0.25]"
+}

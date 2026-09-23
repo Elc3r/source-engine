@@ -6,8 +6,10 @@ import os
 from pathlib import Path
 import plistlib
 import shutil
+import struct
 import subprocess
 import time
+import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 BUNDLE_ID = 'org.sourceengine.bootstrap'
@@ -77,6 +79,16 @@ def main():
     libraries = []
     if args.graphics or args.angle:
         shutil.copy2(graphics_build / (executable + '.app') / executable, app / executable)
+        if args.togles:
+            shutil.copytree(ROOT / 'ios/fixtures', app / 'probe-assets')
+            # Original VPK v2 fixture: three preload bytes plus embedded data.
+            # Layout follows vpklib/packedstore_internal.h and packedstore.cpp.
+            material = (ROOT / 'ios/fixtures/materials/ios/probe.vmt').read_bytes()
+            entry = struct.pack('<IHHIIH', zlib.crc32(material), 3, 0x7fff,
+                                0, len(material) - 3, 0xffff)
+            tree = b'vmt\0materials/ios\0packed\0' + entry + material[:3] + b'\0\0\0'
+            header = struct.pack('<7I', 0x55aa1234, 2, len(tree), len(material) - 3, 0, 0, 0)
+            (app / 'probe-assets/probe_dir.vpk').write_bytes(header + tree + material[3:])
         if args.angle:
             for name in ['libEGL', 'libGLESv2']:
                 framework = app / 'Frameworks' / (name + '.framework')

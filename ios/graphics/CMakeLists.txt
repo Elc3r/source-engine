@@ -51,7 +51,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         NO_HOOK_MALLOC NO_MEMOVERRIDE_NEW_DELETE TIER1_STATIC_LIB=1)
     target_include_directories(ToGLESChecks PRIVATE ../../public ../../public/tier0
         ../../common ../../togles/linuxwin "${ANGLE_ROOT}/include")
-    add_library(ToGLESRuntime STATIC ToGLESRuntime.cpp EngineServices.cpp ../ToGLESBackend.cpp
+    add_library(ToGLESRuntime STATIC ToGLESRuntime.cpp EngineServices.cpp FilesystemChecks.cpp ../ToGLESBackend.cpp
         ../../togles/linuxwin/glentrypoints.cpp ../../togles/linuxwin/cglmbuffer.cpp
         ../../togles/linuxwin/texture_upload.cpp ToGLESObjectChecks.cpp ToGLESShaderChecks.cpp ToGLESD3DChecks.cpp
         ../../togles/linuxwin/dxabstract.cpp
@@ -67,8 +67,21 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_include_directories(ToGLESRuntime PRIVATE ../../public ../../public/tier0
         ../../public/tier1 ../../common ../../togles/linuxwin
         ../../thirdparty/SDL-src/include "${ANGLE_ROOT}/include")
+    add_library(EngineFilesystem OBJECT
+        ../../filesystem/basefilesystem.cpp ../../filesystem/packfile.cpp
+        ../../filesystem/filetracker.cpp ../../filesystem/filesystem_async.cpp
+        ../../filesystem/filesystem_stdio.cpp ../../filesystem/linux_support.cpp
+        ../../filesystem/QueuedLoader.cpp ../../public/kevvaluescompiler.cpp
+        ../../public/zip_utils.cpp ../../vpklib/packedstore.cpp
+        ../../common/simplebitstring.cpp ../../vstdlib/jobthread.cpp ../../vstdlib/random.cpp)
+    target_compile_features(EngineFilesystem PRIVATE cxx_std_11)
+    target_compile_definitions(EngineFilesystem PRIVATE
+        $<TARGET_PROPERTY:ToGLESRuntime,COMPILE_DEFINITIONS>
+        FILESYSTEM_STDIO_EXPORTS=1 DONT_PROTECT_FILEIO_FUNCTIONS=1 SUPPORT_PACKED_STORE=1)
+    target_include_directories(EngineFilesystem PRIVATE
+        $<TARGET_PROPERTY:ToGLESRuntime,INCLUDE_DIRECTORIES> ../../filesystem)
     # Compile the production consumer of the hosted factory on both iOS SDKs.
-    # Full shader-API linking still needs filesystem and material-system services.
+    # Full shader-API linking still needs the material-system services.
     add_library(ShaderAPICompileCheck OBJECT ../../materialsystem/shaderapidx9/shaderdevicedx8.cpp)
     target_compile_features(ShaderAPICompileCheck PRIVATE cxx_std_11)
     target_compile_definitions(ShaderAPICompileCheck PRIVATE
@@ -84,7 +97,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_compile_definitions(SourceToGLES PRIVATE SOURCE_TOGLES_PROBE=1)
     target_include_directories(SourceToGLES PRIVATE "${ANGLE_ROOT}/include")
     target_link_options(SourceToGLES PRIVATE -Wl,-dead_strip)
-    target_link_libraries(SourceToGLES PRIVATE ToGLESChecks ToGLESRuntime
+    target_link_libraries(SourceToGLES PRIVATE EngineFilesystem ToGLESChecks ToGLESRuntime
         "${ENGINE_BUILD}/mathlib/libmathlib.a" "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib"
         SDL2-static libEGL libGLESv2 "-framework UIKit" "-framework Foundation"
         "-framework Metal" "-framework QuartzCore" iconv)

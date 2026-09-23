@@ -224,8 +224,8 @@ GL state member constructors run. The probe uses a separate EGL pbuffer context,
 then restores the window context and checks its original four-color image.
 It compiles the existing GL manager, texture, FBO, program and query sources,
 plus the real tier2 interface registry and KeyValues system; no launcher or
-filesystem implementation is substituted. The filesystem remains unconnected,
-and persistent shader-cache writes are not exercised.
+filesystem implementation is substituted. The real filesystem is now connected
+as described below; persistent shader-cache writes are not exercised.
 
 Two GLM create/release/rebind/destroy cycles on one EGL context pass. Each cycle
 locks and uploads DXT1, DXT3 and DXT5 textures at 4x4, 2x2 and 1x1 mip levels,
@@ -326,13 +326,48 @@ in the shader API. The same factory used by this production connection is
 runtime-tested by the probe, including absent and invalid host cases. The actual
 `shaderdevicedx8.cpp` is compiled by the `ShaderAPICompileCheck` dependency for
 both iOS targets. This is a compile check, not a linked or running shader-device
-manager: its base connection still requires a real filesystem and `IShaderUtil`
-from the material system. The changed manager also passes the desktop macOS
+manager: its base connection still requires `IShaderUtil` from the material
+system. The real filesystem dependency is connected by the next probe stage. The changed manager also passes the desktop macOS
 syntax check using the normal ToGL path.
 
+### Filesystem and material data
+
+The app now links the repository's actual stdio/base filesystem, asynchronous
+I/O, file tracking, ZIP/VPK readers, KeyValues compiler and queued-loader sources,
+plus the vstdlib job pool and random-number implementation. No filesystem shim
+is used. The object target ensures its interface registrations are linked into
+the app. The shared application factory supplies `IFileSystem`; its normal
+`Connect` / `Init` path starts the I/O worker pool. `ToGLConnectLibraries` connects
+the service to ToGLES and `g_pFullFileSystem`.
+
+The service remains process-owned, like the linked cvar service. Two consecutive
+probe cycles reuse it, rebuild search paths and clean up their temporary files.
+This checks reuse, not filesystem shutdown/restart or iOS background suspension.
+The search roots are explicit:
+
+- `GAME`: original fixture data under the app bundle's `probe-assets` directory.
+- `GAMEWRITE`: `Documents/engine-probe`, used explicitly for writable test files.
+- `PACKED`: a small generated `probe_dir.vpk`, requested explicitly by its path ID.
+
+The packager copies `ios/fixtures/materials/ios/probe.vmt` and constructs an
+original VPK v2 containing another copy of that VMT, with three preload bytes
+and the remaining bytes in its embedded data section. Nothing from installed
+game content is bundled. `KeyValues::LoadFromFile` loads and checks both loose
+and packed `UnlitGeneric` material descriptions through the engine filesystem.
+This is material-data loading, not a rendered material; the referenced texture
+and compiled material shaders are not supplied by this fixture.
+
+Runtime checks also verify binary write/read, rename, seek, wildcard enumeration,
+path-ID separation, missing-file handling and removal. Three asynchronous
+requests per cycle check partial loose-file reads, a missing-file error and a
+partial VPK read crossing into embedded data. Completion callbacks must run on
+an engine worker thread, return the expected status/bytes and finish before their
+request state is released. The overall simulator check still requires every
+existing graphics test and all 32 D3D9 presentations to pass. Multipart VPKs,
+archive signatures, ZIP loading and a complete game content tree remain untested.
+
 These are synthetic fixtures, not full engine materials or game assets. Full
-shader-API startup and a material draw still need filesystem/material-system
-integration. The plain `Direct3DCreate9` export remains the desktop factory;
+shader-API startup and a material draw still need material-system integration. The plain `Direct3DCreate9` export remains the desktop factory;
 iOS uses the explicit factory above. Device `Reset`, vsync timing and physical-
 device presentation are not runtime-tested here. Native compressed uploads,
 other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
@@ -362,7 +397,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Connect the real filesystem and material-system services needed by shader-API
-   startup, then exercise a material draw and audit its capability assumptions.
+1. Connect `IShaderUtil` and the material system to shader-API startup, then supply
+   a texture/compiled shader fixture and exercise the first material draw.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
