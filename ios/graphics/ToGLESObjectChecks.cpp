@@ -131,8 +131,27 @@ int CheckToGLESObjects(char *detail, size_t capacity)
             if (error!=GL_NO_ERROR) { valid=false; snprintf(detail,capacity,"GLM teardown: GL error 0x%x",error); }
         }
         if (valid) valid=CheckToGLESD3DDevice(&host,detail,capacity);
+        // Repeat through the actual SDL/ANGLE window surface, including scaling
+        // from the device's 8x8 render target to the native drawable size.
+        if (valid) {
+            EGLint configID=0;
+            EGLConfig windowConfig=NULL;
+            valid=eglQueryContext(display,previous,EGL_CONFIG_ID,&configID)==EGL_TRUE;
+            const EGLint windowAttributes[]={EGL_CONFIG_ID,configID,EGL_NONE};
+            valid=valid && eglChooseConfig(display,windowAttributes,&windowConfig,1,&count) && count;
+            EGLContext windowContext=valid ? eglCreateContext(display,windowConfig,EGL_NO_CONTEXT,contextAttributes) : EGL_NO_CONTEXT;
+            valid=valid && windowContext!=EGL_NO_CONTEXT;
+            snprintf(detail,capacity,"D3D9 window host: EGL creation failed");
+            hostSurface.surface=draw;
+            host.context=windowContext;
+            if (valid) valid=CheckToGLESD3DDevice(&host,detail,capacity);
+            if (!eglMakeCurrent(display,surface,surface,native)) {
+                valid=false; snprintf(detail,capacity,"D3D9 window host: EGL restore failed");
+            }
+            if (windowContext!=EGL_NO_CONTEXT) eglDestroyContext(display,windowContext);
+        }
         GLMgr::DelGLMgr();
-        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS\n2 D3D9 devices + 14 indexed draws: PASS",uploads);
+        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS\nD3D9 adapter + 32 draws/presents: PASS",uploads);
     }
     if (!eglMakeCurrent(display,draw,read,previous)) {
         valid=false; snprintf(detail,capacity,"GLM objects: restoring host EGL context failed");

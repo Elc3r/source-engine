@@ -504,12 +504,11 @@ bool GLMContext::BindNativeContext(void *context)
     return m_host ? m_host->makeCurrent(m_host->userData, context) : MakeContextCurrent(context);
 }
 
-void GLMContext::HostShowPixels(CShowPixelsParams *params)
+bool GLMContext::HostShowPixels(CShowPixelsParams *params)
 {
-    if (m_host) {
-        if (!m_host->showPixels || !m_host->showPixels(m_host->userData, params))
-            Error("GLM host presentation failed\n");
-    } else ShowPixels(params);
+    if (m_host) return m_host->showPixels && m_host->showPixels(m_host->userData, params);
+    ShowPixels(params);
+    return true;
 }
 
 void GLMContext::HostDisplayedSize(uint &width, uint &height)
@@ -2224,9 +2223,10 @@ ConVar glm_literefresh_capslock( "glm_literefresh_capslock", "0" );
 
 extern ConVar gl_blitmode;
 
-void GLMContext::Present( CGLMTex *tex )
+bool GLMContext::Present( CGLMTex *tex )
 {
 	GLM_FUNC;
+	bool presented = true;
 	
 	{
 #if GL_TELEMETRY_GPU_ZONES
@@ -2242,7 +2242,7 @@ void GLMContext::Present( CGLMTex *tex )
 		// old school, do the resolve, had the tex down to cocoamgr to actually blit.
 		// that way is required if you are not in one-context mode (10.5.8)
 
-		if ( (gl_blitmode.GetInt() != 0) )
+		if ( m_host || (gl_blitmode.GetInt() != 0) )
 		{
 			newRefreshMode = true;
 		}
@@ -2260,7 +2260,7 @@ void GLMContext::Present( CGLMTex *tex )
 
 		// we call showpixels once with the "only sync view" arg set, so we know what the latest surface size is, before trying to do our own blit !
 		showparams.m_onlySyncView = true;
-		HostShowPixels(&showparams);	// doesn't actually show anything, just syncs window/fs state (would make a useful separate call)
+		if ( !HostShowPixels(&showparams) ) return false;
 		showparams.m_onlySyncView = false;
 	
 		bool refresh = true;
@@ -2291,6 +2291,7 @@ void GLMContext::Present( CGLMTex *tex )
 			
 				uint dstWidth,dstHeight;
 				HostDisplayedSize( dstWidth,dstHeight );
+				if ( !dstWidth || !dstHeight ) return false;
 
 				srcRect.xmin	=	0;
 				srcRect.ymin	=	0;
@@ -2323,7 +2324,7 @@ void GLMContext::Present( CGLMTex *tex )
 				// showparams.m_noBlit is left set to 0.  CocoaMgr does the blit.
 			}
 
-			HostShowPixels(&showparams);
+			presented = HostShowPixels(&showparams);
 		}
 
 		//	put the original FB back in place (both read and draw)
@@ -2342,6 +2343,7 @@ void GLMContext::Present( CGLMTex *tex )
 	tmMessage( TELEMETRY_LEVEL2, TMMF_ICON_EXCLAMATION, "VS Uniform Calls: %u, VS Uniforms: %u|VS Uniform Bone Calls: %u, VS Bone Uniforms: %u|PS Uniform Calls: %u, PS Uniforms: %u", m_nTotalVSUniformCalls, m_nTotalVSUniformsSet, m_nTotalVSUniformBoneCalls, m_nTotalVSUniformsBoneSet, m_nTotalPSUniformCalls, m_nTotalPSUniformsSet );
 	m_nTotalVSUniformCalls = 0, m_nTotalVSUniformBoneCalls = 0, m_nTotalVSUniformsSet = 0, m_nTotalVSUniformsBoneSet = 0, m_nTotalPSUniformCalls = 0, m_nTotalPSUniformsSet = 0;
 #endif
+	return presented;
 }
 
 //===============================================================================

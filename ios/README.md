@@ -253,20 +253,43 @@ The regression failed with GL error `0x502` before the fix and passes after it.
 The context's shader-pair cache is separately checked for insertion, reuse of
 an existing pair, a second pair and explicit purge.
 
-The probe now also links the actual `dxabstract.cpp` and creates two
-`IDirect3DDevice9` instances through their internal `Create` method with the
-borrowed `GLMContextHost`. A rejected host is released safely before the valid
-cycles. Each device creates its color and D24S8 depth/stencil targets, shaders
+The probe also links the actual `dxabstract.cpp`. An `IDirect3D9` constructed
+with a borrowed `GLMContextHost` exposes one windowed adapter and creates devices
+through `CreateDevice`. The host must outlive the adapter and its devices.
+Without a host, the existing desktop path remains the default. Adapter queries
+report the GLES renderer/version, current drawable size and queried texture-size
+limits; unknown PCI IDs and video-memory capacity remain zero. The remaining
+shader/format capabilities still come from the existing ToGLES tables and are
+not a complete hardware capability audit. Hosted MSAA is conservatively rejected
+until tested. Adapter and device capability results are checked for agreement,
+with invalid adapter/mode and unsupported MSAA requests rejected.
+
+Four `IDirect3DDevice9` instances are created and released: two on an 8x8 EGL
+pbuffer and two on the real SDL/ANGLE window surface. Each surface uses a separate
+EGL context dedicated to GLM, with the original probe context restored afterward.
+This does not support arbitrary GL state left by another renderer in the same
+context. A rejected host is released safely before the valid cycles. Each device
+creates its color and D24S8 depth/stencil targets, shaders
 from D3D9 bytecode, vertex declaration, vertex/index buffers and a DXT3 texture.
 Texture upload uses `GetSurfaceLevel` and surface `LockRect` / `UnlockRect`;
 the existing texture-level `LockRect` / `UnlockRect` stubs remain unimplemented.
 
-All **14 D3D9 indexed draws** pass GPU readback of every 8x8 pixel. These use
-`BeginScene`, `DrawIndexedPrimitive`, `EndScene` and the real `FlushDrawStates`,
-including shader constants, sampler and vertex attribute binding. Seven frames
+All **32 D3D9 indexed draws and presentations** pass. GPU readback checks every
+8x8 render-target pixel and all four corners of the destination before swapping.
+These use `BeginScene`, `DrawIndexedPrimitive`, `EndScene` and the real `FlushDrawStates`,
+including shader constants, sampler and vertex attribute binding. Eight frames
 per device check color, changed tint, alpha rejection, gamma conversion enabled
-then disabled, and depth rejection then acceptance. Resource/device teardown
-and restoration of the original EGL window rendering also pass without GL errors.
+then disabled, depth rejection then acceptance, and a scissored corner pattern.
+The latter verifies the vertical flip during presentation. The window path scales
+8x8 to the 1206x2622 drawable. Framebuffer and scissor state are checked after
+`Present`; resource/device teardown and restoration of the original EGL window
+rendering also pass without GL errors.
+
+For hosted presentation, GLM always blits to framebuffer zero; the host only
+synchronizes the view and swaps EGL buffers. A failed host callback now returns
+`D3DERR_DEVICELOST` from D3D9 `Present` instead of terminating the process.
+Injected view-sync and swap failures, followed by successful retries, are checked
+for every device. This checks error propagation, not real EGL context-loss recovery.
 
 The repeated frames exposed a stale vertex attribute cache: `BeginFrame` disabled
 arrays but an unchanged declaration prevented their re-enabling. It now clears
@@ -282,15 +305,15 @@ it has not run on a physical iPhone. The changed `dxabstract.cpp` and `glmgr.cpp
 also pass macOS x86_64 syntax checks, not a complete desktop renderer build.
 
 These are synthetic fixtures, not full engine materials or game assets. The
-normal `IDirect3D9::CreateDevice` adapter/display enumeration and device-capability
-queries still depend on the desktop launcher and need iOS integration. Device
-`Reset` and `Present` are not runtime-tested here. Native compressed uploads,
-other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
+Source startup still needs to supply the hosted adapter to the shader API;
+the exported `Direct3DCreate9` factory still selects the desktop path. The probe
+also has no connected cvar service, so runtime console-variable changes are not
+supported yet (their global change callbacks require that service). Device
+`Reset`, vsync timing and physical-device presentation are not runtime-tested here.
+Native compressed uploads, other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
 stencil operations, border sampling and full sRGB semantics remain outside this
 probe. The Source material system and actual material draw remain unconnected.
-The host presentation callback is connected but GLM presentation is not tested
-by the pbuffer checks. EGL rebinding does not validate context loss, thread
-handoff or iOS lifecycle.
+EGL rebinding does not validate context loss, thread handoff or iOS lifecycle.
 
 ## Build boundaries
 
@@ -315,7 +338,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Connect iOS adapter/capability discovery and validate D3D9 presentation,
-   then exercise a material draw through the Source material/shader API.
+1. Supply the hosted D3D9 adapter to the Source shader API and exercise a material
+   draw, auditing its remaining platform and capability assumptions.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

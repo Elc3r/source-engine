@@ -215,6 +215,9 @@ struct TOGL_CLASS IDirect3DSurface9 : public IDirect3DResource9
 
 struct TOGL_CLASS IDirect3D9 : public IUnknown
 {
+	// Borrowed host must outlive this adapter and every device it creates.
+	explicit IDirect3D9( const GLMContextHost *host = NULL ) : m_host( host ) {}
+	const GLMContextHost *m_host;
 	virtual	~IDirect3D9();
 
 	UINT	TOGLMETHODCALLTYPE GetAdapterCount();

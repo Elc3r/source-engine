@@ -98,6 +98,8 @@ class CShowPixelsParams;
 // Optional native-context host. All callbacks are required. The host and its
 // native context must outlive GLMContext, which borrows the application window.
 // NewContext binds this context before state member constructors issue GL calls.
+// showPixels synchronizes the view when m_onlySyncView is set; otherwise GLM
+// has blitted to framebuffer zero (m_noBlit) and the host only swaps buffers.
 struct GLMContextHost
 {
     void *context;
@@ -1404,7 +1406,7 @@ class GLMContext
 		//void	ActivateFullScreen( bool fsOn, int screenIndex );	// will be called by BeginFrame
 		bool	SetDisplayParams( GLMDisplayParams *params );		// either the first time setup, or a change to new setup
 		
-		void	Present( CGLMTex *tex );		// somewhat hardwired for the time being
+		bool	Present( CGLMTex *tex );		// somewhat hardwired for the time being
 
 		// Called when IDirect3DDevice9::Reset() is called.
 		void	Reset();							
@@ -1604,7 +1606,7 @@ class GLMContext
 		GLMRendererInfoFields			m_caps;
         const GLMContextHost *m_host;
         bool BindNativeContext(void *context);
-        void HostShowPixels(CShowPixelsParams *params);
+        bool HostShowPixels(CShowPixelsParams *params);
         void HostDisplayedSize(uint &width, uint &height);
 	
 		bool							m_displayParamsValid;		// is there a param block copied in yet
