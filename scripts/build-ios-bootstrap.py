@@ -129,6 +129,13 @@ def main():
         run('xcrun', 'install_name_tool', '-change', build / 'tier0/libtier0.dylib',
             '@rpath/libtier0.dylib', app / executable)
         libraries.append(library)
+        for name in ['ToGLESRuntime', 'shaderapidx9', 'materialsystem']:
+            module = app / 'Frameworks' / ('lib' + name + '.dylib')
+            shutil.copy2(graphics_build / module.name, module)
+            run('xcrun', 'install_name_tool', '-id', '@rpath/' + module.name, module)
+            run('xcrun', 'install_name_tool', '-change', build / 'tier0/libtier0.dylib',
+                '@rpath/libtier0.dylib', module)
+            libraries.append(module)
     with (app / 'Info.plist').open('wb') as stream:
         plistlib.dump({
             'CFBundleIdentifier': bundle_id, 'CFBundleExecutable': executable,

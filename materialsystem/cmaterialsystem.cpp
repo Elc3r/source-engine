@@ -5,6 +5,9 @@
 //===========================================================================//
 	
 #include "pch_materialsystem.h"
+#if defined(IOS) && defined(TOGLES)
+#include "togles/rendermechanism.h"
+#endif
 
 #define MATSYS_INTERNAL
 
@@ -151,6 +154,10 @@ void *ShaderFactory( const char *pName, int *pReturnCode )
 		*pReturnCode = IFACE_OK;
 	}
 	
+#if defined(IOS) && defined(TOGLES)
+	if ( !Q_stricmp( pName, TOGLES_CONTEXT_HOST_INTERFACE_VERSION ) && g_fnMatSystemConnectCreateInterface )
+		return g_fnMatSystemConnectCreateInterface( pName, pReturnCode );
+#endif
 	if ( !Q_stricmp( pName, FILESYSTEM_INTERFACE_VERSION ))
 		return g_pFullFileSystem;
 
@@ -669,11 +676,15 @@ bool CMaterialSystem::Connect( CreateInterfaceFn factory )
 	
 #if !defined(DEDICATED)
 #if defined( USE_SDL )
+#if defined(IOS) && defined(TOGLES)
+	if ( !factory( TOGLES_CONTEXT_HOST_INTERFACE_VERSION, NULL ) ) return false;
+#else
 	g_pLauncherMgr = (ILauncherMgr *)factory( "SDLMgrInterface001" /*SDL_MGR_INTERFACE_VERSION*/, NULL );		
 	if ( !g_pLauncherMgr )
 	{
 		return false;
 	}
+#endif // IOS / desktop launcher
 #endif // USE_SDL
 #endif // !DEDICATED
 
@@ -745,6 +756,8 @@ void *CMaterialSystem::QueryShaderAPI( const char *pInterfaceName )
 //-----------------------------------------------------------------------------
 void *CMaterialSystem::QueryInterface( const char *pInterfaceName )
 {
+	if ( !Q_stricmp( pInterfaceName, SHADER_UTIL_INTERFACE_VERSION ) )
+		return static_cast<IShaderUtil *>( this );
 	// Returns various interfaces supported by the shader API dll
 	void *pInterface = QueryShaderAPI( pInterfaceName );
 	if ( pInterface )

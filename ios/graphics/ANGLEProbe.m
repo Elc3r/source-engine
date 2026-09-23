@@ -172,7 +172,7 @@ static BOOL StartRenderer(void)
         runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
     }
     if (engineChecksPassed) {
-        engineChecksPassed = CheckToGLESObjects(detail, sizeof(detail));
+        engineChecksPassed = CheckToGLESObjects(detail, sizeof(detail), [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"].fileSystemRepresentation);
         runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
     }
     ShutdownToGLESBackend();
@@ -281,7 +281,7 @@ static void StartGraphics(UIWindowScene *scene)
     UIView *view = (__bridge UIView *)metalView;
     label = [[UILabel alloc] initWithFrame:CGRectMake(20, 60, view.bounds.size.width - 40, 140)];
 #ifdef SOURCE_TOGLES_PROBE
-    label.frame = CGRectMake(20, 60, view.bounds.size.width - 40, 330);
+    label.frame = CGRectMake(20, 60, view.bounds.size.width - 40, 360);
 #endif
     label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     label.numberOfLines = 0;

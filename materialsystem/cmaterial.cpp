@@ -17,7 +17,7 @@
 #include "materialsystem/imaterialproxyfactory.h"
 #include "IHardwareConfigInternal.h"
 #include "utlsymbol.h"
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

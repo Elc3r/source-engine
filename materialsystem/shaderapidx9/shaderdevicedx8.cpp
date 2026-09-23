@@ -144,7 +144,10 @@ bool CShaderDeviceMgrDx8::Connect( CreateInterfaceFn factory )
 	if ( !BaseClass::Connect( factory ) )
 		return false;
 
-#if defined ( DX_TO_GL_ABSTRACTION )
+#if defined(IOS) && defined(TOGLES)
+	// The application owns the initialized GLES backend and its service bindings.
+	if ( !gGL ) return false;
+#elif defined ( DX_TO_GL_ABSTRACTION )
 	gGL = ToGLConnectLibraries( factory );
 #endif
 
@@ -254,7 +257,7 @@ void CShaderDeviceMgrDx8::Disconnect()
 		m_pD3D = 0;
 	}
 
-#if defined ( DX_TO_GL_ABSTRACTION )
+#if defined ( DX_TO_GL_ABSTRACTION ) && !(defined(IOS) && defined(TOGLES))
 	ToGLDisconnectLibraries();
 #endif
 

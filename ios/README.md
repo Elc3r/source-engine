@@ -324,11 +324,31 @@ dispatched global callbacks through a null `g_pCVar`.
 ToGLES retains ownership of its existing `gGL` definition, avoiding a duplicate
 in the shader API. The same factory used by this production connection is
 runtime-tested by the probe, including absent and invalid host cases. The actual
-`shaderdevicedx8.cpp` is compiled by the `ShaderAPICompileCheck` dependency for
-both iOS targets. This is a compile check, not a linked or running shader-device
-manager: its base connection still requires `IShaderUtil` from the material
-system. The real filesystem dependency is connected by the next probe stage. The changed manager also passes the desktop macOS
-syntax check using the normal ToGL path.
+material system and shader API now build as separate dylibs, loaded by the engine's
+`Sys_LoadModule`. `ToGLESRuntime` is shared so both modules use the application's
+GLES backend, filesystem and cvar service. Each module retains its own tier1
+interface/ConVar registry and tier2 bindings.
+
+The probe loads `libmaterialsystem.dylib`, selects `libshaderapidx9.dylib`, and
+connects the real `CMaterialSystem` / `IShaderUtil` through its application factory.
+The material factory forwards the borrowed iOS context host to the shader API,
+without a desktop SDL launcher. `CShaderDeviceMgrDx8::Init` enumerates the hosted
+adapter; the check requires one adapter, DX9 capability and the actual drawable
+size. It then shuts down the manager, disconnects and unloads the modules. Two
+consecutive cycles must pass, with the application's GL dispatch and cvar service
+still usable, followed by the original on-screen render/readback.
+
+This exposed texture workers starting in the texture manager's static constructor,
+then surviving a Connect-only module unload. Workers now start in `Init`, paired
+with their existing teardown in `Shutdown`; loading a module alone starts none.
+The probe does not yet call full `CMaterialSystem::Init` or shader-API `SetMode`,
+and does not render a material. Standard shader modules and shader/texture fixtures
+are the next dependency.
+
+Both connection cycles and all prior graphics/filesystem checks pass on the iOS 27
+simulator. The device app builds and passes ad-hoc signature verification, but has
+not run on hardware. The changed shared material/texture/manager sources also pass
+a macOS x86_64 syntax check; this is not a complete desktop build.
 
 ### Filesystem and material data
 
@@ -367,7 +387,7 @@ existing graphics test and all 32 D3D9 presentations to pass. Multipart VPKs,
 archive signatures, ZIP loading and a complete game content tree remain untested.
 
 These are synthetic fixtures, not full engine materials or game assets. Full
-shader-API startup and a material draw still need material-system integration. The plain `Direct3DCreate9` export remains the desktop factory;
+material initialization, shader-API SetMode and a material draw remain pending. The plain `Direct3DCreate9` export remains the desktop factory;
 iOS uses the explicit factory above. Device `Reset`, vsync timing and physical-
 device presentation are not runtime-tested here. Native compressed uploads,
 other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
@@ -397,7 +417,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Connect `IShaderUtil` and the material system to shader-API startup, then supply
-   a texture/compiled shader fixture and exercise the first material draw.
+1. Supply standard shader modules and an original texture/compiled shader fixture,
+   complete material initialization and SetMode, then exercise the first material draw.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

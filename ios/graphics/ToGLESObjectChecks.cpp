@@ -4,6 +4,8 @@
 #include <EGL/egl.h>
 bool CheckToGLESD3DDevice(const GLMContextHost *host, char *detail, size_t capacity);
 
+bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *detail, size_t capacity);
+
 namespace {
 struct HostSurface { EGLDisplay display; EGLSurface surface; };
 bool MakeCurrent(void *data, void *context)
@@ -31,7 +33,7 @@ bool ShowPixels(void *data, CShowPixelsParams *params)
 }
 }
 
-int CheckToGLESObjects(char *detail, size_t capacity)
+int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
 {
     EGLDisplay display=eglGetCurrentDisplay();
     EGLContext previous=eglGetCurrentContext();
@@ -145,13 +147,15 @@ int CheckToGLESObjects(char *detail, size_t capacity)
             hostSurface.surface=draw;
             host.context=windowContext;
             if (valid) valid=CheckToGLESD3DDevice(&host,detail,capacity);
+            for (int cycle=0; valid && cycle<2; ++cycle)
+                valid=CheckToGLESMaterial(&host,modules,detail,capacity);
             if (!eglMakeCurrent(display,surface,surface,native)) {
                 valid=false; snprintf(detail,capacity,"D3D9 window host: EGL restore failed");
             }
             if (windowContext!=EGL_NO_CONTEXT) eglDestroyContext(display,windowContext);
         }
         GLMgr::DelGLMgr();
-        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS",uploads);
+        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS\n2 material/shader API connect cycles: PASS",uploads);
     }
     if (!eglMakeCurrent(display,draw,read,previous)) {
         valid=false; snprintf(detail,capacity,"GLM objects: restoring host EGL context failed");
