@@ -81,6 +81,7 @@ def main():
         shutil.copy2(graphics_build / (executable + '.app') / executable, app / executable)
         if args.togles:
             shutil.copytree(ROOT / 'ios/fixtures', app / 'probe-assets')
+            run(sys.executable, ROOT / 'scripts/ios-material-fixtures.py', app / 'probe-assets')
             # Original VPK v2 fixture: three preload bytes plus embedded data.
             # Layout follows vpklib/packedstore_internal.h and packedstore.cpp.
             material = (ROOT / 'ios/fixtures/materials/ios/probe.vmt').read_bytes()

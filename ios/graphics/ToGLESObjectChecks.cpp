@@ -31,6 +31,63 @@ bool ShowPixels(void *data, CShowPixelsParams *params)
     }
     return eglSwapBuffers(host->display,host->surface)==EGL_TRUE;
 }
+
+// Odd-width rows expose GLES unpack-alignment mistakes; the last pass tests a
+// one-pixel subimage without changing the rest of the texture.
+bool CheckRGBUploads(GLMContext *context, char *detail, size_t capacity)
+{
+    for (int channels=3;channels<=4;++channels) {
+        GLMTexLayoutKey key={};
+        key.m_texGLTarget=GL_TEXTURE_2D;
+        key.m_texFormat=channels==3 ? D3DFMT_R8G8B8 : D3DFMT_A8R8G8B8;
+        key.m_xSize=3; key.m_ySize=2; key.m_zSize=1;
+        CGLMTex *texture=context->NewTex(&key,1,"ios-rgb-upload");
+        GLuint fbo=0;
+        gGL->glGenFramebuffers(1,&fbo);
+        GLint oldAlignment=0;
+        gGL->glGetIntegerv(GL_UNPACK_ALIGNMENT,&oldAlignment);
+        gGL->glPixelStorei(GL_UNPACK_ALIGNMENT,8);
+        bool valid=true;
+        unsigned char expected[6][4]={};
+        for (int pass=0;pass<3 && valid;++pass) {
+            GLMTexLockParams lock={};
+            lock.m_tex=texture;
+            lock.m_region.xmin=pass==2 ? 1 : 0;
+            lock.m_region.ymin=pass==2 ? 1 : 0;
+            lock.m_region.xmax=pass==2 ? 2 : 3;
+            lock.m_region.ymax=2; lock.m_region.zmax=1;
+            char *bytes=NULL; int row=0,depth=0;
+            texture->Lock(&lock,&bytes,&row,&depth);
+            valid=bytes!=NULL;
+            if (bytes) for (int y=lock.m_region.ymin;y<2;++y)
+                for (int x=lock.m_region.xmin;x<lock.m_region.xmax;++x) {
+                    unsigned char *pixel=reinterpret_cast<unsigned char *>(bytes)+(y-lock.m_region.ymin)*row+(x-lock.m_region.xmin)*channels;
+                    unsigned char *color=expected[y*3+x];
+                    color[0]=23+pass*37+x*11; color[1]=51+y*29;
+                    color[2]=193-pass*31; color[3]=channels==4 ? 83+pass*17 : 255;
+                    pixel[0]=color[2]; pixel[1]=color[1]; pixel[2]=color[0];
+                    if (channels==4) pixel[3]=color[3];
+                }
+            texture->Unlock(&lock);
+            GLint alignment=0;
+            gGL->glGetIntegerv(GL_UNPACK_ALIGNMENT,&alignment);
+            gGL->glBindFramebuffer(GL_FRAMEBUFFER,fbo);
+            gGL->glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,texture->GetTexName(),0);
+            valid=valid && alignment==8 && gGL->glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE;
+            unsigned char pixels[6*4]={};
+            if (valid) gGL->glReadPixels(0,0,3,2,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+            valid=valid && !memcmp(pixels,expected,sizeof(pixels)) && gGL->glGetError()==GL_NO_ERROR;
+            if (!valid) snprintf(detail,capacity,"RGB%d upload/subimage pass %d failed",channels*8,pass);
+        }
+        gGL->glPixelStorei(GL_UNPACK_ALIGNMENT,oldAlignment);
+        gGL->glBindFramebuffer(GL_FRAMEBUFFER,0);
+        gGL->glDeleteFramebuffers(1,&fbo);
+        context->DelTex(texture);
+        if (!valid) return false;
+    }
+    return true;
+}
+
 }
 
 int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
@@ -127,6 +184,7 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
                 gGL->glBindFramebuffer(GL_FRAMEBUFFER,0); gGL->glDeleteFramebuffers(1,&fbo);
                 context->DelTex(texture);
             }
+            if (valid) valid=CheckRGBUploads(context,detail,capacity);
             if (valid) valid=CheckToGLESShaderDraw(context,detail,capacity);
             if (context) GLMgr::aGLMgr()->DelContext(context);
             error=gGL->glGetError();
@@ -155,7 +213,7 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
             if (windowContext!=EGL_NO_CONTEXT) eglDestroyContext(display,windowContext);
         }
         GLMgr::DelGLMgr();
-        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS\n2 material Init/SetMode + readbacks: PASS",uploads);
+        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip + 12 RGB uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS\n2 material cycles + 6 VMT/VTF draws: PASS",uploads);
     }
     if (!eglMakeCurrent(display,draw,read,previous)) {
         valid=false; snprintf(detail,capacity,"GLM objects: restoring host EGL context failed");

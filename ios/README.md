@@ -338,8 +338,8 @@ interfaces so tier2 receives the actual hardware configuration before Init.
 The probe now builds and loads `stdshader_dx9.dylib` and `stdshader_dbg.dylib`
 from the repository's shader sources and generated combination headers. The
 bundle's Frameworks directory is an explicit `EXECUTABLE_PATH` search root.
-The shader dictionary contains 133 entries; the check requires `UnlitGeneric`
-and `DebugNormalMap`. Older DX6–8 modules are not packaged; the normal loader
+The shader dictionary contains the standard implementations plus the probe-only
+`IOSProbe` shader; the startup check requires `UnlitGeneric` and `DebugNormalMap`. Older DX6–8 modules are not packaged; the normal loader
 attempts them and continues to DX9.
 
 Two complete cycles exercise `CMaterialSystem::Init`, `ModInit`, `SetMode`,
@@ -362,11 +362,43 @@ The device app builds and passes ad-hoc signature verification, but has not run
 on hardware. Shared material-system code also passes a macOS x86_64 syntax check;
 this is not a complete desktop build.
 
-This verifies startup and clear/readback through the material system. It does not
-yet draw a material: compiled VCS shader bytecode and an original texture fixture
-remain to be supplied. The 133 shader entries describe available C++ shaders,
-not 133 GPU programs validated on iOS. Nonuniform readback orientation, complete
-texture format/channel conversion, queued rendering and device Reset remain untested.
+### First material draws
+
+`MaterialProbeShader.cpp` is an original, probe-only C++ shader registered in the
+DX9 shader module. It uses a position/UV vertex format, texture sampler 0 and
+minimal SM2 vertex/pixel shaders. Depth tests, blending and sRGB conversion are
+disabled so byte-exact expected colors are independent of lighting/game content.
+It does not replace any standard shader implementation.
+
+The packager runs `scripts/ios-material-fixtures.py` to generate two original
+4×4 VTF 7.2 textures and single-combo VCS v4 shaders (no compression or diffs).
+The shader token instructions and binary layout are documented in the generator;
+no game binaries or external shader compiler are needed. `ios/draw.vmt` uses an
+opaque four-color texture and `ios/draw-alpha.vmt` uses alpha 255/192/128/64.
+
+After SetMode, the test loads each VMT with `FindMaterial`, checks its shader and
+texture dimensions, binds it through `IMatRenderContext`, fills a real dynamic
+mesh with `CMeshBuilder`, and calls `IMesh::Draw`. The normal shader manager reads
+the VCS files, ToGLES translates their D3D9 tokens, and ANGLE executes the result.
+Each cycle draws opaque → alpha → opaque, checking all 64 RGBA pixels after each
+draw. All six draws must pass, including quadrant orientation, channel ordering,
+alpha output and rebinding the cached opaque material. These draw readbacks are
+from the 8×8 device backbuffer; the final on-screen color pattern remains the
+separate original ANGLE probe.
+
+Drawing exposed dyld coalescing inline shaderlib functions across modules that
+have separate static draw state. Engine modules now hide their inline symbols.
+It also exposed BGR/BGRA uploads being interpreted as RGB/RGBA. Static CPU-backed
+uploads now convert channels into scratch storage without mutating source data,
+use byte-aligned unpacking and restore the caller's unpack alignment. Twelve
+additional GLM upload checks cover 24/32-bit colors with odd-width rows, full
+replacement and a one-pixel subimage that must preserve its neighbors.
+
+Simulator checks pass with no GL errors. This validates the original diagnostic
+material, not the standard UnlitGeneric shader's GPU bytecode or all registered
+C++ shaders. Compiled standard shader combinations, matrix transforms, lighting,
+compressed VCS blocks, dynamic/PBO texture uploads, other texture formats,
+queued rendering and device Reset still need coverage.
 
 ### Filesystem and material data
 
@@ -404,8 +436,7 @@ request state is released. The overall simulator check still requires every
 existing graphics test and all 32 D3D9 presentations to pass. Multipart VPKs,
 archive signatures, ZIP loading and a complete game content tree remain untested.
 
-These are synthetic fixtures, not full engine materials or game assets. A material draw
-with compiled shader fixtures remains pending. The plain `Direct3DCreate9` export remains the desktop factory;
+These are synthetic fixtures, not full engine materials or game assets. The first diagnostic material draws are covered above. The plain `Direct3DCreate9` export remains the desktop factory;
 iOS uses the explicit factory above. Device `Reset`, vsync timing and physical-
 device presentation are not runtime-tested here. Native compressed uploads,
 other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
@@ -435,7 +466,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Supply an original texture/compiled VCS shader fixture and exercise the first
-   material draw through the initialized material system.
+1. Exercise transforms and a standard material shader with its compiled combinations,
+   then verify presentation through the material system.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

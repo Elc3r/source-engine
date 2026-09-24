@@ -58,7 +58,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../togles/linuxwin/glmgr.cpp ../../togles/linuxwin/glmgrbasics.cpp
         ../../togles/linuxwin/cglmtex.cpp ../../togles/linuxwin/cglmfbo.cpp
         ../../togles/linuxwin/cglmprogram.cpp ../../togles/linuxwin/cglmquery.cpp
-        ../../tier2/tier2.cpp ../../vstdlib/KeyValuesSystem.cpp ../../vstdlib/cvar.cpp)
+        ../../tier2/tier2.cpp ../../tier2/meshutils.cpp ../../vstdlib/KeyValuesSystem.cpp ../../vstdlib/cvar.cpp)
     target_compile_features(ToGLESRuntime PRIVATE cxx_std_11)
     target_compile_definitions(ToGLESRuntime PRIVATE IOS=1 POSIX=1 _POSIX=1
         PLATFORM_POSIX=1 PLATFORM_64BITS=1 GNUC NDEBUG
@@ -99,7 +99,9 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         target_link_options(${target} PRIVATE "-Wl,-force_load,${ENGINE_BUILD}/tier1/libtier1.a")
         target_link_libraries(${target} PRIVATE ToGLESRuntime "${ENGINE_BUILD}/mathlib/libmathlib.a"
             "${ENGINE_BUILD}/tier0/libtier0.dylib" iconv)
-        set_target_properties(${target} PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
+        # Shaderlib inline helpers reference module-local static draw state.
+        # Do not let dyld coalesce them with another shader/material module.
+        set_target_properties(${target} PROPERTIES VISIBILITY_INLINES_HIDDEN YES BUILD_WITH_INSTALL_RPATH TRUE
             INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
     endfunction()
     add_library(IOSImage STATIC
@@ -171,7 +173,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../materialsystem/shaderlib/BaseShader.cpp
         ../../materialsystem/shaderlib/ShaderDLL.cpp ../../materialsystem/shaderlib/shaderlib_cvar.cpp)
     target_link_libraries(materialsystem PRIVATE IOSImage)
-    add_library(stdshader_dx9 SHARED
+    add_library(stdshader_dx9 SHARED MaterialProbeShader.cpp
         ../../materialsystem/stdshaders/aftershock.cpp
         ../../materialsystem/stdshaders/aftershock_helper.cpp
         ../../materialsystem/stdshaders/AccumBuff4Sample.cpp

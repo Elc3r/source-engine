@@ -8,6 +8,7 @@
 #include "materialsystem/materialsystem_config.h"
 #include "tier2/tier2.h"
 #include "materialsystem/ishader.h"
+#include "materialsystem/imesh.h"
 
 namespace {
 const GLMContextHost *applicationHost=NULL;
@@ -23,6 +24,43 @@ void *ApplicationFactory(const char *name, int *status)
     if (status) *status=service ? IFACE_OK : IFACE_FAILED;
     return service;
 }
+
+bool DrawMaterialFixture(IMaterialSystem *material, IMatRenderContext *context, bool alpha, char *detail, size_t capacity)
+{
+    const char *name=alpha ? "ios/draw-alpha" : "ios/draw";
+    IMaterial *draw=material->FindMaterial(name,TEXTURE_GROUP_OTHER,true);
+    if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),"IOSProbe")
+        || draw->GetMappingWidth()!=4 || draw->GetMappingHeight()!=4) {
+        snprintf(detail,capacity,"%s: IOSProbe VMT/VTF load failed",name); return false;
+    }
+    draw->IncrementReferenceCount();
+    context->Bind(draw);
+    IMesh *mesh=context->GetDynamicMesh(true);
+    CMeshBuilder builder;
+    builder.Begin(mesh,MATERIAL_TRIANGLES,1);
+    builder.Position3f(-1,-1,.5f); builder.TexCoord2f(0,0,1); builder.AdvanceVertex();
+    builder.Position3f(3,-1,.5f); builder.TexCoord2f(0,2,1); builder.AdvanceVertex();
+    builder.Position3f(-1,3,.5f); builder.TexCoord2f(0,0,-1); builder.AdvanceVertex();
+    builder.End();
+    mesh->Draw();
+    unsigned char pixels[8*8*4]={};
+    context->ReadPixels(0,0,8,8,pixels,IMAGE_FORMAT_RGBA8888);
+    unsigned char expected[4][4]={{255,0,0,255},{0,255,0,255},{0,0,255,255},{255,255,0,255}};
+    if (alpha) { expected[1][3]=192; expected[2][3]=128; expected[3][3]=64; }
+    bool valid=true;
+    for (int y=0;y<8 && valid;++y) for (int x=0;x<8 && valid;++x) {
+        const unsigned char *pixel=&pixels[(y*8+x)*4];
+        const unsigned char *color=expected[(y/4)*2+x/4];
+        if (memcmp(pixel,color,4)) {
+            snprintf(detail,capacity,"%s pixel (%d,%d): %u,%u,%u,%u expected %u,%u,%u,%u",
+                name,x,y,pixel[0],pixel[1],pixel[2],pixel[3],color[0],color[1],color[2],color[3]);
+            valid=false;
+        }
+    }
+    draw->DecrementReferenceCount();
+    return valid;
+}
+
 }
 
 bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *detail, size_t capacity)
@@ -95,12 +133,17 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                     context->ClearBuffers(true,true,true);
                     unsigned char pixels[8*8*4]={};
                     context->ReadPixels(0,0,8,8,pixels,IMAGE_FORMAT_RGBA8888);
+                    bool clearValid=true;
+                    for (int i=0;i<64;++i) clearValid=clearValid && pixels[i*4]==37 && pixels[i*4+1]==91
+                        && pixels[i*4+2]==163 && pixels[i*4+3]==255;
+                    valid=valid && clearValid;
+                    if (!clearValid) snprintf(detail,capacity,"Material clear/readback mismatch: %u,%u,%u,%u",pixels[0],pixels[1],pixels[2],pixels[3]);
+                    for (int pass=0;valid && pass<3;++pass)
+                        valid=DrawMaterialFixture(material,context,pass==1,detail,capacity);
                     context->EndRender();
                     context->Release();
                     material->EndFrame();
-                    for (int i=0;i<64;++i) valid=valid && pixels[i*4]==37 && pixels[i*4+1]==91
-                        && pixels[i*4+2]==163 && pixels[i*4+3]==255;
-                    if (!valid) snprintf(detail,capacity,"Material clear/readback mismatch: %u,%u,%u,%u",pixels[0],pixels[1],pixels[2],pixels[3]);
+
                 }
                 material->ModShutdown();
                 material->Shutdown();

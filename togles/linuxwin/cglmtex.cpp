@@ -3460,6 +3460,29 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 	else if( m_backing )
 		sliceAddress = m_backing + slice->m_storageOffset;
 
+	// The CPU backing store retains D3D byte order. GLES uploads use RGBA, so
+	// convert into scratch storage rather than swapping the source in place
+	// (a later partial update or re-upload must see the same original bytes).
+	CUtlMemory<unsigned char> rgbUpload;
+	GLint unpackAlignment = 0;
+	const int uploadStride = glDataFormat == GL_BGRA && glDataType == GL_UNSIGNED_INT_8_8_8_8_REV ? 4
+		: glDataFormat == GL_BGR && glDataType == GL_UNSIGNED_BYTE ? 3 : 0;
+	if ( !m_mapped && !noDataWrite && sliceAddress && uploadStride )
+	{
+		rgbUpload.EnsureCapacity( slice->m_storageSize );
+		const unsigned char *source = static_cast<const unsigned char *>(sliceAddress);
+		for ( int i = 0; i < slice->m_storageSize; i += uploadStride )
+		{
+			rgbUpload[i] = source[i+2];
+			rgbUpload[i+1] = source[i+1];
+			rgbUpload[i+2] = source[i];
+			if ( uploadStride == 4 ) rgbUpload[i+3] = source[i+3];
+		}
+		sliceAddress = rgbUpload.Base();
+		gGL->glGetIntegerv( GL_UNPACK_ALIGNMENT, &unpackAlignment );
+		gGL->glPixelStorei( GL_UNPACK_ALIGNMENT, 1 );
+	}
+
 	// allow use of subimage if the target is texture2D and it has already been teximage'd
 	bool mayUseSubImage = false;
 
@@ -3677,6 +3700,8 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 		}
 		break;
 	}
+
+	if ( unpackAlignment ) gGL->glPixelStorei( GL_UNPACK_ALIGNMENT, unpackAlignment );
 
 	if ( expandTemp )
 	{
