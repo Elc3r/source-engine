@@ -230,6 +230,9 @@ bool CheckToGLESD3DDevice(const GLMContextHost *host, char *detail, size_t capac
     D3DADAPTER_IDENTIFIER9 identifier={};
     D3DDISPLAYMODE mode={};
     DWORD quality=99;
+    static_assert(sizeof(HRESULT)==4,"D3D HRESULT must be signed 32-bit");
+    valid=valid && FAILED(D3DERR_NOTAVAILABLE) && FAILED(D3DERR_DEVICELOST)
+        && FAILED(E_FAIL) && SUCCEEDED(S_OK) && SUCCEEDED(S_FALSE);
     valid=valid && adapter->GetAdapterCount()==1;
     valid=valid && adapter->GetDeviceCaps(0,D3DDEVTYPE_HAL,&caps)==S_OK && caps.MaxTextureWidth>=8;
     valid=valid && adapter->GetDeviceCaps(1,D3DDEVTYPE_HAL,&caps)==D3DERR_INVALIDCALL;

@@ -97,7 +97,8 @@ typedef void* VD3DHANDLE;
 	typedef unsigned short WORD;
 	typedef long long LONGLONG;
 	typedef unsigned int UINT;
-	typedef long HRESULT;
+	// HRESULT is signed 32-bit even on LP64 platforms.
+	typedef int HRESULT;
 	typedef unsigned char BYTE;
 	#define CONST const
 		

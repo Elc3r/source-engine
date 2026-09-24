@@ -171,8 +171,137 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../materialsystem/shaderlib/BaseShader.cpp
         ../../materialsystem/shaderlib/ShaderDLL.cpp ../../materialsystem/shaderlib/shaderlib_cvar.cpp)
     target_link_libraries(materialsystem PRIVATE IOSImage)
+    add_library(stdshader_dx9 SHARED
+        ../../materialsystem/stdshaders/aftershock.cpp
+        ../../materialsystem/stdshaders/aftershock_helper.cpp
+        ../../materialsystem/stdshaders/AccumBuff4Sample.cpp
+        ../../materialsystem/stdshaders/accumbuff5sample.cpp
+        ../../materialsystem/stdshaders/BaseVSShader.cpp
+        ../../materialsystem/stdshaders/bik_dx90.cpp
+        ../../materialsystem/stdshaders/Bloom.cpp
+        ../../materialsystem/stdshaders/BlurFilterX.cpp
+        ../../materialsystem/stdshaders/BlurFilterY.cpp
+        ../../materialsystem/stdshaders/BufferClearObeyStencil_dx9.cpp
+        ../../materialsystem/stdshaders/cable_dx9.cpp
+        ../../materialsystem/stdshaders/cloak.cpp
+        ../../materialsystem/stdshaders/cloak_blended_pass_helper.cpp
+        ../../materialsystem/stdshaders/cloak_dx9_helper.cpp
+        ../../materialsystem/stdshaders/cloud_dx9.cpp
+        ../../materialsystem/stdshaders/colorcorrection.cpp
+        ../../materialsystem/stdshaders/compositor.cpp
+        ../../materialsystem/stdshaders/core_dx9.cpp
+        ../../materialsystem/stdshaders/color_projection.cpp
+        ../../materialsystem/stdshaders/debugmrttexture.cpp
+        ../../materialsystem/stdshaders/DebugTextureView.cpp
+        ../../materialsystem/stdshaders/DecalBaseTimesLightmapAlphaBlendSelfIllum_dx9.cpp
+        ../../materialsystem/stdshaders/DecalModulate_dx9.cpp
+        ../../materialsystem/stdshaders/depthwrite.cpp
+        ../../materialsystem/stdshaders/Downsample.cpp
+        ../../materialsystem/stdshaders/downsample_nohdr.cpp
+        ../../materialsystem/stdshaders/Engine_Post_dx9.cpp
+        ../../materialsystem/stdshaders/emissive_scroll_blended_pass_helper.cpp
+        ../../materialsystem/stdshaders/eye_refract.cpp
+        ../../materialsystem/stdshaders/eye_refract_helper.cpp
+        ../../materialsystem/stdshaders/eyes_dx8_dx9_helper.cpp
+        ../../materialsystem/stdshaders/eyes_dx9.cpp
+        ../../materialsystem/stdshaders/eyeglint_dx9.cpp
+        ../../materialsystem/stdshaders/filmdust_dx8_dx9.cpp
+        ../../materialsystem/stdshaders/filmgrain_dx8_dx9.cpp
+        ../../materialsystem/stdshaders/flesh_interior_blended_pass_helper.cpp
+        ../../materialsystem/stdshaders/floatcombine.cpp
+        ../../materialsystem/stdshaders/floatcombine_autoexpose.cpp
+        ../../materialsystem/stdshaders/floattoscreen.cpp
+        ../../materialsystem/stdshaders/floattoscreen_vanilla.cpp
+        ../../materialsystem/stdshaders/HDRCombineTo16Bit.cpp
+        ../../materialsystem/stdshaders/HDRSelectRange.cpp
+        ../../materialsystem/stdshaders/hsl_filmgrain_pass1.cpp
+        ../../materialsystem/stdshaders/hsl_filmgrain_pass2.cpp
+        ../../materialsystem/stdshaders/hsv.cpp
+        ../../materialsystem/stdshaders/introscreenspaceeffect.cpp
+        ../../materialsystem/stdshaders/lightmappedgeneric_dx9.cpp
+        ../../materialsystem/stdshaders/lightmappedgeneric_dx9_helper.cpp
+        ../../materialsystem/stdshaders/lightmappedreflective.cpp
+        ../../materialsystem/stdshaders/modulate_dx9.cpp
+        ../../materialsystem/stdshaders/MonitorScreen_dx9.cpp
+        ../../materialsystem/stdshaders/motion_blur_dx9.cpp
+        ../../materialsystem/stdshaders/occlusion_dx9.cpp
+        ../../materialsystem/stdshaders/particlelitgeneric_dx9.cpp
+        ../../materialsystem/stdshaders/particlelitgeneric_dx9_helper.cpp
+        ../../materialsystem/stdshaders/particlesphere_dx9.cpp
+        ../../materialsystem/stdshaders/pbr_dx9.cpp
+        ../../materialsystem/stdshaders/portal.cpp
+        ../../materialsystem/stdshaders/portalstaticoverlay.cpp
+        ../../materialsystem/stdshaders/portal_refract.cpp
+        ../../materialsystem/stdshaders/portal_refract_helper.cpp
+        ../../materialsystem/stdshaders/pyro_vision.cpp
+        ../../materialsystem/stdshaders/refract.cpp
+        ../../materialsystem/stdshaders/refract_dx9_helper.cpp
+        ../../materialsystem/stdshaders/sample4x4.cpp
+        ../../materialsystem/stdshaders/sample4x4_blend.cpp
+        ../../materialsystem/stdshaders/screenspace_general.cpp
+        ../../materialsystem/stdshaders/sfm_blurfilterx.cpp
+        ../../materialsystem/stdshaders/sfm_blurfiltery.cpp
+        ../../materialsystem/stdshaders/sfm_downsample.cpp
+        ../../materialsystem/stdshaders/sfm_integercombine.cpp
+        ../../materialsystem/stdshaders/shadow.cpp
+        ../../materialsystem/stdshaders/shadowbuild_dx9.cpp
+        ../../materialsystem/stdshaders/shadowmodel_dx9.cpp
+        ../../materialsystem/stdshaders/shatteredglass.cpp
+        ../../materialsystem/stdshaders/showz.cpp
+        ../../materialsystem/stdshaders/skin_dx9_helper.cpp
+        ../../materialsystem/stdshaders/sky_dx9.cpp
+        ../../materialsystem/stdshaders/sky_hdr_dx9.cpp
+        ../../materialsystem/stdshaders/sprite_dx9.cpp
+        ../../materialsystem/stdshaders/spritecard.cpp
+        ../../materialsystem/stdshaders/teeth.cpp
+        ../../materialsystem/stdshaders/TreeLeaf.cpp
+        ../../materialsystem/stdshaders/unlitgeneric_dx9.cpp
+        ../../materialsystem/stdshaders/unlittwotexture_dx9.cpp
+        ../../materialsystem/stdshaders/vertexlitgeneric_dx9.cpp
+        ../../materialsystem/stdshaders/vertexlitgeneric_dx9_helper.cpp
+        ../../materialsystem/stdshaders/volume_clouds.cpp
+        ../../materialsystem/stdshaders/volume_clouds_helper.cpp
+        ../../materialsystem/stdshaders/vortwarp_dx9.cpp
+        ../../materialsystem/stdshaders/vr_distort_hud.cpp
+        ../../materialsystem/stdshaders/vr_distort_texture.cpp
+        ../../materialsystem/stdshaders/warp.cpp
+        ../../materialsystem/stdshaders/water.cpp
+        ../../materialsystem/stdshaders/weapon_sheen_pass_helper.cpp
+        ../../materialsystem/stdshaders/windowimposter_dx90.cpp
+        ../../materialsystem/stdshaders/wireframe_dx9.cpp
+        ../../materialsystem/stdshaders/worldtwotextureblend.cpp
+        ../../materialsystem/stdshaders/worldvertexalpha.cpp
+        ../../materialsystem/stdshaders/worldvertextransition.cpp
+        ../../materialsystem/stdshaders/worldvertextransition_dx8_helper.cpp
+        ../../materialsystem/stdshaders/writez_dx9.cpp
+        ../../materialsystem/stdshaders/writestencil_dx9.cpp
+        ../../materialsystem/stdshaders/eyeball.cpp
+        ../../materialsystem/shaderlib/BaseShader.cpp
+        ../../materialsystem/shaderlib/ShaderDLL.cpp
+        ../../materialsystem/shaderlib/shaderlib_cvar.cpp)
+    engine_module(stdshader_dx9)
+    target_compile_definitions(stdshader_dx9 PRIVATE STDSHADER_DX9_DLL_EXPORT=1 FAST_MATERIALVAR_ACCESS=1)
+    target_include_directories(stdshader_dx9 PRIVATE ../../materialsystem/stdshaders
+        ../../materialsystem/stdshaders/fxctmp9 ../../materialsystem/stdshaders/vshtmp9)
+    set_target_properties(stdshader_dx9 PROPERTIES PREFIX "")
+    add_library(stdshader_dbg SHARED
+        ../../materialsystem/stdshaders/BaseVSShader.cpp
+        ../../materialsystem/stdshaders/debugdepth.cpp
+        ../../materialsystem/stdshaders/DebugDrawEnvmapMask.cpp
+        ../../materialsystem/stdshaders/debugluxel.cpp
+        ../../materialsystem/stdshaders/debugnormalmap.cpp
+        ../../materialsystem/stdshaders/debugtangentspace.cpp
+        ../../materialsystem/stdshaders/fillrate.cpp
+        ../../materialsystem/shaderlib/BaseShader.cpp
+        ../../materialsystem/shaderlib/ShaderDLL.cpp
+        ../../materialsystem/shaderlib/shaderlib_cvar.cpp)
+    engine_module(stdshader_dbg)
+    target_compile_definitions(stdshader_dbg PRIVATE STDSHADER_DBG_DLL_EXPORT=1 FAST_MATERIALVAR_ACCESS=1)
+    target_include_directories(stdshader_dbg PRIVATE ../../materialsystem/stdshaders
+        ../../materialsystem/stdshaders/fxctmp9 ../../materialsystem/stdshaders/vshtmp9)
+    set_target_properties(stdshader_dbg PROPERTIES PREFIX "")
     add_executable(SourceToGLES ANGLEProbe.m)
-    add_dependencies(SourceToGLES materialsystem shaderapidx9)
+    add_dependencies(SourceToGLES materialsystem shaderapidx9 stdshader_dx9 stdshader_dbg)
     set_target_properties(SourceToGLES PROPERTIES MACOSX_BUNDLE TRUE
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path/Frameworks")
     target_compile_options(SourceToGLES PRIVATE -fobjc-arc)

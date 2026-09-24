@@ -332,23 +332,41 @@ interface/ConVar registry and tier2 bindings.
 The probe loads `libmaterialsystem.dylib`, selects `libshaderapidx9.dylib`, and
 connects the real `CMaterialSystem` / `IShaderUtil` through its application factory.
 The material factory forwards the borrowed iOS context host to the shader API,
-without a desktop SDL launcher. `CShaderDeviceMgrDx8::Init` enumerates the hosted
-adapter; the check requires one adapter, DX9 capability and the actual drawable
-size. It then shuts down the manager, disconnects and unloads the modules. Two
-consecutive cycles must pass, with the application's GL dispatch and cvar service
-still usable, followed by the original on-screen render/readback.
+without a desktop SDL launcher. The application factory also forwards material
+interfaces so tier2 receives the actual hardware configuration before Init.
 
-This exposed texture workers starting in the texture manager's static constructor,
-then surviving a Connect-only module unload. Workers now start in `Init`, paired
-with their existing teardown in `Shutdown`; loading a module alone starts none.
-The probe does not yet call full `CMaterialSystem::Init` or shader-API `SetMode`,
-and does not render a material. Standard shader modules and shader/texture fixtures
-are the next dependency.
+The probe now builds and loads `stdshader_dx9.dylib` and `stdshader_dbg.dylib`
+from the repository's shader sources and generated combination headers. The
+bundle's Frameworks directory is an explicit `EXECUTABLE_PATH` search root.
+The shader dictionary contains 133 entries; the check requires `UnlitGeneric`
+and `DebugNormalMap`. Older DX6–8 modules are not packaged; the normal loader
+attempts them and continues to DX9.
 
-Both connection cycles and all prior graphics/filesystem checks pass on the iOS 27
-simulator. The device app builds and passes ad-hoc signature verification, but has
-not run on hardware. The changed shared material/texture/manager sources also pass
-a macOS x86_64 syntax check; this is not a complete desktop build.
+Two complete cycles exercise `CMaterialSystem::Init`, `ModInit`, `SetMode`,
+`ModShutdown`, `Shutdown`, disconnect and module unload. Each uses a single-threaded
+8×8 BGRA device without MSAA, including the standard fullscreen readback texture.
+The real `IMatRenderContext` clears color/depth/stencil and reads all 64 pixels
+back through the shader API and D3D surface path. Every RGBA byte must match
+(37, 91, 163, 255). The check also verifies adapter caps/native drawable dimensions,
+GL errors, retained application services and release of the current GLM context.
+The original four-color window render still runs afterward.
+
+Integration fixes include signed 32-bit HRESULT values on LP64 (with failure/success
+checks), thread-local tracking of borrowed GLM contexts, client dimensions from
+the device backbuffer, legal RGBA storage for XRGB uploads with opaque alpha
+swizzle, and RGBA-to-BGRA conversion when locking a readback surface. Texture
+workers start in Init and stop during Shutdown rather than starting at module load.
+
+Both cycles and prior graphics/filesystem checks pass on the iOS 27 simulator.
+The device app builds and passes ad-hoc signature verification, but has not run
+on hardware. Shared material-system code also passes a macOS x86_64 syntax check;
+this is not a complete desktop build.
+
+This verifies startup and clear/readback through the material system. It does not
+yet draw a material: compiled VCS shader bytecode and an original texture fixture
+remain to be supplied. The 133 shader entries describe available C++ shaders,
+not 133 GPU programs validated on iOS. Nonuniform readback orientation, complete
+texture format/channel conversion, queued rendering and device Reset remain untested.
 
 ### Filesystem and material data
 
@@ -386,8 +404,8 @@ request state is released. The overall simulator check still requires every
 existing graphics test and all 32 D3D9 presentations to pass. Multipart VPKs,
 archive signatures, ZIP loading and a complete game content tree remain untested.
 
-These are synthetic fixtures, not full engine materials or game assets. Full
-material initialization, shader-API SetMode and a material draw remain pending. The plain `Direct3DCreate9` export remains the desktop factory;
+These are synthetic fixtures, not full engine materials or game assets. A material draw
+with compiled shader fixtures remains pending. The plain `Direct3DCreate9` export remains the desktop factory;
 iOS uses the explicit factory above. Device `Reset`, vsync timing and physical-
 device presentation are not runtime-tested here. Native compressed uploads,
 other DXT endpoint modes, uncompressed texture channel ordering, shader model 3,
@@ -417,7 +435,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Supply standard shader modules and an original texture/compiled shader fixture,
-   complete material initialization and SetMode, then exercise the first material draw.
+1. Supply an original texture/compiled VCS shader fixture and exercise the first
+   material draw through the initialized material system.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

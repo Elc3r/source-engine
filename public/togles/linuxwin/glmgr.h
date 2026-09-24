@@ -1408,6 +1408,13 @@ class GLMContext
 		//void	ActivateFullScreen( bool fsOn, int screenIndex );	// will be called by BeginFrame
 		bool	SetDisplayParams( GLMDisplayParams *params );		// either the first time setup, or a change to new setup
 		
+		bool GetHostedBackBufferSize( uint &width, uint &height ) const
+		{
+			if ( !m_host ) return false;
+			width = m_displayParams.m_backBufferWidth;
+			height = m_displayParams.m_backBufferHeight;
+			return true;
+		}
 		bool	Present( CGLMTex *tex );		// somewhat hardwired for the time being
 
 		// Called when IDirect3DDevice9::Reset() is called.

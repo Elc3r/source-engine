@@ -443,6 +443,8 @@ void	GLMgr::DelGLMgr( void )
 
 // GLMgr class methods
 
+static thread_local GLMContext *s_HostedCurrentContext = NULL;
+
 GLMgr::GLMgr()
 {
 }	
@@ -471,6 +473,7 @@ void GLMgr::DelContext( GLMContext *context )
 
 void GLMgr::SetCurrentContext( GLMContext *context )
 {
+	if ( context->m_host ) { context->MakeCurrent( true ); return; }
 #if defined( USE_SDL )
 	context->m_nCurOwnerThreadId = ThreadGetCurrentId();
 	if ( !MakeContextCurrent( context->m_ctx ) )
@@ -484,8 +487,9 @@ void GLMgr::SetCurrentContext( GLMContext *context )
 
 GLMContext *GLMgr::GetCurrentContext( void )
 {
+	if ( s_HostedCurrentContext ) return s_HostedCurrentContext;
 #if defined( USE_SDL )
-	PseudoGLContextPtr context = GetMainContext();
+	PseudoGLContextPtr context = g_pLauncherMgr ? GetMainContext() : NULL;
 	return (GLMContext*) context;
 #else
 	Assert( 0 );
@@ -501,7 +505,10 @@ GLMContext *GLMgr::GetCurrentContext( void )
 // GLMContext public methods
 bool GLMContext::BindNativeContext(void *context)
 {
-    return m_host ? m_host->makeCurrent(m_host->userData, context) : MakeContextCurrent(context);
+    if (!m_host) return MakeContextCurrent(context);
+    if (!m_host->makeCurrent(m_host->userData, context)) return false;
+    s_HostedCurrentContext = context ? this : NULL;
+    return true;
 }
 
 bool GLMContext::HostShowPixels(CShowPixelsParams *params)
@@ -2815,6 +2822,7 @@ GLMContext::~GLMContext	()
 	PurgeTexCache();
 
 	if (!m_host) DecrementWindowRefCount();
+	if ( s_HostedCurrentContext == this ) s_HostedCurrentContext = NULL;
 }
 
 // This method must call SelectTMU()/glActiveTexture() (it's expected as a side effect).

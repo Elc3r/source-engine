@@ -6950,8 +6950,10 @@ void toglGetClientRect( void *hWnd, RECT *destRect )
 	// so, see if a D3D device is up and running, and if so,
 	// dig in and find out its backbuffer size and use that.
 
-	uint width, height;	
-	g_pLauncherMgr->RenderedSize( width, height, false );	// false = get them, don't set them
+	uint width = 0, height = 0;
+	GLMContext *context = gGL && GLMgr::aGLMgr() ? GLMgr::aGLMgr()->GetCurrentContext() : NULL;
+	if ( !( context && context->GetHostedBackBufferSize( width, height ) ) && g_pLauncherMgr )
+		g_pLauncherMgr->RenderedSize( width, height, false );
 	Assert( width!=0 && height!=0 );
 
 	destRect->left = 0;

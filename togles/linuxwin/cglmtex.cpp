@@ -1195,6 +1195,20 @@ GLubyte *CGLMTex::ReadTexels( GLMTexLockDesc *desc, bool readWholeSlice, bool re
 
 					convert_texture(fmt, 0, 0, fmt, dataType, NULL);
 					gGL->glReadPixels(0, 0, m_layout->m_slices[ desc->m_sliceIndex ].m_xSize, m_layout->m_slices[ desc->m_sliceIndex ].m_ySize, fmt, dataType, data);
+					// GLES reads RGBA bytes; the D3D surface lock exposes BGRA bytes.
+					if ( format->m_glDataFormat == GL_BGRA && dataType == GL_UNSIGNED_BYTE )
+					{
+						const int pixels = m_layout->m_slices[desc->m_sliceIndex].m_xSize
+							* m_layout->m_slices[desc->m_sliceIndex].m_ySize;
+						for ( int i = 0; i < pixels; ++i )
+						{
+							GLubyte red = data[4*i];
+							data[4*i] = data[4*i+2];
+							data[4*i+2] = red;
+							if ( format->m_d3dFormat == D3DFMT_X8R8G8B8 ) data[4*i+3] = 255;
+						}
+					}
+
 
 					gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER, Rfbo);
 					gGL->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, Dfbo);
@@ -3344,6 +3358,10 @@ void convert_texture( GLenum &internalformat, GLsizei width, GLsizei height, GLe
 	if( format == GL_BGRA ) format = GL_RGBA;
 	if( format == GL_BGR ) format = GL_RGB;
 
+	// GLES requires matching component counts for sized storage and upload formats.
+	if( internalformat == GL_RGB8 && format == GL_RGBA )
+		internalformat = GL_RGBA8;
+
 	if( internalformat == GL_SRGB8 && format == GL_RGBA )
 		internalformat = GL_SRGB8_ALPHA8;
 
@@ -3427,6 +3445,9 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 	GLMTexFormatDesc *format = m_layout->m_format;
 	
 	GLenum target		= m_layout->m_key.m_texGLTarget;
+	// XRGB uses RGBA storage on GLES; preserve its implicit opaque alpha.
+	if ( format->m_d3dFormat == D3DFMT_X8R8G8B8 )
+		gGL->glTexParameteri( target, GL_TEXTURE_SWIZZLE_A, GL_ONE );
 	GLenum glDataFormat	= format->m_glDataFormat;				// this could change if expansion kicks in 
 	GLenum glDataType	= format->m_glDataType;
 	
