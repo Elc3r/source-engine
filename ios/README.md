@@ -396,9 +396,24 @@ replacement and a one-pixel subimage that must preserve its neighbors.
 
 Simulator checks pass with no GL errors. This validates the original diagnostic
 material, not the standard UnlitGeneric shader's GPU bytecode or all registered
-C++ shaders. Compiled standard shader combinations, matrix transforms, lighting,
+C++ shaders. Full compiled standard shader libraries, lighting,
 compressed VCS blocks, dynamic/PBO texture uploads, other texture formats,
 queued rendering and device Reset still need coverage.
+
+### Standard shader and matrix transforms
+
+The unchanged production `screenspace_general_dx9` C++ shader is exercised by
+`ios/standard.vmt` and `ios/standard-transform.vmt`. The generator supplies
+hand-assembled SM2 equivalents of the two `screenspaceeffect_vs20` static
+X360APPCHOOSER variants, plus an original texture-sampling pixel shader. These
+selected fixtures are not a compiler-generated production shader library.
+
+Each material-system cycle checks four draws: passthrough, model scale/translation
+to the upper-left quadrant, noncommuting model/view/projection transforms to the
+lower-right quadrant, and a return to identity. Every RGBA pixel of the 8×8
+backbuffer is checked, including the untouched background. All eight standard
+shader draws pass alongside the six diagnostic draws, exercising static combo
+selection, MVP constant uploads and invalidation of cached transforms.
 
 ### Filesystem and material data
 
@@ -466,7 +481,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Exercise transforms and a standard material shader with its compiled combinations,
-   then verify presentation through the material system.
+1. Verify presentation through the material system, then expand standard shader
+   coverage beyond the selected screenspace fixtures.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

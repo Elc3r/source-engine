@@ -9,6 +9,7 @@
 #include "tier2/tier2.h"
 #include "materialsystem/ishader.h"
 #include "materialsystem/imesh.h"
+#include "mathlib/vmatrix.h"
 
 namespace {
 const GLMContextHost *applicationHost=NULL;
@@ -58,6 +59,70 @@ bool DrawMaterialFixture(IMaterialSystem *material, IMatRenderContext *context, 
         }
     }
     draw->DecrementReferenceCount();
+    return valid;
+}
+
+
+bool DrawStandardMaterial(IMaterialSystem *material, IMatRenderContext *context, char *detail, size_t capacity)
+{
+    const unsigned char colors[4][4]={{255,0,0,255},{0,255,0,255},{0,0,255,255},{255,255,0,255}};
+    const unsigned char background[4]={37,91,163,255};
+    const MaterialMatrixMode_t modes[]={MATERIAL_MODEL,MATERIAL_VIEW,MATERIAL_PROJECTION};
+    for (MaterialMatrixMode_t mode : modes) { context->MatrixMode(mode); context->PushMatrix(); }
+    bool valid=true;
+    for (int pass=0;pass<4 && valid;++pass) {
+        VMatrix model,view,projection;
+        model.Identity(); view.Identity(); projection.Identity();
+        if (pass==1) {
+            model[0][0]=model[1][1]=.5f;
+            model[0][3]=-.5f; model[1][3]=.5f;
+        } else if (pass==2) {
+            // Noncommuting transforms: projection * view * model gives a
+            // half-size quad centered at (+.5,-.5), not at (+1,-1).
+            model[0][3]=1; model[1][3]=-1;
+            view[0][0]=view[1][1]=2;
+            projection[0][0]=projection[1][1]=.25f;
+        }
+        context->MatrixMode(MATERIAL_MODEL); context->LoadMatrix(model);
+        context->MatrixMode(MATERIAL_VIEW); context->LoadMatrix(view);
+        context->MatrixMode(MATERIAL_PROJECTION); context->LoadMatrix(projection);
+        const char *name=pass ? "ios/standard-transform" : "ios/standard";
+        IMaterial *draw=material->FindMaterial(name,TEXTURE_GROUP_OTHER,true);
+        valid=draw && !draw->IsErrorMaterial() && !Q_stricmp(draw->GetShaderName(),"screenspace_general_dx9");
+        if (!valid) { snprintf(detail,capacity,"%s: standard shader lookup failed",name); break; }
+        draw->IncrementReferenceCount();
+        context->ClearColor4ub(37,91,163,255);
+        context->ClearBuffers(true,true,true);
+        context->Bind(draw);
+        IMesh *mesh=context->GetDynamicMesh(true);
+        CMeshBuilder builder;
+        builder.Begin(mesh,MATERIAL_TRIANGLES,2);
+        const float vertices[6][4]={{-1,-1,0,1},{1,-1,1,1},{1,1,1,0},
+                                  {-1,-1,0,1},{1,1,1,0},{-1,1,0,0}};
+        for (const auto &vertex : vertices) {
+            builder.Position3f(vertex[0],vertex[1],.5f);
+            builder.TexCoord2f(0,vertex[2],vertex[3]);
+            if (pass) builder.Color4ub(255,255,255,255);
+            builder.AdvanceVertex();
+        }
+        builder.End(); mesh->Draw();
+        unsigned char pixels[8*8*4]={};
+        context->ReadPixels(0,0,8,8,pixels,IMAGE_FORMAT_RGBA8888);
+        const int left=pass==2 ? 4 : 0, top=pass==2 ? 4 : 0;
+        const int size=pass==1 || pass==2 ? 4 : 8;
+        for (int y=0;y<8 && valid;++y) for (int x=0;x<8 && valid;++x) {
+            bool inside=x>=left && x<left+size && y>=top && y<top+size;
+            const unsigned char *expected=inside ? colors[((y-top)/(size/2))*2+(x-left)/(size/2)] : background;
+            const unsigned char *pixel=&pixels[4*(y*8+x)];
+            if (memcmp(pixel,expected,4)) {
+                snprintf(detail,capacity,"Standard matrix pass %d pixel (%d,%d): %u,%u,%u,%u expected %u,%u,%u,%u",
+                    pass,x,y,pixel[0],pixel[1],pixel[2],pixel[3],expected[0],expected[1],expected[2],expected[3]);
+                valid=false;
+            }
+        }
+        draw->DecrementReferenceCount();
+    }
+    for (MaterialMatrixMode_t mode : modes) { context->MatrixMode(mode); context->PopMatrix(); }
     return valid;
 }
 
@@ -140,6 +205,7 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                     if (!clearValid) snprintf(detail,capacity,"Material clear/readback mismatch: %u,%u,%u,%u",pixels[0],pixels[1],pixels[2],pixels[3]);
                     for (int pass=0;valid && pass<3;++pass)
                         valid=DrawMaterialFixture(material,context,pass==1,detail,capacity);
+                    if (valid) valid=DrawStandardMaterial(material,context,detail,capacity);
                     context->EndRender();
                     context->Release();
                     material->EndFrame();

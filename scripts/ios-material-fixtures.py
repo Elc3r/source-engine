@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate original single-combo SM2 VCS and 4x4 VTF assets for the iOS probe.
+"""Generate original SM2 VCS and 4x4 VTF assets for the iOS probe.
 
 No external compiler or game data is used. The shaders are hand-assembled:
 VS: dcl_position v0; dcl_texcoord v1; mov oPos,v0; mov oT0,v1
 PS: dcl t0; dcl_2d s0; texld r0,t0,s0; mov oC0,r0
 The binary layouts follow shader_vcs_version.h (v4, no diff reference) and
-vtf.h (7.2). Keep shader names synchronized with MaterialProbeShader.cpp.
+vtf.h (7.2). Keep shader names synchronized with MaterialProbeShader.cpp and fixture VMTs.
 """
 from pathlib import Path
 import struct
@@ -40,11 +40,41 @@ def write_fixtures(root):
             0x03000042, dst(0), src(3), src(10),
             0x02000001, dst(8), src(0), 0x0000ffff],
     }
+    # Hand-assembled equivalents of screenspaceeffect_vs20.fxc's two static
+    # X360APPCHOOSER variants. c4-c7 carry the engine's transposed MVP matrix;
+    # c48.zw carry bloom UV offsets. The selected pixel shader samples only t0.
+    variants = []
+    for transformed in [False, True]:
+        code = [0xfffe0200,
+                0x0200001f, 0x80000000, dst(1),
+                0x0200001f, 0x80000005, dst(1, 1)]
+        if transformed:
+            code += [0x0200001f, 0x8000000a, dst(1, 2)]
+        code += [0x05000051, dst(2, 1), 0, 0, 0, 0x3f800000]  # def c1,0,0,0,1
+        if transformed:
+            for component in range(4):
+                mask = 1 << (16 + component)
+                code += [0x03000009, register(4) | mask, src(1), src(2, 4 + component)]
+            code += [0x02000001, dst(6, 3), src(1, 2)]
+        else:
+            code += [0x02000001, dst(4), src(1)]
+        code += [0x02000001, dst(6), src(1, 1),
+                 0x02000001, dst(6, 1), register(2, 1),  # c1.xxxx = zero
+                 0x03000002, dst(6, 2), src(1, 1), register(2, 48) | 0x00ee0000,
+                 0x0000ffff]
+        variants.append(code)
+    programs['screenspaceeffect_vs20'] = variants
+    programs['ios_probe_sample'] = programs['ios_probe_ps20']
     for name, tokens in programs.items():
-        code = struct.pack('<' + 'I' * len(tokens), *tokens)
-        header = struct.pack('<7I', 4, 1, 1, 0, 0, 0, 0)
-        dictionary = struct.pack('<2I', len(header) + 8, len(code))
-        (shaders / (name + '.vcs')).write_bytes(header + dictionary + code)
+        combos = tokens if isinstance(tokens[0], list) else [tokens]
+        codes = [struct.pack('<' + 'I' * len(combo), *combo) for combo in combos]
+        header = struct.pack('<7I', 4, len(combos), 1, 0, 0, 0, 0)
+        offset = len(header) + 8 * len(combos)
+        dictionary = b''
+        for code in codes:
+            dictionary += struct.pack('<2I', offset, len(code))
+            offset += len(code)
+        (shaders / (name + '.vcs')).write_bytes(header + dictionary + b''.join(codes))
 
     # RGBA8888, point sampled, clamped, no mipmaps/LOD; one frame, no thumbnail.
     header = bytearray(80)

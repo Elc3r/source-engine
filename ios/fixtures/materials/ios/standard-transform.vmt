@@ -1,0 +1,10 @@
+"screenspace_general"
+{
+    "$basetexture" "ios/draw"
+    "$pixshader" "ios_probe_sample"
+    "$linearread_basetexture" "1"
+    "$linearwrite" "1"
+    "$x360appchooser" "1"
+    "$nocull" "1"
+    "$nofog" "1"
+}
