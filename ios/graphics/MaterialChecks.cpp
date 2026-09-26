@@ -14,6 +14,8 @@
 namespace {
 const GLMContextHost *applicationHost=NULL;
 IMaterialSystem *applicationMaterial=NULL;
+CSysModule *liveModule=NULL;
+IMaterialSystem *liveMaterial=NULL;
 void *ApplicationFactory(const char *name, int *status)
 {
     if (!strcmp(name,TOGLES_CONTEXT_HOST_INTERFACE_VERSION)) {
@@ -32,6 +34,7 @@ struct MaterialPresentation {
     int swaps;
     bool valid, solid;
 };
+MaterialPresentation *livePresentation=NULL;
 bool PresentationBind(void *data, void *context)
 {
     auto *check=static_cast<MaterialPresentation *>(data);
@@ -172,7 +175,7 @@ bool DrawStandardMaterial(IMaterialSystem *material, IMatRenderContext *context,
 
 }
 
-bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *detail, size_t capacity)
+bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *detail, size_t capacity, bool retain)
 {
     char materialPath[MAX_PATH],shaderPath[MAX_PATH];
     Q_snprintf(materialPath,sizeof(materialPath),"%s/libmaterialsystem.dylib",modules);
@@ -182,8 +185,10 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
     CreateInterfaceFn factory=Sys_GetFactory(module);
     IMaterialSystem *material=factory ? static_cast<IMaterialSystem *>(factory(MATERIAL_SYSTEM_INTERFACE_VERSION,NULL)) : NULL;
     bool valid=false,connected=false,initialized=false;
-    MaterialPresentation presentation={host,0,true,false};
-    GLMContextHost hosted=*host;
+    static MaterialPresentation presentation;
+    static GLMContextHost hosted;
+    presentation={host,0,true,false};
+    hosted=*host;
     hosted.userData=&presentation;
     hosted.makeCurrent=PresentationBind;
     hosted.displayedSize=PresentationSize;
@@ -282,6 +287,12 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                     }
 
                 }
+                if (valid && retain) {
+                    livePresentation=&presentation;
+                    liveModule=module;
+                    liveMaterial=material;
+                    return true;
+                }
                 material->ModShutdown();
                 material->Shutdown();
             }
@@ -298,4 +309,35 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
     if (valid && (!services || !released)) snprintf(detail,capacity,"Material teardown lost services or retained its context");
     valid=valid && services && released && teardownError==GL_NO_ERROR;
     return valid;
+}
+
+// These entry points run only on the UIKit render thread. The borrowed host
+// and its native context must outlive the retained material system.
+bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
+{
+    if (!liveMaterial) { snprintf(detail,capacity,"No live material system"); return false; }
+    int swaps=livePresentation->swaps;
+    liveMaterial->BeginFrame(0);
+    IMatRenderContext *context=liveMaterial->GetRenderContext();
+    context->BeginRender();
+    context->Viewport(0,0,8,8);
+    context->ClearColor4ub(37,91,163,255);
+    context->ClearBuffers(true,true,true);
+    bool valid=DrawMaterialFixture(liveMaterial,context,false,detail,capacity);
+    context->EndRender(); context->Release();
+    liveMaterial->EndFrame();
+    if (valid) liveMaterial->SwapBuffers();
+    GLenum error=gGL->glGetError();
+    if (valid && error!=GL_NO_ERROR) snprintf(detail,capacity,"Live material GL error 0x%x",error);
+    if (valid && (!livePresentation->valid || livePresentation->swaps!=swaps+1)) {
+        snprintf(detail,capacity,"Live material window pixels/swap failed"); return false;
+    }
+    return valid && error==GL_NO_ERROR;
+}
+void StopToGLESLiveMaterial()
+{
+    if (!liveMaterial) return;
+    liveMaterial->ModShutdown(); liveMaterial->Shutdown(); liveMaterial->Disconnect();
+    liveMaterial=NULL; livePresentation=NULL; applicationMaterial=NULL; applicationHost=NULL;
+    Sys_UnloadModule(liveModule); liveModule=NULL;
 }

@@ -27,7 +27,8 @@ static EGLContext context = EGL_NO_CONTEXT;
 static EGLSurface surface = EGL_NO_SURFACE;
 static GLuint program, texture, vao;
 static UILabel *label;
-static BOOL finished, paused;
+static BOOL finished, paused, renderFailed;
+static unsigned suspends, resumes;
 static unsigned frames;
 static NSString *renderer = @"unavailable", *version = @"unavailable";
 
@@ -175,7 +176,7 @@ static BOOL StartRenderer(void)
         engineChecksPassed = CheckToGLESObjects(detail, sizeof(detail), [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"].fileSystemRepresentation);
         runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
     }
-    ShutdownToGLESBackend();
+    if (engineChecksPassed) engineChecksPassed = StartToGLESMaterialLoop([NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"].fileSystemRepresentation, detail, sizeof(detail));
     if (!engineChecksPassed) { SaveResult(NO, @(detail), @{}); return NO; }
 #endif
     return YES;
@@ -189,14 +190,27 @@ static void DrawFrame(void *unused)
             if (event.type == SDL_APP_WILLENTERBACKGROUND) paused = YES;
             if (event.type == SDL_APP_DIDENTERFOREGROUND) paused = NO;
         }
-        if (paused) return;
+        if (paused || renderFailed) return;
         EGLint width = 0, height = 0;
         if (!eglQuerySurface(display, surface, EGL_WIDTH, &width) ||
             !eglQuerySurface(display, surface, EGL_HEIGHT, &height)) {
-            if (!finished) EGLFailure(@"eglQuerySurface");
+            renderFailed=YES; EGLFailure(@"eglQuerySurface");
             return;
         }
         if (width <= 0 || height <= 0) return;
+#ifdef SOURCE_TOGLES_PROBE
+        char detail[4096]={0};
+        if (!DrawToGLESMaterialLoop(detail,sizeof(detail))) {
+            renderFailed=YES;
+            SaveResult(NO,@(detail),@{});
+            return;
+        }
+        ++frames;
+        if (frames%120==0) SaveResult(YES,@"Live material + SwapBuffers: PASS",
+            @{@"pixel_width": @(width), @"pixel_height": @(height), @"gl_error": @0,
+              @"swap_succeeded": @YES, @"material_loop": @YES, @"suspends": @(suspends), @"resumes": @(resumes)});
+        return;
+#endif
         glViewport(0, 0, width, height);
         glDrawArrays(GL_TRIANGLES, 0, 3);
         BOOL verify = !finished && frames >= 3;
@@ -234,6 +248,10 @@ static void DrawFrame(void *unused)
 static void StopGraphics(void)
 {
     if (window) SDL_iPhoneSetAnimationCallback(window, 0, NULL, NULL);
+#ifdef SOURCE_TOGLES_PROBE
+    StopToGLESMaterialLoop();
+    ShutdownToGLESBackend();
+#endif
     if (display != EGL_NO_DISPLAY) {
         if (context != EGL_NO_CONTEXT && eglGetCurrentContext() == context) {
             glDeleteVertexArrays(1, &vao);
@@ -251,7 +269,8 @@ static void StopGraphics(void)
     window = NULL; metalView = NULL; label = nil;
     display = EGL_NO_DISPLAY; context = EGL_NO_CONTEXT; surface = EGL_NO_SURFACE;
     program = texture = vao = frames = 0;
-    finished = paused = NO;
+    finished = paused = renderFailed = NO;
+    suspends = resumes = 0;
 #ifdef SOURCE_TOGLES_PROBE
     engineDetail = @"not run";
     runtimeDetail = @"not run";
@@ -300,8 +319,15 @@ static void StartGraphics(UIWindowScene *scene)
 @implementation ANGLEScene
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)options
 { StartGraphics((UIWindowScene *)scene); }
-- (void)sceneWillResignActive:(UIScene *)scene { paused = YES; }
-- (void)sceneDidBecomeActive:(UIScene *)scene { paused = NO; }
+- (void)sceneWillResignActive:(UIScene *)scene {
+    paused = YES; ++suspends;
+    if (display != EGL_NO_DISPLAY) eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
+}
+- (void)sceneDidBecomeActive:(UIScene *)scene {
+    if (display != EGL_NO_DISPLAY && context != EGL_NO_CONTEXT)
+        eglMakeCurrent(display,surface,surface,context);
+    paused = NO; ++resumes;
+}
 - (void)sceneDidDisconnect:(UIScene *)scene { StopGraphics(); }
 @end
 

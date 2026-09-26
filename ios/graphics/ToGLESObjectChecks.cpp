@@ -4,7 +4,7 @@
 #include <EGL/egl.h>
 bool CheckToGLESD3DDevice(const GLMContextHost *host, char *detail, size_t capacity);
 
-bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *detail, size_t capacity);
+bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *detail, size_t capacity, bool retain);
 
 namespace {
 struct HostSurface { EGLDisplay display; EGLSurface surface; };
@@ -26,6 +26,17 @@ bool ShowPixels(void *data, CShowPixelsParams *params)
 {
     HostSurface *host = static_cast<HostSurface *>(data);
     if (params->m_onlySyncView) {
+        // ANGLE can defer acquiring/resizing the Metal drawable until the
+        // default framebuffer is used. Resolve that before GLM queries its
+        // destination size, otherwise the first rotated frame blits at the
+        // previous dimensions. Preserve GLM's cached framebuffer bindings.
+        GLint read=0;
+        gGL->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);
+        gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,0);
+        unsigned char pixel[4]={};
+        gGL->glReadPixels(0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
+        gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,read);
+        if (gGL->glGetError()!=GL_NO_ERROR) return false;
         EGLint width=0;
         return eglQuerySurface(host->display,host->surface,EGL_WIDTH,&width)==EGL_TRUE;
     }
@@ -206,7 +217,7 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
             host.context=windowContext;
             if (valid) valid=CheckToGLESD3DDevice(&host,detail,capacity);
             for (int cycle=0; valid && cycle<2; ++cycle)
-                valid=CheckToGLESMaterial(&host,modules,detail,capacity);
+                valid=CheckToGLESMaterial(&host,modules,detail,capacity,false);
             if (!eglMakeCurrent(display,surface,surface,native)) {
                 valid=false; snprintf(detail,capacity,"D3D9 window host: EGL restore failed");
             }
@@ -221,4 +232,67 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
     if (native!=EGL_NO_CONTEXT) eglDestroyContext(display,native);
     if (surface!=EGL_NO_SURFACE) eglDestroySurface(display,surface);
     return valid;
+}
+
+namespace {
+HostSurface liveSurface={};
+GLMContextHost liveHost={};
+bool liveStarted=false;
+EGLContext livePrevious=EGL_NO_CONTEXT;
+}
+bool DrawToGLESLiveMaterial(char *detail, size_t capacity);
+void StopToGLESLiveMaterial();
+int StartToGLESMaterialLoop(const char *modules, char *detail, size_t capacity)
+{
+    if (liveStarted) return 1;
+    liveSurface={eglGetCurrentDisplay(),eglGetCurrentSurface(EGL_DRAW)};
+    liveHost={};
+    livePrevious=eglGetCurrentContext();
+    EGLint configID=0,count=0;
+    EGLConfig config=NULL;
+    if (!eglQueryContext(liveSurface.display,livePrevious,EGL_CONFIG_ID,&configID)) {
+        snprintf(detail,capacity,"Live material EGL config query failed"); return 0;
+    }
+    const EGLint attributes[]={EGL_CONFIG_ID,configID,EGL_NONE};
+    const EGLint contextAttributes[]={EGL_CONTEXT_CLIENT_VERSION,3,EGL_NONE};
+    if (!eglChooseConfig(liveSurface.display,attributes,&config,1,&count) || !count) {
+        snprintf(detail,capacity,"Live material EGL config unavailable"); return 0;
+    }
+    liveHost.context=eglCreateContext(liveSurface.display,config,EGL_NO_CONTEXT,contextAttributes);
+    if (liveHost.context==EGL_NO_CONTEXT || !MakeCurrent(&liveSurface,liveHost.context)) {
+        if (liveHost.context!=EGL_NO_CONTEXT) eglDestroyContext(liveSurface.display,liveHost.context);
+        snprintf(detail,capacity,"Live material EGL context creation failed"); return 0;
+    }
+    liveHost.userData=&liveSurface;
+    liveHost.makeCurrent=MakeCurrent; liveHost.showPixels=ShowPixels; liveHost.displayedSize=DisplayedSize;
+    liveHost.caps.m_hasMixedAttachmentSizes=true;
+    liveHost.caps.m_hasFramebufferBlit=true;
+    liveHost.caps.m_hasUniformBuffers=true;
+    liveHost.caps.m_hasOcclusionQuery=true;
+    GLint samples=0; gGL->glGetIntegerv(GL_MAX_SAMPLES,&samples);
+    liveHost.caps.m_maxSamples=samples;
+    GLMgr::NewGLMgr();
+    liveStarted=CheckToGLESMaterial(&liveHost,modules,detail,capacity,true);
+    if (!liveStarted) {
+        GLMgr::DelGLMgr();
+        MakeCurrent(&liveSurface,livePrevious);
+        eglDestroyContext(liveSurface.display,liveHost.context);
+    }
+    return liveStarted;
+}
+int DrawToGLESMaterialLoop(char *detail, size_t capacity)
+{
+    if (!liveStarted || !MakeCurrent(&liveSurface,liveHost.context)) {
+        snprintf(detail,capacity,"Live material context bind failed"); return 0;
+    }
+    return DrawToGLESLiveMaterial(detail,capacity);
+}
+void StopToGLESMaterialLoop(void)
+{
+    if (!liveStarted) return;
+    MakeCurrent(&liveSurface,liveHost.context);
+    StopToGLESLiveMaterial(); GLMgr::DelGLMgr(); liveStarted=false;
+    MakeCurrent(&liveSurface,livePrevious);
+    eglDestroyContext(liveSurface.display,liveHost.context);
+    liveHost.context=EGL_NO_CONTEXT;
 }

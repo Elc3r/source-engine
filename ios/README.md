@@ -383,8 +383,8 @@ the VCS files, ToGLES translates their D3D9 tokens, and ANGLE executes the resul
 Each cycle draws opaque → alpha → opaque, checking all 64 RGBA pixels after each
 draw. All six draws must pass, including quadrant orientation, channel ordering,
 alpha output and rebinding the cached opaque material. These draw readbacks are
-from the 8×8 device backbuffer; the final on-screen color pattern remains the
-separate original ANGLE probe.
+from the 8×8 device backbuffer. The ToGLES app now keeps a diagnostic material
+on screen using the persistent loop described below.
 
 Drawing exposed dyld coalescing inline shaderlib functions across modules that
 have separate static draw state. Engine modules now hide their inline symbols.
@@ -428,9 +428,34 @@ scaling from 8×8 to the drawable size; it also checks default read/draw framebu
 bindings, GL errors, successful swaps and exactly three presentations per cycle.
 Alternating content catches stale frames, while drawing again after SwapBuffers
 exercises restored render state. All six presentations pass in the simulator.
-The final persistent screen remains the separate ANGLE probe; these material
-frames are presented during startup. Device compilation/signing is verified,
-but physical-device execution, resize and sustained frame pacing remain untested.
+These six material frames are presented during startup. Device compilation and
+signing are verified; physical-device execution remains untested.
+
+### Persistent material loop and app lifecycle
+
+The ToGLES app retains a material-system session after startup checks and draws
+`ios/draw` on every SDL animation callback through BeginFrame/EndFrame and
+SwapBuffers. Its own EGL context shares the window surface, but not mutable GL
+state with the original ANGLE test context. Shutdown releases the material system
+and modules before destroying this context and the host window.
+
+Every frame validates all 8×8 source pixels, four native-window quadrant samples,
+GL errors and exactly one successful swap. JSON results update every 120 frames;
+a rendering failure stops the loop and replaces the previous PASS. This is a
+correctness probe with synchronous readbacks, not a performance benchmark.
+The standalone ANGLE target retains its original GLSL loop.
+
+Scene deactivation pauses rendering and releases the current EGL context. The
+next active frame rebinds the material context. Simulator checks cover thousands
+of frames, Home/foreground transitions, and portrait/landscape changes between
+1206×2622 and 2622×1206. ANGLE lazily updates its drawable; the host sync callback
+accesses the default framebuffer before GLM queries its dimensions, preventing
+the first rotated frame from using stale destination bounds. Read bindings are
+restored after this probe-only synchronization readback.
+
+The D3D render target remains 8×8 and scales to the current drawable. Native-size
+rendering/device Reset, context loss, scene-disconnect/reconnect execution,
+physical-device lifecycle and frame pacing still need coverage.
 
 ### Filesystem and material data
 
@@ -498,7 +523,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend material presentation into a persistent frame loop with resize/lifecycle
-   handling, and expand standard shader coverage beyond the screenspace fixtures.
+1. Add native-size render targets/device Reset and expand standard shader coverage
+   beyond the screenspace fixtures.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
