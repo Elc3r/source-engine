@@ -27,9 +27,14 @@ def main():
     mode.add_argument('--graphics', action='store_true', help='Build the independent SDL/Metal GPU probe')
     mode.add_argument('--angle', action='store_true', help='Build the SDL/ANGLE GLES texture probe (downloads pinned ANGLE)')
     mode.add_argument('--togles', action='store_true', help='Test engine shader translation and DXT decoding through ANGLE')
+    parser.add_argument('--shader-cache', type=Path, help='Validated FXC shader cache from ios-compile-shaders.py (ToGLES only)')
     parser.add_argument('--min-version', help='Default: 16.0 for ANGLE, 15.0 otherwise')
     parser.add_argument('--simulator', metavar='UDID', help='Install, launch and verify on this simulator')
     args = parser.parse_args()
+    if args.shader_cache and not args.togles:
+        parser.error('--shader-cache requires --togles')
+    if args.shader_cache:
+        args.shader_cache = args.shader_cache.resolve()
     args.angle = args.angle or args.togles
     args.min_version = args.min_version or ('16.0' if args.angle else '15.0')
     if args.simulator and args.target != 'simulator':
@@ -82,6 +87,9 @@ def main():
         if args.togles:
             shutil.copytree(ROOT / 'ios/fixtures', app / 'probe-assets')
             run(sys.executable, ROOT / 'scripts/ios-material-fixtures.py', app / 'probe-assets')
+            if args.shader_cache:
+                run(sys.executable, ROOT / 'scripts/ios-compile-shaders.py',
+                    '--output', args.shader_cache, '--stage', app / 'probe-assets')
             # Original VPK v2 fixture: three preload bytes plus embedded data.
             # Layout follows vpklib/packedstore_internal.h and packedstore.cpp.
             material = (ROOT / 'ios/fixtures/materials/ios/probe.vmt').read_bytes()

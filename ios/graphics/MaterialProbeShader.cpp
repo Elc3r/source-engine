@@ -33,7 +33,8 @@ BEGIN_VS_SHADER( IOSProbe, "Minimal textured material for the iOS port probe" )
         DYNAMIC_STATE
         {
             BindTexture(SHADER_SAMPLER0,BASETEXTURE);
-            const float clipConstants[4]={0,0,2,0};
+            // Preserve the engine math-constant contract used by compiled HLSL.
+            const float clipConstants[4]={0,1,2,.5f};
             pShaderAPI->SetVertexShaderConstant(0,clipConstants,1);
             pShaderAPI->SetVertexShaderIndex(0);
             pShaderAPI->SetPixelShaderIndex(0);

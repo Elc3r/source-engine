@@ -44,6 +44,8 @@ static void SaveResult(BOOL passed, NSString *detail, NSDictionary *extra)
         @"renderer": renderer, @"gl_version": version} mutableCopy];
     [result addEntriesFromDictionary:extra];
 #ifdef SOURCE_TOGLES_PROBE
+    result[@"compiled_shaders"] = @([NSFileManager.defaultManager fileExistsAtPath:
+        [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"probe-assets/compiled-shaders.json"]]);
     result[@"engine_checks"] = engineDetail;
     result[@"runtime_checks"] = runtimeDetail;
     result[@"engine_checks_passed"] = @(engineChecksPassed);

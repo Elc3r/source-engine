@@ -479,6 +479,57 @@ with the same material session. Context loss, failed Reset recovery, MSAA,
 scene-disconnect/reconnect execution, physical-device lifecycle and frame pacing
 still need coverage.
 
+### Compiling the first HLSL shaders
+
+`scripts/ios-compile-shaders.py` compiles the repository's unchanged
+`screenspaceeffect_vs20.fxc` for both X360APPCHOOSER static variants, plus the
+original diagnostic HLSL in `ios/shaders`. It writes VCS v4 files with one dynamic
+combo per static combo. Passing this cache to the packager replaces all four
+hand-assembled shader files used by the current material probes. The standard
+screenspace C++ shader, matrix tests and persistent diagnostic renderer then run
+FXC-produced bytecode through the normal VCS loader and ToGLES translator.
+
+On this Mac, the repository's `dx9sdk/utilities/fxc.exe` (D3DX9 compiler
+5.04.00.2904) runs in a dedicated CrossOver bottle. Create the bottle once:
+
+```sh
+/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/cxbottle --bottle source-ios-shaders --create --template win10_64
+```
+
+Compile and package without driving a simulator:
+
+```sh
+python3 scripts/ios-compile-shaders.py --runner-json '["/Applications/CrossOver.app/Contents/SharedSupport/CrossOver/bin/wine", "--bottle", "source-ios-shaders", "--no-gui"]'
+python3 scripts/build-ios-bootstrap.py --togles --shader-cache build-ios-shaders/compiled
+python3 scripts/build-ios-bootstrap.py --togles --target device --shader-cache build-ios-shaders/compiled
+```
+
+The compiler accepts a different `--fxc` and a JSON command prefix for other Wine
+installations (host files must be accessible through Z:). Windows hosts can omit
+the runner. Generated caches are ignored by Git. The compiler and compatibility
+runtime stay on the build host; neither is packaged into the app.
+
+`manifest.json` records compiler, source/include and output SHA-256 hashes, shader
+profiles and selected defines. Packaging validates current sources and every
+output before staging the files and a `compiled-shaders.json` provenance copy.
+Two independent builds produced identical manifests and bytecode hashes; corrupt
+outputs and stale source hashes are rejected. Without `--shader-cache`, the
+existing hand-assembled fixtures remain available. Runtime JSON explicitly
+reports `compiled_shaders` so results from these two paths can be distinguished.
+
+Compiled screenspace HLSL exposed a diagnostic shader overwriting register c0
+with incomplete values. It now preserves the engine contract `(0,1,2,0.5)`;
+FXC uses these constants to construct positions as specified in common_vs_fxc.h.
+
+Simulator matrix/depth/stencil tests and native rendering pass with the compiled
+cache. Device compilation, packaging and code signing also pass; physical-device
+execution remains untested.
+
+This is the first reproducible, selected HLSL pipeline, not the full standard
+shader library. UnlitGeneric still needs selection/indexing of its static and
+dynamic combinations, followed by end-to-end material tests. Lighting shaders,
+compressed VCS blocks and full library build times remain outside this milestone.
+
 ### Filesystem and material data
 
 The app now links the repository's actual stdio/base filesystem, asynchronous
@@ -545,7 +596,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Build reproducible standard shader combinations and expand coverage beyond
-   the screenspace fixtures.
+1. Extend the FXC pipeline to UnlitGeneric static/dynamic combinations and
+   validate its standard material end to end.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
