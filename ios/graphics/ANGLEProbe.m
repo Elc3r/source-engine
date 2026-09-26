@@ -206,7 +206,7 @@ static void DrawFrame(void *unused)
             return;
         }
         ++frames;
-        if (frames%120==0) SaveResult(YES,@"Live material + SwapBuffers: PASS",
+        if (frames%120==0) SaveResult(YES,@(detail),
             @{@"pixel_width": @(width), @"pixel_height": @(height), @"gl_error": @0,
               @"swap_succeeded": @YES, @"material_loop": @YES, @"suspends": @(suspends), @"resumes": @(resumes)});
         return;

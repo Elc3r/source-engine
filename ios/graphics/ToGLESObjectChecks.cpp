@@ -285,6 +285,10 @@ int DrawToGLESMaterialLoop(char *detail, size_t capacity)
     if (!liveStarted || !MakeCurrent(&liveSurface,liveHost.context)) {
         snprintf(detail,capacity,"Live material context bind failed"); return 0;
     }
+    CShowPixelsParams sync={}; sync.m_onlySyncView=true;
+    if (!ShowPixels(&liveSurface,&sync)) {
+        snprintf(detail,capacity,"Live drawable synchronization failed"); return 0;
+    }
     return DrawToGLESLiveMaterial(detail,capacity);
 }
 void StopToGLESMaterialLoop(void)

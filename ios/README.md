@@ -439,7 +439,8 @@ SwapBuffers. Its own EGL context shares the window surface, but not mutable GL
 state with the original ANGLE test context. Shutdown releases the material system
 and modules before destroying this context and the host window.
 
-Every frame validates all 8×8 source pixels, four native-window quadrant samples,
+Startup checks validate all 8×8 source pixels. Live frames validate source corners
+and quadrant centers plus four native-window quadrant samples,
 GL errors and exactly one successful swap. JSON results update every 120 frames;
 a rendering failure stops the loop and replaces the previous PASS. This is a
 correctness probe with synchronous readbacks, not a performance benchmark.
@@ -453,9 +454,30 @@ accesses the default framebuffer before GLM queries its dimensions, preventing
 the first rotated frame from using stale destination bounds. Read bindings are
 restored after this probe-only synchronization readback.
 
-The D3D render target remains 8×8 and scales to the current drawable. Native-size
-rendering/device Reset, context loss, scene-disconnect/reconnect execution,
-physical-device lifecycle and frame pacing still need coverage.
+The live D3D render target follows the drawable size using material-system
+OverrideConfig → ChangeVideoMode → ResizeWindow → D3D9 Reset. The current frame
+finishes on the old target; Present processes the pending reset, and the next
+frame uses the new dimensions. The probe verifies the actual reported backbuffer
+size after Reset, then tests all corners of the recreated color/depth/stencil
+buffers. Startup fixtures retain their deterministic 8×8 targets.
+
+`ios/depth.vmt` enables depth testing/writes in the original diagnostic shader.
+At each new backbuffer size, five draws check cleared depth/stencil, stencil
+replacement, rejection of farther geometry, rejection by stencil, and successful
+nearer geometry with a matching stencil value. Native readbacks sample the bound
+render FBO directly so each sample does not allocate/download a full-screen
+staging surface. All read bindings are restored after inspection.
+
+Per-pixel startup readbacks exposed a ToGLES read-only subrectangle lock bug:
+ReadTexels returned the whole slice origin instead of the requested region.
+The returned pointer now includes the region offset; exhaustive 8×8 per-pixel
+checks cover both axes and preserve the existing RGBA/alpha checks. Hosted Reset
+also permits a null desktop focus window in its debug assertion.
+
+Simulator checks cover 1206×2622 → 2622×1206 → 1206×2622 and background/foreground
+with the same material session. Context loss, failed Reset recovery, MSAA,
+scene-disconnect/reconnect execution, physical-device lifecycle and frame pacing
+still need coverage.
 
 ### Filesystem and material data
 
@@ -523,7 +545,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Add native-size render targets/device Reset and expand standard shader coverage
-   beyond the screenspace fixtures.
+1. Build reproducible standard shader combinations and expand coverage beyond
+   the screenspace fixtures.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

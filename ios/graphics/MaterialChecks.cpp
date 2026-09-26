@@ -73,7 +73,20 @@ bool PresentationSwap(void *data, CShowPixelsParams *params)
     return swapped;
 }
 
-bool DrawMaterialFixture(IMaterialSystem *material, IMatRenderContext *context, bool alpha, char *detail, size_t capacity)
+// Native-size probes inspect the actual draw FBO without allocating and
+// downloading a full-screen D3D staging surface for each one-pixel sample.
+void ReadNativePixel(IMatRenderContext *context, int x, int y, unsigned char pixel[4])
+{
+    context->Flush();
+    GLint read=0,draw=0;
+    gGL->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);
+    gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);
+    gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,draw);
+    gGL->glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
+    gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,read);
+}
+
+bool DrawMaterialFixture(IMaterialSystem *material, IMatRenderContext *context, bool alpha, char *detail, size_t capacity, int width=8, int height=8)
 {
     const char *name=alpha ? "ios/draw-alpha" : "ios/draw";
     IMaterial *draw=material->FindMaterial(name,TEXTURE_GROUP_OTHER,true);
@@ -91,17 +104,22 @@ bool DrawMaterialFixture(IMaterialSystem *material, IMatRenderContext *context, 
     builder.Position3f(-1,3,.5f); builder.TexCoord2f(0,0,-1); builder.AdvanceVertex();
     builder.End();
     mesh->Draw();
-    unsigned char pixels[8*8*4]={};
-    context->ReadPixels(0,0,8,8,pixels,IMAGE_FORMAT_RGBA8888);
     unsigned char expected[4][4]={{255,0,0,255},{0,255,0,255},{0,0,255,255},{255,255,0,255}};
     if (alpha) { expected[1][3]=192; expected[2][3]=128; expected[3][3]=64; }
     bool valid=true;
-    for (int y=0;y<8 && valid;++y) for (int x=0;x<8 && valid;++x) {
-        const unsigned char *pixel=&pixels[(y*8+x)*4];
-        const unsigned char *color=expected[(y/4)*2+x/4];
+    // Keep exhaustive coverage for tiny startup fixtures; sample the centers
+    // and outer corners at native resolution without a full-screen readback.
+    int samples=width==8 && height==8 ? 64 : 8;
+    for (int i=0;i<samples && valid;++i) {
+        int x=samples==64 ? i%8 : (i<4 ? (i%2 ? 3 : 1)*width/4 : (i%2 ? width-1 : 0));
+        int y=samples==64 ? i/8 : (i<4 ? (i/2 ? 3 : 1)*height/4 : ((i-4)/2 ? height-1 : 0));
+        unsigned char pixel[4]={};
+        if (samples==64) context->ReadPixels(x,y,1,1,pixel,IMAGE_FORMAT_RGBA8888);
+        else ReadNativePixel(context,x,y,pixel);
+        const unsigned char *color=expected[(y>=height/2)*2+(x>=width/2)];
         if (memcmp(pixel,color,4)) {
-            snprintf(detail,capacity,"%s pixel (%d,%d): %u,%u,%u,%u expected %u,%u,%u,%u",
-                name,x,y,pixel[0],pixel[1],pixel[2],pixel[3],color[0],color[1],color[2],color[3]);
+            snprintf(detail,capacity,"%s %dx%d pixel (%d,%d): %u,%u,%u,%u expected %u,%u,%u,%u",
+                name,width,height,x,y,pixel[0],pixel[1],pixel[2],pixel[3],color[0],color[1],color[2],color[3]);
             valid=false;
         }
     }
@@ -311,33 +329,109 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
     return valid;
 }
 
+namespace {
+bool CheckNativeDepthStencil(IMaterialSystem *material, IMatRenderContext *context,
+    int width, int height, char *detail, size_t capacity)
+{
+    IMaterial *draw=material->FindMaterial("ios/depth",TEXTURE_GROUP_OTHER,true);
+    if (!draw || draw->IsErrorMaterial()) {
+        snprintf(detail,capacity,"Depth fixture missing"); return false;
+    }
+    draw->IncrementReferenceCount();
+    context->ClearBuffers(true,true,true);
+    context->SetStencilEnable(true);
+    context->SetStencilTestMask(255); context->SetStencilWriteMask(255);
+    context->SetStencilFailOperation(STENCILOPERATION_KEEP);
+    context->SetStencilZFailOperation(STENCILOPERATION_KEEP);
+    bool valid=true;
+    // Initial stencil zero admits red. Then replace with 1, reject a farther
+    // green by depth, reject nearer blue by stencil, and finally admit blue.
+    const float depths[]={.25f,.25f,.75f,.125f,.125f};
+    for (int pass=0;pass<5 && valid;++pass) {
+        context->SetStencilReferenceValue(pass==0 || pass==3 ? 0 : 1);
+        context->SetStencilCompareFunction(pass==1 || pass==2 ? STENCILCOMPARISONFUNCTION_ALWAYS : STENCILCOMPARISONFUNCTION_EQUAL);
+        context->SetStencilPassOperation(pass==1 ? STENCILOPERATION_REPLACE : STENCILOPERATION_KEEP);
+        context->Bind(draw);
+        IMesh *mesh=context->GetDynamicMesh(true);
+        CMeshBuilder builder; builder.Begin(mesh,MATERIAL_TRIANGLES,1);
+        const float positions[3][2]={{-1,-1},{3,-1},{-1,3}};
+        for (const auto &position : positions) {
+            builder.Position3f(position[0],position[1],depths[pass]);
+            builder.TexCoord2f(0,pass==2 ? .75f : .25f,pass>=3 ? .75f : .25f);
+            builder.AdvanceVertex();
+        }
+        builder.End(); mesh->Draw();
+        for (int corner=0;corner<4 && valid;++corner) {
+            unsigned char pixel[4]={};
+            ReadNativePixel(context,corner%2 ? width-1 : 0,corner/2 ? height-1 : 0,pixel);
+            unsigned char expected[4]={255,0,0,255};
+            if (pass==4) { expected[0]=0; expected[2]=255; }
+            valid=!memcmp(pixel,expected,4);
+            if (!valid) snprintf(detail,capacity,"Depth/stencil %dx%d pass %d corner %d: %u,%u,%u,%u",
+                width,height,pass,corner,pixel[0],pixel[1],pixel[2],pixel[3]);
+        }
+    }
+    context->SetStencilEnable(false);
+    draw->DecrementReferenceCount();
+    return valid;
+}
+int checkedWidth=0,checkedHeight=0,resizeChecks=0;
+}
+
 // These entry points run only on the UIKit render thread. The borrowed host
 // and its native context must outlive the retained material system.
 bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
 {
     if (!liveMaterial) { snprintf(detail,capacity,"No live material system"); return false; }
+    uint targetWidth=0,targetHeight=0;
+    applicationHost->displayedSize(applicationHost->userData,targetWidth,targetHeight);
+    int width=0,height=0;
+    liveMaterial->GetBackBufferDimensions(width,height);
+    bool resize=width!=int(targetWidth) || height!=int(targetHeight);
+    if (resize) {
+        MaterialSystem_Config_t config=liveMaterial->GetCurrentConfigForVideoCard();
+        config.m_VideoMode.m_Width=targetWidth;
+        config.m_VideoMode.m_Height=targetHeight;
+        liveMaterial->OverrideConfig(config,false);
+    }
     int swaps=livePresentation->swaps;
     liveMaterial->BeginFrame(0);
     IMatRenderContext *context=liveMaterial->GetRenderContext();
     context->BeginRender();
-    context->Viewport(0,0,8,8);
+    context->Viewport(0,0,width,height);
     context->ClearColor4ub(37,91,163,255);
     context->ClearBuffers(true,true,true);
-    bool valid=DrawMaterialFixture(liveMaterial,context,false,detail,capacity);
+    bool valid=true;
+    if (checkedWidth!=width || checkedHeight!=height) {
+        valid=CheckNativeDepthStencil(liveMaterial,context,width,height,detail,capacity);
+        if (valid) { checkedWidth=width; checkedHeight=height; ++resizeChecks; }
+        context->ClearBuffers(true,true,true);
+    }
+    if (valid) valid=DrawMaterialFixture(liveMaterial,context,false,detail,capacity,width,height);
     context->EndRender(); context->Release();
     liveMaterial->EndFrame();
     if (valid) liveMaterial->SwapBuffers();
+    if (valid && resize) {
+        int actualWidth=0,actualHeight=0;
+        liveMaterial->GetBackBufferDimensions(actualWidth,actualHeight);
+        if (actualWidth!=int(targetWidth) || actualHeight!=int(targetHeight)) {
+            snprintf(detail,capacity,"Material resize %ux%u returned %dx%d",targetWidth,targetHeight,actualWidth,actualHeight);
+            return false;
+        }
+    }
     GLenum error=gGL->glGetError();
     if (valid && error!=GL_NO_ERROR) snprintf(detail,capacity,"Live material GL error 0x%x",error);
     if (valid && (!livePresentation->valid || livePresentation->swaps!=swaps+1)) {
         snprintf(detail,capacity,"Live material window pixels/swap failed"); return false;
     }
+    if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"Native %ux%u + depth/stencil: PASS (%d sizes)",targetWidth,targetHeight,resizeChecks);
     return valid && error==GL_NO_ERROR;
 }
 void StopToGLESLiveMaterial()
 {
     if (!liveMaterial) return;
     liveMaterial->ModShutdown(); liveMaterial->Shutdown(); liveMaterial->Disconnect();
+    checkedWidth=checkedHeight=resizeChecks=0;
     liveMaterial=NULL; livePresentation=NULL; applicationMaterial=NULL; applicationHost=NULL;
     Sys_UnloadModule(liveModule); liveModule=NULL;
 }

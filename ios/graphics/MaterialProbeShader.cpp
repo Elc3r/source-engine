@@ -3,6 +3,7 @@
 
 BEGIN_VS_SHADER( IOSProbe, "Minimal textured material for the iOS port probe" )
     BEGIN_SHADER_PARAMS
+        SHADER_PARAM( DEPTHENABLE, SHADER_PARAM_TYPE_BOOL, "0", "Enable depth checks for resize fixtures" )
     END_SHADER_PARAMS
 
     SHADER_INIT_PARAMS()
@@ -19,8 +20,8 @@ BEGIN_VS_SHADER( IOSProbe, "Minimal textured material for the iOS port probe" )
             pShaderShadow->EnableTexture(SHADER_SAMPLER0,true);
             pShaderShadow->EnableSRGBRead(SHADER_SAMPLER0,false);
             pShaderShadow->EnableSRGBWrite(false);
-            pShaderShadow->EnableDepthTest(false);
-            pShaderShadow->EnableDepthWrites(false);
+            pShaderShadow->EnableDepthTest(params[DEPTHENABLE]->GetIntValue()!=0);
+            pShaderShadow->EnableDepthWrites(params[DEPTHENABLE]->GetIntValue()!=0);
             pShaderShadow->EnableBlending(false);
             pShaderShadow->EnableAlphaTest(false);
             pShaderShadow->EnableCulling(false);

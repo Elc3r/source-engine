@@ -2829,7 +2829,7 @@ HRESULT IDirect3DDevice9::Reset(D3DPRESENT_PARAMETERS* pPresentationParameters)
 
 	// steal back previously sent focus window...
 	glmParams.m_focusWindow = m_ctx->m_displayParams.m_focusWindow;
-	Assert( glmParams.m_focusWindow != NULL );
+	Assert( m_ctx->m_host || glmParams.m_focusWindow != NULL );
 
 	// so GetClientRect can return sane answers
 	//uint width, height;		

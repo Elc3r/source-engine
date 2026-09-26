@@ -3869,6 +3869,9 @@ void CGLMTex::Lock( GLMTexLockParams *params, char** addressOut, int* yStrideOut
 		// read the whole slice
 		// (odds are we'll never request anything but a whole slice to be read..)
 		*addressOut = (char*)ReadTexels( desc, true, params->m_readonly );
+		// ReadTexels returns the start of the whole slice. A read-only
+		// subrectangle lock must expose its requested origin, not texel (0,0).
+		if ( params->m_readonly && *addressOut ) *addressOut += offsetInSlice;
 
 		if( params->m_readonly == false )
 			m_mapped = (GLubyte*)*addressOut;
