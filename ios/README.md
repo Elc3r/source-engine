@@ -415,6 +415,23 @@ backbuffer is checked, including the untouched background. All eight standard
 shader draws pass alongside the six diagnostic draws, exercising static combo
 selection, MVP constant uploads and invalidation of cached transforms.
 
+### Material-system presentation
+
+After the standard shader draws, the probe calls `IMaterialSystem::SwapBuffers`
+through the real shader API and D3D9 device to the hosted ANGLE window. Each of
+two lifecycle cycles presents three frames: the standard material, a solid clear,
+and a newly drawn diagnostic material (eight diagnostic draws in total).
+
+A host callback checks the native default framebuffer immediately before each
+real EGL swap. Four quadrant samples validate colors, vertical orientation and
+scaling from 8×8 to the drawable size; it also checks default read/draw framebuffer
+bindings, GL errors, successful swaps and exactly three presentations per cycle.
+Alternating content catches stale frames, while drawing again after SwapBuffers
+exercises restored render state. All six presentations pass in the simulator.
+The final persistent screen remains the separate ANGLE probe; these material
+frames are presented during startup. Device compilation/signing is verified,
+but physical-device execution, resize and sustained frame pacing remain untested.
+
 ### Filesystem and material data
 
 The app now links the repository's actual stdio/base filesystem, asynchronous
@@ -481,7 +498,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Verify presentation through the material system, then expand standard shader
-   coverage beyond the selected screenspace fixtures.
+1. Extend material presentation into a persistent frame loop with resize/lifecycle
+   handling, and expand standard shader coverage beyond the screenspace fixtures.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

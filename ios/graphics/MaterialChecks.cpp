@@ -26,6 +26,50 @@ void *ApplicationFactory(const char *name, int *status)
     return service;
 }
 
+// Observe the native window backbuffer immediately before the real EGL swap.
+struct MaterialPresentation {
+    const GLMContextHost *base;
+    int swaps;
+    bool valid, solid;
+};
+bool PresentationBind(void *data, void *context)
+{
+    auto *check=static_cast<MaterialPresentation *>(data);
+    return check->base->makeCurrent(check->base->userData,context);
+}
+void PresentationSize(void *data, uint &width, uint &height)
+{
+    auto *check=static_cast<MaterialPresentation *>(data);
+    check->base->displayedSize(check->base->userData,width,height);
+}
+bool PresentationSwap(void *data, CShowPixelsParams *params)
+{
+    auto *check=static_cast<MaterialPresentation *>(data);
+    if (!params->m_onlySyncView) {
+        uint width=0,height=0;
+        PresentationSize(data,width,height);
+        GLint draw=0,read=0;
+        gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);
+        gGL->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);
+        check->valid=check->valid && width>=8 && height>=8 && !draw && !read && params->m_noBlit;
+        // GL bottom-up coordinates: presentation flips the engine backbuffer.
+        const unsigned char colors[4][4]={{0,0,255,255},{255,255,0,255},
+                                         {255,0,0,255},{0,255,0,255}};
+        const unsigned char background[4]={37,91,163,255};
+        if (width>=8 && height>=8) for (int i=0;i<4;++i) {
+            unsigned char pixel[4]={};
+            gGL->glReadPixels((i%2 ? 3 : 1)*width/4,(i/2 ? 3 : 1)*height/4,
+                1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
+            check->valid=check->valid && !memcmp(pixel,check->solid ? background : colors[i],4);
+        }
+        check->valid=check->valid && gGL->glGetError()==GL_NO_ERROR;
+        ++check->swaps;
+    }
+    bool swapped=check->base->showPixels(check->base->userData,params);
+    check->valid=check->valid && swapped;
+    return swapped;
+}
+
 bool DrawMaterialFixture(IMaterialSystem *material, IMatRenderContext *context, bool alpha, char *detail, size_t capacity)
 {
     const char *name=alpha ? "ios/draw-alpha" : "ios/draw";
@@ -138,7 +182,13 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
     CreateInterfaceFn factory=Sys_GetFactory(module);
     IMaterialSystem *material=factory ? static_cast<IMaterialSystem *>(factory(MATERIAL_SYSTEM_INTERFACE_VERSION,NULL)) : NULL;
     bool valid=false,connected=false,initialized=false;
-    applicationHost=host;
+    MaterialPresentation presentation={host,0,true,false};
+    GLMContextHost hosted=*host;
+    hosted.userData=&presentation;
+    hosted.makeCurrent=PresentationBind;
+    hosted.displayedSize=PresentationSize;
+    hosted.showPixels=PresentationSwap;
+    applicationHost=&hosted;
     applicationMaterial=material;
     if (material) {
         material->SetShaderAPI(shaderPath);
@@ -209,6 +259,27 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                     context->EndRender();
                     context->Release();
                     material->EndFrame();
+                    if (valid) material->SwapBuffers();
+                    // Alternate a clear frame and a new material frame to catch
+                    // stale presentation and rendering state after a swap.
+                    for (int frame=1;frame<3 && valid;++frame) {
+                        material->BeginFrame(0);
+                        context=material->GetRenderContext();
+                        context->BeginRender();
+                        context->Viewport(0,0,8,8);
+                        context->ClearColor4ub(37,91,163,255);
+                        context->ClearBuffers(true,true,true);
+                        presentation.solid=frame==1;
+                        if (!presentation.solid) valid=DrawMaterialFixture(material,context,false,detail,capacity);
+                        context->EndRender(); context->Release();
+                        material->EndFrame();
+                        if (valid) material->SwapBuffers();
+                    }
+                    if (valid && (!presentation.valid || presentation.swaps!=3)) {
+                        valid=false;
+                        snprintf(detail,capacity,"Material window presentation failed (%d/3 swaps, pixels/swap %s)",
+                            presentation.swaps,presentation.valid ? "PASS" : "FAIL");
+                    }
 
                 }
                 material->ModShutdown();
