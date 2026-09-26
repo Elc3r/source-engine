@@ -434,7 +434,8 @@ signing are verified; physical-device execution remains untested.
 ### Persistent material loop and app lifecycle
 
 The ToGLES app retains a material-system session after startup checks and draws
-`ios/draw` on every SDL animation callback through BeginFrame/EndFrame and
+`ios/unlit` when the compiled cache is present (`ios/draw` otherwise) on every
+SDL animation callback through BeginFrame/EndFrame and
 SwapBuffers. Its own EGL context shares the window surface, but not mutable GL
 state with the original ANGLE test context. Shutdown releases the material system
 and modules before destroying this context and the host window.
@@ -483,7 +484,8 @@ still need coverage.
 
 `scripts/ios-compile-shaders.py` compiles the repository's unchanged
 `screenspaceeffect_vs20.fxc` for both X360APPCHOOSER static variants, plus the
-original diagnostic HLSL in `ios/shaders`. It writes VCS v4 files with one dynamic
+original diagnostic HLSL in `ios/shaders` and selected UnlitGeneric combinations.
+The small probes use VCS v4 files with one dynamic
 combo per static combo. Passing this cache to the packager replaces all four
 hand-assembled shader files used by the current material probes. The standard
 screenspace C++ shader, matrix tests and persistent diagnostic renderer then run
@@ -525,10 +527,34 @@ Simulator matrix/depth/stencil tests and native rendering pass with the compiled
 cache. Device compilation, packaging and code signing also pass; physical-device
 execution remains untested.
 
-This is the first reproducible, selected HLSL pipeline, not the full standard
-shader library. UnlitGeneric still needs selection/indexing of its static and
-dynamic combinations, followed by end-to-end material tests. Lighting shaders,
-compressed VCS blocks and full library build times remain outside this milestone.
+### Selected UnlitGeneric combinations
+
+The FXC pipeline now also compiles the unchanged production
+`vertexlit_and_unlit_generic_vs20.fxc` and `vertexlit_and_unlit_generic_ps2x.fxc`
+(ps_2_b). Combo ranges and ordering come from profile-filtered STATIC/DYNAMIC
+source annotations. Their index coefficients are checked against the engine's
+existing C++ `.inc` headers, which are also included in cache provenance.
+
+The selected vertex variants use static IDs 0 and 128 (static control flow off/on),
+with dynamic ID 0; the pixel shader uses static/dynamic ID 0. All other feature
+switches remain zero. VCS v6 stores these as sparse static records with a sentinel,
+no aliases and uncompressed dynamic blocks. This preserves the full engine index
+space without allocating an enormous dense dictionary. The compiler validates
+FXC's ps_2_b bytecode version 2.1 separately from ps_2_0 version 2.0.
+
+`ios/unlit.vmt` and `ios/unlit-tint.vmt` use the original UnlitGeneric C++ shader.
+Each startup cycle draws plain → magenta color modulation → plain, checking all
+64 pixels per draw. With this compiled cache, the persistent native-size loop
+also uses UnlitGeneric. It checks quadrant centers and corners, plus the existing
+presentation and depth/stencil tests; portrait/landscape Reset and foreground
+resume pass in the simulator. No standard shader C++ or HLSL source was changed.
+
+This covers opaque, unlit, unskinned, uncompressed geometry with one base texture
+and material color modulation. It is not a complete UnlitGeneric shader library:
+vertex colors, detail textures, environment maps, alpha blending, fog, skinning,
+compressed vertices and lighting variants remain uncompiled/untested. Missing
+combinations are not filled with unrelated bytecode. Compressed VCS blocks and
+full-library build times also remain outside this milestone.
 
 ### Filesystem and material data
 
@@ -596,7 +622,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend the FXC pipeline to UnlitGeneric static/dynamic combinations and
-   validate its standard material end to end.
+1. Exercise a perspective 3D scene using UnlitGeneric, then extend compiled
+   combinations to lighting and additional material features.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

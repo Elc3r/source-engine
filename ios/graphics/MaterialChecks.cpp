@@ -128,6 +128,54 @@ bool DrawMaterialFixture(IMaterialSystem *material, IMatRenderContext *context, 
 }
 
 
+bool HasCompiledUnlit()
+{
+    return g_pFullFileSystem->FileExists("shaders/fxc/vertexlit_and_unlit_generic_vs20.vcs","GAME")
+        && g_pFullFileSystem->FileExists("shaders/fxc/vertexlit_and_unlit_generic_ps20b.vcs","GAME");
+}
+
+bool DrawUnlitMaterial(IMaterialSystem *material, IMatRenderContext *context,
+    bool tint, int width, int height, char *detail, size_t capacity)
+{
+    IMaterial *draw=material->FindMaterial(tint ? "ios/unlit-tint" : "ios/unlit",TEXTURE_GROUP_OTHER,true);
+    if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),"UnlitGeneric")) {
+        snprintf(detail,capacity,"UnlitGeneric fixture lookup failed"); return false;
+    }
+    draw->IncrementReferenceCount();
+    const MaterialMatrixMode_t modes[]={MATERIAL_MODEL,MATERIAL_VIEW,MATERIAL_PROJECTION};
+    for (auto mode : modes) { context->MatrixMode(mode); context->PushMatrix(); context->LoadIdentity(); }
+    context->FogMode(MATERIAL_FOG_NONE);
+    context->SetToneMappingScaleLinear(Vector(1,1,1));
+    context->ClearColor4ub(37,91,163,255); context->ClearBuffers(true,true,true);
+    context->Bind(draw);
+    IMesh *mesh=context->GetDynamicMesh(true);
+    CMeshBuilder builder; builder.Begin(mesh,MATERIAL_TRIANGLES,1);
+    const float vertices[3][4]={{-1,-1,0,1},{3,-1,2,1},{-1,3,0,-1}};
+    for (const auto &vertex : vertices) {
+        builder.Position3f(vertex[0],vertex[1],.5f);
+        if (draw->GetVertexFormat() & VERTEX_NORMAL) builder.Normal3f(0,0,1);
+        builder.TexCoord2f(0,vertex[2],vertex[3]); builder.AdvanceVertex();
+    }
+    builder.End(); mesh->Draw();
+    const unsigned char colors[4][4]={{255,0,0,255},{0,255,0,255},{0,0,255,255},{255,255,0,255}};
+    bool valid=true;
+    const int samples=width==8 && height==8 ? 64 : 8;
+    for (int i=0;i<samples && valid;++i) {
+        int x=samples==64 ? i%8 : (i<4 ? (i%2 ? 3 : 1)*width/4 : (i%2 ? width-1 : 0));
+        int y=samples==64 ? i/8 : (i<4 ? (i/2 ? 3 : 1)*height/4 : ((i-4)/2 ? height-1 : 0));
+        unsigned char pixel[4]={},expected[4];
+        ReadNativePixel(context,x,y,pixel);
+        memcpy(expected,colors[(y>=height/2)*2+(x>=width/2)],4);
+        if (tint) expected[1]=0;
+        valid=!memcmp(pixel,expected,4);
+        if (!valid) snprintf(detail,capacity,"UnlitGeneric tint %d pixel %d,%d: %u,%u,%u,%u expected %u,%u,%u,%u",
+            tint,x,y,pixel[0],pixel[1],pixel[2],pixel[3],expected[0],expected[1],expected[2],expected[3]);
+    }
+    for (auto mode : modes) { context->MatrixMode(mode); context->PopMatrix(); }
+    draw->DecrementReferenceCount();
+    return valid;
+}
+
 bool DrawStandardMaterial(IMaterialSystem *material, IMatRenderContext *context, char *detail, size_t capacity)
 {
     const unsigned char colors[4][4]={{255,0,0,255},{0,255,0,255},{0,0,255,255},{255,255,0,255}};
@@ -279,6 +327,8 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                     for (int pass=0;valid && pass<3;++pass)
                         valid=DrawMaterialFixture(material,context,pass==1,detail,capacity);
                     if (valid) valid=DrawStandardMaterial(material,context,detail,capacity);
+                    if (HasCompiledUnlit()) for (int pass=0;pass<3 && valid;++pass)
+                        valid=DrawUnlitMaterial(material,context,pass==1,8,8,detail,capacity);
                     context->EndRender();
                     context->Release();
                     material->EndFrame();
@@ -407,7 +457,9 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
         if (valid) { checkedWidth=width; checkedHeight=height; ++resizeChecks; }
         context->ClearBuffers(true,true,true);
     }
-    if (valid) valid=DrawMaterialFixture(liveMaterial,context,false,detail,capacity,width,height);
+    if (valid) valid=HasCompiledUnlit()
+        ? DrawUnlitMaterial(liveMaterial,context,false,width,height,detail,capacity)
+        : DrawMaterialFixture(liveMaterial,context,false,detail,capacity,width,height);
     context->EndRender(); context->Release();
     liveMaterial->EndFrame();
     if (valid) liveMaterial->SwapBuffers();
@@ -424,7 +476,7 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
     if (valid && (!livePresentation->valid || livePresentation->swaps!=swaps+1)) {
         snprintf(detail,capacity,"Live material window pixels/swap failed"); return false;
     }
-    if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"Native %ux%u + depth/stencil: PASS (%d sizes)",targetWidth,targetHeight,resizeChecks);
+    if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"%s %ux%u + depth/stencil: PASS (%d sizes)",HasCompiledUnlit() ? "UnlitGeneric" : "Native",targetWidth,targetHeight,resizeChecks);
     return valid && error==GL_NO_ERROR;
 }
 void StopToGLESLiveMaterial()

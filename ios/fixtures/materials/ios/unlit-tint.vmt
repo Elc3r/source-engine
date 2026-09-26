@@ -1,0 +1,7 @@
+"UnlitGeneric"
+{
+ "$basetexture" "ios/draw"
+ "$nocull" "1"
+ "$nofog" "1"
+ "$color" "[1 0 1]"
+}
