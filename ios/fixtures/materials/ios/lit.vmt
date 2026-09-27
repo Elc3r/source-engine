@@ -1,0 +1,7 @@
+"VertexLitGeneric"
+{
+ "$basetexture" "ios/draw"
+ "$nocull" "1"
+ "$nofog" "1"
+ "$halflambert" "0"
+}

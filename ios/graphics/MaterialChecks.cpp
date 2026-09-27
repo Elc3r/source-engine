@@ -65,7 +65,7 @@ bool PresentationSwap(void *data, CShowPixelsParams *params)
             const SceneSample &sample=check->scene.points[i];
             unsigned char pixel[4]={};
             gGL->glReadPixels(int(sample.u*width),int((1-sample.v)*height),1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
-            check->valid=check->valid && !memcmp(pixel,sample.rgba,4);
+            check->valid=check->valid && MatchesSceneSample(pixel,sample);
         }
         else if (width>=8 && height>=8) for (int i=0;i<4;++i) {
             unsigned char pixel[4]={};
@@ -488,7 +488,8 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
     if (valid && (!livePresentation->valid || livePresentation->swaps!=swaps+1)) {
         snprintf(detail,capacity,"Live material window pixels/swap failed"); return false;
     }
-    if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"%s %ux%u + depth/stencil: PASS (%d sizes)",scene ? "Perspective 3D" : "Native",targetWidth,targetHeight,resizeChecks);
+    const char *sceneModes[]={"3D UnlitGeneric","3D ambient","3D directional"};
+    if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"%s %ux%u + depth/stencil: PASS (%d sizes)",scene ? sceneModes[((sceneFrame-1)/1200)%3] : "Native",targetWidth,targetHeight,resizeChecks);
     return valid && error==GL_NO_ERROR;
 }
 void StopToGLESLiveMaterial()

@@ -44,9 +44,11 @@ def combo_layout(source, profile):
 SPARSE = {}
 for name, source, profile, choices in [
     ('vertexlit_and_unlit_generic_vs20', 'vertexlit_and_unlit_generic_vs20.fxc',
-     'vs_2_0', [{'USE_STATIC_CONTROL_FLOW': 0}, {'USE_STATIC_CONTROL_FLOW': 1}]),
+     'vs_2_0', ([{'USE_STATIC_CONTROL_FLOW': flow} for flow in (0, 1)] +
+                 [{'USE_STATIC_CONTROL_FLOW': flow, 'DYNAMIC_LIGHT': 1, 'NUM_LIGHTS': lights}
+                  for flow in (0, 1) for lights in range(1 if flow else 2)])),
     ('vertexlit_and_unlit_generic_ps20b', 'vertexlit_and_unlit_generic_ps2x.fxc',
-     'ps_2_b', [{}]),
+     'ps_2_b', [{}, {'DIFFUSELIGHTING': 1}]),
 ]:
     source = 'materialsystem/stdshaders/' + source
     layout = combo_layout(source, profile)

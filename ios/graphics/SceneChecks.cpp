@@ -2,6 +2,7 @@
 #include "materialsystem/imaterialsystem.h"
 #include "materialsystem/imesh.h"
 #include "mathlib/vmatrix.h"
+#include "mathlib/lightdesc.h"
 #include "SceneChecks.h"
 #include <math.h>
 
@@ -41,7 +42,7 @@ void FaceUV(const float position[3], int face, float &u, float &v)
 // Independent ray/box reference: it does not project GPU triangles or reuse
 // the engine's MVP multiplication. Exclude edge samples where rasterization
 // and texture filtering conventions can legitimately change the byte result.
-bool ReferencePixel(float u, float v, float aspect, float angle, unsigned char rgba[4], bool &hit)
+bool ReferencePixel(float u, float v, float aspect, float angle, unsigned lighting, unsigned char rgba[4], bool &hit)
 {
     const float camera[3]={0,0,-cameraDistance};
     const float ray[3]={(2*u-1)*aspect/verticalScale,(1-2*v)/verticalScale,1};
@@ -57,7 +58,21 @@ bool ReferencePixel(float u, float v, float aspect, float angle, unsigned char r
     float tu,tv; FaceUV(point,face,tu,tv);
     if (tu<.04f || tu>.96f || tv<.04f || tv>.96f || fabsf(tu-.5f)<.04f || fabsf(tv-.5f)<.04f) return false;
     const unsigned char colors[4][4]={{255,0,0,255},{0,255,0,255},{0,0,255,255},{255,255,0,255}};
-    memcpy(rgba,colors[(tv>.5f)*2+(tu>.5f)],4); return true;
+    memcpy(rgba,colors[(tv>.5f)*2+(tu>.5f)],4);
+    if (lighting) {
+        const float towardLight[3]={-.48f,.64f,-.6f};
+        const float ambient[3]={.08f,.12f,.16f}, color[3]={.6f,.45f,.3f};
+        float localLight[3]; InverseRotation(towardLight,angle,localLight);
+        float cosine=fmaxf(0,localLight[face]*(point[face]>0 ? 1 : -1));
+        for (int i=0;i<3;++i) {
+            float linear=ambient[i]+(lighting==2 ? color[i]*cosine : 0);
+            float encoded=gGL->m_bHave_GL_EXT_sRGB_write_control
+                ? (linear<=.0031308f ? 12.92f*linear : 1.055f*powf(linear,1.f/2.4f)-.055f)
+                : powf(linear,1.f/2.2f);
+            rgba[i]=static_cast<unsigned char>(rgba[i]*encoded+.5f);
+        }
+    }
+    return true;
 }
 }
 
@@ -65,8 +80,9 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
     int width, int height, unsigned frame, SceneSamples &samples, char *detail, size_t capacity)
 {
     samples.count=0;
-    IMaterial *draw=material->FindMaterial("ios/unlit",TEXTURE_GROUP_OTHER,true);
-    if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),"UnlitGeneric")) {
+    unsigned lighting=(frame/1200)%3;
+    IMaterial *draw=material->FindMaterial(lighting ? "ios/lit" : "ios/unlit",TEXTURE_GROUP_OTHER,true);
+    if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),lighting ? "VertexLitGeneric" : "UnlitGeneric")) {
         snprintf(detail,capacity,"Perspective material missing"); return false;
     }
     draw->IncrementReferenceCount();
@@ -86,6 +102,16 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
     for (int i=0;i<3;++i) { context->MatrixMode(modes[i]); context->PushMatrix(); context->LoadMatrix(matrices[i]); }
     context->FogMode(MATERIAL_FOG_NONE); context->SetToneMappingScaleLinear(Vector(1,1,1));
     context->ClearColor4ub(37,91,163,255); context->ClearBuffers(true,true,true);
+    Vector4D ambient[6];
+    for (auto &face : ambient) face.Init(lighting ? .08f : 0,lighting ? .12f : 0,lighting ? .16f : 0,0);
+    context->SetAmbientLightCube(ambient);
+    LightDesc_t light;
+    // Initialize every field consumed by SetLight, even for a directional light.
+    memset(&light,0,sizeof(light));
+    light.m_Type=lighting==2 ? MATERIAL_LIGHT_DIRECTIONAL : MATERIAL_LIGHT_DISABLE;
+    light.m_Direction.Init(.48f,-.64f,.6f);
+    light.m_Color.Init(.6f,.45f,.3f); light.m_Attenuation0=1;
+    context->SetLight(0,light);
     context->Bind(draw);
     IMesh *mesh=context->GetDynamicMesh(true);
     CMeshBuilder builder; builder.Begin(mesh,MATERIAL_TRIANGLES,12);
@@ -117,18 +143,19 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
         if (x>=width) x=width-1;
         SceneSample sample={}; sample.u=float(x+.5f)/width; sample.v=float(y+.5f)/height;
         bool hit=false;
-        if (!ReferencePixel(sample.u,sample.v,aspect,angle,sample.rgba,hit)) continue;
+        if (!ReferencePixel(sample.u,sample.v,aspect,angle,lighting,sample.rgba,hit)) continue;
         // Grazing faces can have large UV derivatives. Require a stable pixel
         // footprint too, rather than relying only on a fixed UV edge margin.
         bool stable=true;
         for (int dy=-1;dy<=1 && stable;++dy) for (int dx=-1;dx<=1 && stable;++dx) {
             unsigned char nearby[4]; bool nearbyHit=false;
             stable=ReferencePixel(sample.u+2.f*dx/width,sample.v+2.f*dy/height,
-                aspect,angle,nearby,nearbyHit) && nearbyHit==hit && !memcmp(nearby,sample.rgba,4);
+                aspect,angle,lighting,nearby,nearbyHit) && nearbyHit==hit && !memcmp(nearby,sample.rgba,4);
         }
         if (!stable) continue;
         unsigned char pixel[4]={}; gGL->glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
-        valid=!memcmp(pixel,sample.rgba,4);
+        sample.tolerance=lighting && hit ? 2 : 0;
+        valid=MatchesSceneSample(pixel,sample);
         if (!valid) snprintf(detail,capacity,"Perspective frame %u pixel %d,%d: %u,%u,%u,%u expected %u,%u,%u,%u",
             frame,x,y,pixel[0],pixel[1],pixel[2],pixel[3],sample.rgba[0],sample.rgba[1],sample.rgba[2],sample.rgba[3]);
         samples.points[samples.count++]=sample;

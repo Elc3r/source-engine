@@ -527,7 +527,7 @@ Simulator matrix/depth/stencil tests and native rendering pass with the compiled
 cache. Device compilation, packaging and code signing also pass; physical-device
 execution remains untested.
 
-### Selected UnlitGeneric combinations
+### Selected UnlitGeneric and VertexLitGeneric combinations
 
 The FXC pipeline now also compiles the unchanged production
 `vertexlit_and_unlit_generic_vs20.fxc` and `vertexlit_and_unlit_generic_ps2x.fxc`
@@ -536,8 +536,11 @@ source annotations. Their index coefficients are checked against the engine's
 existing C++ `.inc` headers, which are also included in cache provenance.
 
 The selected vertex variants use static IDs 0 and 128 (static control flow off/on),
-with dynamic ID 0; the pixel shader uses static/dynamic ID 0. All other feature
-switches remain zero. VCS v6 stores these as sparse static records with a sentinel,
+with dynamic ID 0 for unlit geometry. Lighting adds DYNAMIC_LIGHT=1 with zero
+or one light on the unrolled path, and NUM_LIGHTS=0 on the static-control-flow
+path. The pixel shader includes DIFFUSELIGHTING=0/1, with dynamic ID 0.
+All other feature switches remain zero. VCS v6 stores these as sparse static
+records with a sentinel,
 no aliases and uncompressed dynamic blocks. This preserves the full engine index
 space without allocating an enormous dense dictionary. The compiler validates
 FXC's ps_2_b bytecode version 2.1 separately from ps_2_0 version 2.0.
@@ -550,18 +553,26 @@ camera, separate model/view/projection matrices and six independently textured
 faces. Face submission order reverses every frame to exercise depth occlusion.
 An independent CPU ray/box reference checks a 7×7 sample grid against exact
 texture/background colors, excluding silhouette and texture boundaries. A
-two-pixel neighborhood must agree with each sample, including on grazing faces. Every
-frame must include at least three object and three background samples. The same
+two-pixel neighborhood must agree with each sample, including on grazing faces.
+Every frame must include at least three object and three background samples. The same
 samples are checked again after presentation to the native window, including
 portrait/landscape Reset. Existing depth/stencil tests remain active. The compact
 on-screen status leaves the scene visible; full startup results remain in JSON.
 No standard shader C++ or HLSL source was changed.
 
-This covers opaque, unlit, unskinned, uncompressed geometry with one base texture
-and material color modulation. It is not a complete UnlitGeneric shader library:
-vertex colors, detail textures, environment maps, alpha blending, fog, skinning,
-compressed vertices and lighting variants remain uncompiled/untested. Missing
-combinations are not filled with unrelated bytecode. Compressed VCS blocks and
+The live scene alternates every 1,200 frames between UnlitGeneric, VertexLitGeneric
+with a uniform colored ambient cube, and VertexLitGeneric with ambient plus one
+colored directional light. Each mode includes a full cube revolution. The CPU
+reference computes Lambert lighting from the face normal in world space and
+accounts for native sRGB output or the backend's gamma fallback. Lit object RGB
+allows two byte levels of rounding error; alpha, background and unlit samples
+remain exact. Native-window presentation uses the same per-sample tolerance.
+
+This covers opaque, unskinned, uncompressed geometry with one base texture,
+material color modulation, ambient and one directional light. It is not a complete
+standard shader library: vertex colors, detail textures, environment maps, alpha blending, fog, skinning,
+compressed vertices, point/spot lights and additional lighting variants remain
+uncompiled/untested. Missing combinations are not filled with unrelated bytecode. Compressed VCS blocks and
 full-library build times also remain outside this milestone.
 
 ### Filesystem and material data
@@ -630,7 +641,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend compiled combinations to lighting and additional material features,
+1. Extend lighting to point/spot lights and additional material features,
    with reference checks in the perspective scene.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
