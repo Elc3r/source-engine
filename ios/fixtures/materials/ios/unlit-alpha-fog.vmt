@@ -1,0 +1,7 @@
+"UnlitGeneric"
+{
+ "$basetexture" "ios/draw-alpha"
+ "$nocull" "1"
+ "$halflambert" "0"
+ "$translucent" "1"
+}

@@ -614,7 +614,7 @@ transparent 3D geometry and other blend modes remain outside this check.
 ### Range fog
 
 The cycle starts with a range-fog phase using the production UnlitGeneric shader
-and a material without `$nofog`. Five red bands have projected depths .1, .3,
+and a material without `$nofog`. Five bands have projected depths .1, .3,
 .5, .7 and .9 with fog start/end .3/.7 and identity projection. This deliberately
 isolates the shader's projected-depth fog input from camera transformations.
 The CPU reference squares the clamped range ramp, as required by the production
@@ -623,10 +623,17 @@ ps_2_b shader, and encodes the resulting linear color for the backbuffer.
 Every 120 frames the phase switches between full blue fog, maximum density .5,
 fog disabled, and full green fog. Fifteen samples check before/start/middle/end/
 after distances, a `$nofog` center override, and a fogged draw after that override.
-RGB tolerance is two byte levels (exact when disabled or overridden); alpha is
-always exact. The samples are also checked after native-window presentation.
-Existing compiled bytecode is reused. Height/water fog and fog on transparent
-or lit materials remain untested.
+Within each fog phase, four material variants alternate every 30 frames:
+unlit/lit opaque red and unlit/lit translucent blue (alpha 128/255). Lit materials
+receive a colored ambient cube plus a directional light, producing a known .5
+linear intensity in each channel. All bands draw over an opaque green background.
+The CPU reference applies lighting, then fog, then source-over blending; the
+post-override square exercises a second transparent layer too. This distinguishes
+fogging the source from incorrectly fogging the already-composited background.
+RGB tolerance is two byte levels (exact for the no-fog override); alpha is always
+exact. Samples are also checked after native-window presentation. Lights and fog
+are reset before returning to the other scenes. Existing compiled bytecode is
+reused. Height/water fog remains untested.
 
 ### Filesystem and material data
 
@@ -694,7 +701,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend coverage to fog on lit/translucent materials and additional material features,
+1. Extend coverage to additional material features and map/world shaders,
    with reference checks in the perspective scene.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
