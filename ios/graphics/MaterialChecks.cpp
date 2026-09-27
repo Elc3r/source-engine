@@ -10,6 +10,7 @@
 #include "materialsystem/ishader.h"
 #include "materialsystem/imesh.h"
 #include "mathlib/vmatrix.h"
+#include "SceneChecks.h"
 
 namespace {
 const GLMContextHost *applicationHost=NULL;
@@ -33,6 +34,7 @@ struct MaterialPresentation {
     const GLMContextHost *base;
     int swaps;
     bool valid, solid;
+    SceneSamples scene;
 };
 MaterialPresentation *livePresentation=NULL;
 bool PresentationBind(void *data, void *context)
@@ -59,7 +61,13 @@ bool PresentationSwap(void *data, CShowPixelsParams *params)
         const unsigned char colors[4][4]={{0,0,255,255},{255,255,0,255},
                                          {255,0,0,255},{0,255,0,255}};
         const unsigned char background[4]={37,91,163,255};
-        if (width>=8 && height>=8) for (int i=0;i<4;++i) {
+        if (check->scene.count) for (int i=0;i<check->scene.count;++i) {
+            const SceneSample &sample=check->scene.points[i];
+            unsigned char pixel[4]={};
+            gGL->glReadPixels(int(sample.u*width),int((1-sample.v)*height),1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
+            check->valid=check->valid && !memcmp(pixel,sample.rgba,4);
+        }
+        else if (width>=8 && height>=8) for (int i=0;i<4;++i) {
             unsigned char pixel[4]={};
             gGL->glReadPixels((i%2 ? 3 : 1)*width/4,(i/2 ? 3 : 1)*height/4,
                 1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
@@ -426,6 +434,7 @@ bool CheckNativeDepthStencil(IMaterialSystem *material, IMatRenderContext *conte
     return valid;
 }
 int checkedWidth=0,checkedHeight=0,resizeChecks=0;
+unsigned sceneFrame=0;
 }
 
 // These entry points run only on the UIKit render thread. The borrowed host
@@ -457,7 +466,10 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
         if (valid) { checkedWidth=width; checkedHeight=height; ++resizeChecks; }
         context->ClearBuffers(true,true,true);
     }
-    if (valid) valid=HasCompiledUnlit()
+    livePresentation->scene.count=0;
+    bool scene=HasCompiledUnlit() && width>=64 && height>=64;
+    if (valid && scene) valid=DrawPerspectiveScene(liveMaterial,context,width,height,sceneFrame++,livePresentation->scene,detail,capacity);
+    else if (valid) valid=HasCompiledUnlit()
         ? DrawUnlitMaterial(liveMaterial,context,false,width,height,detail,capacity)
         : DrawMaterialFixture(liveMaterial,context,false,detail,capacity,width,height);
     context->EndRender(); context->Release();
@@ -476,14 +488,14 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
     if (valid && (!livePresentation->valid || livePresentation->swaps!=swaps+1)) {
         snprintf(detail,capacity,"Live material window pixels/swap failed"); return false;
     }
-    if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"%s %ux%u + depth/stencil: PASS (%d sizes)",HasCompiledUnlit() ? "UnlitGeneric" : "Native",targetWidth,targetHeight,resizeChecks);
+    if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"%s %ux%u + depth/stencil: PASS (%d sizes)",scene ? "Perspective 3D" : "Native",targetWidth,targetHeight,resizeChecks);
     return valid && error==GL_NO_ERROR;
 }
 void StopToGLESLiveMaterial()
 {
     if (!liveMaterial) return;
     liveMaterial->ModShutdown(); liveMaterial->Shutdown(); liveMaterial->Disconnect();
-    checkedWidth=checkedHeight=resizeChecks=0;
+    checkedWidth=checkedHeight=resizeChecks=0; sceneFrame=0;
     liveMaterial=NULL; livePresentation=NULL; applicationMaterial=NULL; applicationHost=NULL;
     Sys_UnloadModule(liveModule); liveModule=NULL;
 }

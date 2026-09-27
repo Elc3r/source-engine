@@ -545,9 +545,17 @@ FXC's ps_2_b bytecode version 2.1 separately from ps_2_0 version 2.0.
 `ios/unlit.vmt` and `ios/unlit-tint.vmt` use the original UnlitGeneric C++ shader.
 Each startup cycle draws plain → magenta color modulation → plain, checking all
 64 pixels per draw. With this compiled cache, the persistent native-size loop
-also uses UnlitGeneric. It checks quadrant centers and corners, plus the existing
-presentation and depth/stencil tests; portrait/landscape Reset and foreground
-resume pass in the simulator. No standard shader C++ or HLSL source was changed.
+also uses UnlitGeneric for a rotating textured cube with a 60-degree perspective
+camera, separate model/view/projection matrices and six independently textured
+faces. Face submission order reverses every frame to exercise depth occlusion.
+An independent CPU ray/box reference checks a 7×7 sample grid against exact
+texture/background colors, excluding silhouette and texture boundaries. A
+two-pixel neighborhood must agree with each sample, including on grazing faces. Every
+frame must include at least three object and three background samples. The same
+samples are checked again after presentation to the native window, including
+portrait/landscape Reset. Existing depth/stencil tests remain active. The compact
+on-screen status leaves the scene visible; full startup results remain in JSON.
+No standard shader C++ or HLSL source was changed.
 
 This covers opaque, unlit, unskinned, uncompressed geometry with one base texture
 and material color modulation. It is not a complete UnlitGeneric shader library:
@@ -622,7 +630,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Exercise a perspective 3D scene using UnlitGeneric, then extend compiled
-   combinations to lighting and additional material features.
+1. Extend compiled combinations to lighting and additional material features,
+   with reference checks in the perspective scene.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

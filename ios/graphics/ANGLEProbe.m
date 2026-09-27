@@ -37,7 +37,12 @@ static void SaveResult(BOOL passed, NSString *detail, NSDictionary *extra)
     finished = YES;
     label.text = [NSString stringWithFormat:@"SDL + ANGLE / Metal: %@\n%@", passed ? @"PASS" : @"FAIL", detail];
 #ifdef SOURCE_TOGLES_PROBE
-    label.text = [NSString stringWithFormat:@"ToGLES + ANGLE: %@\n%@\n%@\n%@", passed ? @"PASS" : @"FAIL", engineDetail, runtimeDetail, detail];
+    label.text = [NSString stringWithFormat:@"ToGLES + ANGLE: %@\n%@\nFrames: %u", passed ? @"PASS" : @"FAIL", detail, frames];
+    CGRect statusFrame = label.frame;
+    BOOL landscape = label.superview.bounds.size.width > label.superview.bounds.size.height;
+    statusFrame.origin.y = landscape ? 10 : 60;
+    statusFrame.size.height = passed ? (landscape ? 85 : 140) : 240;
+    label.frame = statusFrame;
 #endif
     NSMutableDictionary *result = [@{@"passed": @(passed), @"detail": detail,
         @"system": UIDevice.currentDevice.systemVersion, @"frames": @(frames),
