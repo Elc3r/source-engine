@@ -23,3 +23,11 @@ inline bool MatchesSceneSample(const unsigned char pixel[4], const SceneSample &
     }
     return true;
 }
+
+// Each base mode spans one full revolution. The final mode exercises both
+// lights, a lone light in slot 1, and the same pair with swapped slots.
+inline unsigned SceneLightingMode(unsigned frame)
+{
+    unsigned mode=(frame/1200+5)%6;
+    return mode==5 ? 5+(frame%360)/120 : mode;
+}

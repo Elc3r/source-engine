@@ -103,10 +103,13 @@ bool ReferencePixel(float u, float v, float aspect, float angle, unsigned lighti
         const float ambient[3]={.08f,.12f,.16f}, color[3]={.6f,.45f,.3f};
         float localLight[3]; InverseRotation(towardLight,angle,localLight);
         float cosine=fmaxf(0,localLight[face]*(point[face]>0 ? 1 : -1));
-        float intensity=lighting>=3 ? InterpolatedLocalLight(point,face,angle,lighting==4)
-                                    : (lighting==2 ? cosine : 0);
+        float intensity=lighting==6 ? 0 : lighting>=3
+            ? InterpolatedLocalLight(point,face,angle,lighting>=4) : (lighting==2 ? cosine : 0);
+        const float secondToward[3]={.6f,0,-.8f},secondColor[3]={.18f,.32f,.5f};
+        float secondLocal[3]; InverseRotation(secondToward,angle,secondLocal);
+        float secondIntensity=lighting>=5 ? fmaxf(0,secondLocal[face]*(point[face]>0 ? 1 : -1)) : 0;
         for (int i=0;i<3;++i) {
-            float linear=ambient[i]+color[i]*intensity;
+            float linear=ambient[i]+color[i]*intensity+secondColor[i]*secondIntensity;
             float encoded=gGL->m_bHave_GL_EXT_sRGB_write_control
                 ? (linear<=.0031308f ? 12.92f*linear : 1.055f*powf(linear,1.f/2.4f)-.055f)
                 : powf(linear,1.f/2.2f);
@@ -121,7 +124,7 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
     int width, int height, unsigned frame, SceneSamples &samples, char *detail, size_t capacity)
 {
     samples.count=0;
-    unsigned lighting=(frame/1200)%5;
+    unsigned lighting=SceneLightingMode(frame);
     IMaterial *draw=material->FindMaterial(lighting ? "ios/lit" : "ios/unlit",TEXTURE_GROUP_OTHER,true);
     if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),lighting ? "VertexLitGeneric" : "UnlitGeneric")) {
         snprintf(detail,capacity,"Perspective material missing"); return false;
@@ -149,7 +152,7 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
     LightDesc_t light;
     // Initialize every field consumed by SetLight, even for a directional light.
     memset(&light,0,sizeof(light));
-    light.m_Type=lighting==4 ? MATERIAL_LIGHT_SPOT : lighting==3 ? MATERIAL_LIGHT_POINT
+    light.m_Type=lighting==6 ? MATERIAL_LIGHT_DISABLE : lighting>=4 ? MATERIAL_LIGHT_SPOT : lighting==3 ? MATERIAL_LIGHT_POINT
                 : lighting==2 ? MATERIAL_LIGHT_DIRECTIONAL : MATERIAL_LIGHT_DISABLE;
     light.m_Direction.Init(.48f,-.64f,.6f);
     light.m_Color.Init(.6f,.45f,.3f); light.m_Attenuation0=1;
@@ -159,7 +162,14 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
         light.m_Attenuation0=.4f; light.m_Attenuation1=.2f; light.m_Attenuation2=.15f;
         light.m_Range=100; light.m_Theta=.25f; light.m_Phi=.7f; light.m_Falloff=2;
     }
-    context->SetLight(0,light);
+    LightDesc_t second;
+    memset(&second,0,sizeof(second));
+    second.m_Type=lighting>=5 ? MATERIAL_LIGHT_DIRECTIONAL : MATERIAL_LIGHT_DISABLE;
+    second.m_Direction.Init(-.6f,0,.8f);
+    second.m_Color.Init(.18f,.32f,.5f); second.m_Attenuation0=1;
+    // Always update both slots: returning to one/no light must remove stale state.
+    context->SetLight(lighting==7 ? 1 : 0,light);
+    context->SetLight(lighting==7 ? 0 : 1,second);
     context->Bind(draw);
     IMesh *mesh=context->GetDynamicMesh(true);
     CMeshBuilder builder; builder.Begin(mesh,MATERIAL_TRIANGLES,12);

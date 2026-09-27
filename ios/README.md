@@ -536,8 +536,8 @@ source annotations. Their index coefficients are checked against the engine's
 existing C++ `.inc` headers, which are also included in cache provenance.
 
 The selected vertex variants use static IDs 0 and 128 (static control flow off/on),
-with dynamic ID 0 for unlit geometry. Lighting adds DYNAMIC_LIGHT=1 with zero
-or one light on the unrolled path, and NUM_LIGHTS=0 on the static-control-flow
+with dynamic ID 0 for unlit geometry. Lighting adds DYNAMIC_LIGHT=1 with zero,
+one or two lights on the unrolled path, and NUM_LIGHTS=0 on the static-control-flow
 path. The pixel shader includes DIFFUSELIGHTING=0/1, with dynamic ID 0.
 All other feature switches remain zero. VCS v6 stores these as sparse static
 records with a sentinel,
@@ -560,7 +560,7 @@ portrait/landscape Reset. Existing depth/stencil tests remain active. The compac
 on-screen status leaves the scene visible; full startup results remain in JSON.
 No standard shader C++ or HLSL source was changed.
 
-The live scene alternates every 1,200 frames between UnlitGeneric, VertexLitGeneric
+The live scene cycles through 1,200-frame phases of UnlitGeneric, VertexLitGeneric
 with a uniform colored ambient cube, and VertexLitGeneric with ambient plus one
 colored directional, point or spot light. Each mode includes a full cube revolution.
 The CPU reference computes Lambert lighting from the face normal in world space and
@@ -575,11 +575,20 @@ incorrectly comparing against per-pixel lighting. Neighborhood checks permit the
 same two-level RGB tolerance for smooth gradients, while excluding texture and
 silhouette edges. Both local light types reuse the existing one-light bytecode.
 
+The cycle starts with a two-light phase using a spot light and a differently
+colored directional light. Every 120 frames it switches between both lights,
+only the directional light in slot 1, and both lights with their slots swapped.
+The CPU reference adds their independent contributions in linear space before
+sRGB encoding. Both slots are explicitly updated every frame, including when
+returning to ambient/unlit modes, to catch stale light state. NUM_LIGHTS=2 adds
+vertex dynamic ID 130 on the unrolled path; pixel bytecode is unchanged.
+
 This covers opaque, unskinned, uncompressed geometry with one base texture,
-material color modulation, ambient and one directional, point or spot light.
+material color modulation, ambient, individual directional/point/spot lights,
+and a spot-plus-directional pair.
 It is not a complete standard shader library: vertex colors, detail textures,
-environment maps, alpha blending, fog, skinning, compressed vertices, multiple
-simultaneous lights and additional lighting variants remain uncompiled/untested.
+environment maps, alpha blending, fog, skinning, compressed vertices, more than
+two simultaneous lights and additional lighting variants remain uncompiled/untested.
 Missing combinations are not filled with unrelated bytecode. Compressed VCS
 blocks and full-library build times also remain outside this milestone.
 
@@ -649,7 +658,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend lighting to multiple simultaneous lights and additional material features,
+1. Extend coverage to additional material features (alpha blending and fog),
    with reference checks in the perspective scene.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
