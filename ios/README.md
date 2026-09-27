@@ -575,7 +575,7 @@ incorrectly comparing against per-pixel lighting. Neighborhood checks permit the
 same two-level RGB tolerance for smooth gradients, while excluding texture and
 silhouette edges. Both local light types reuse the existing one-light bytecode.
 
-The cycle starts with a two-light phase using a spot light and a differently
+The cycle includes a two-light phase using a spot light and a differently
 colored directional light. Every 120 frames it switches between both lights,
 only the directional light in slot 1, and both lights with their slots swapped.
 The CPU reference adds their independent contributions in linear space before
@@ -587,10 +587,29 @@ This covers opaque, unskinned, uncompressed geometry with one base texture,
 material color modulation, ambient, individual directional/point/spot lights,
 and a spot-plus-directional pair.
 It is not a complete standard shader library: vertex colors, detail textures,
-environment maps, alpha blending, fog, skinning, compressed vertices, more than
+environment maps, fog, skinning, compressed vertices, more than
 two simultaneous lights and additional lighting variants remain uncompiled/untested.
 Missing combinations are not filled with unrelated bytecode. Compressed VCS
 blocks and full-library build times also remain outside this milestone.
+
+### Standard translucent materials
+
+The live cycle starts with an UnlitGeneric alpha-blending phase. An opaque
+four-color base is followed by one or two mirrored layers of `ios/draw-alpha`.
+The VTF contains alpha values 255, 192, 128 and 64. Every 120 frames the test
+switches between one layer and two layers in either order. A CPU source-over
+reference includes sRGB decode/blend/encode and intermediate 8-bit rounding
+(or encoded blending on the backend's shader-gamma fallback). Sixteen samples
+check RGB within two byte levels and preserved destination alpha exactly,
+both in the backbuffer and after native-window presentation.
+
+An opaque red center drawn behind the translucent layers must still appear,
+proving those layers did not write depth. A subsequent, farther opaque blue
+center must fail the depth test, verifying restoration of opaque depth writes.
+This also checks that blending is disabled again for opaque draws. The existing
+compiled UnlitGeneric bytecode is reused; the production shader selects the
+blend/depth/alpha-write states from the new translucent VMT. Sorting arbitrary
+transparent 3D geometry and other blend modes remain outside this check.
 
 ### Filesystem and material data
 
@@ -658,7 +677,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend coverage to additional material features (alpha blending and fog),
+1. Extend coverage to fog and additional material features,
    with reference checks in the perspective scene.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
