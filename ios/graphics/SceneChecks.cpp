@@ -39,6 +39,45 @@ void FaceUV(const float position[3], int face, float &u, float &v)
     v=(1+(face==1 ? position[2] : -position[1])/halfSize)*.5f;
     if (position[face]>0) u=1-u;
 }
+// Source's non-bump VertexLitGeneric evaluates local lights at vertices.
+// Interpolate those vertex values at the ray hit, not a per-pixel light value.
+float LocalLightAtVertex(const float vertex[3], int face, float sign,
+                         float angle, bool spot)
+{
+    const float worldPosition[3]={-1.4f,1.6f,-2.4f};
+    float position[3]; InverseRotation(worldPosition,angle,position);
+    float delta[3],distanceSquared=0;
+    for (int i=0;i<3;++i) { delta[i]=position[i]-vertex[i]; distanceSquared+=delta[i]*delta[i]; }
+    float distance=sqrtf(distanceSquared);
+    float result=fmaxf(0,sign*delta[face]/distance)/(.4f+.2f*distance+.15f*distanceSquared);
+    if (spot) {
+        float length=sqrtf(1.4f*1.4f+1.6f*1.6f+2.4f*2.4f);
+        float worldDirection[3]={1.4f/length,-1.6f/length,2.4f/length},direction[3];
+        InverseRotation(worldDirection,angle,direction);
+        float cosine=0;
+        for (int i=0;i<3;++i) cosine-=direction[i]*delta[i]/distance;
+        float ramp=fmaxf(0,(cosine-cosf(.35f))/(cosf(.125f)-cosf(.35f)));
+        result*=fminf(1,ramp*ramp);
+    }
+    return result;
+}
+float InterpolatedLocalLight(const float point[3], int face, float angle, bool spot)
+{
+    int x=(face+1)%3,y=(face+2)%3;
+    float a=(point[x]/halfSize+1)*.5f,b=(point[y]/halfSize+1)*.5f;
+    float corners[4][3]={};
+    const int coordinates[4][2]={{-1,-1},{1,-1},{1,1},{-1,1}};
+    float value[4];
+    for (int i=0;i<4;++i) {
+        corners[i][face]=point[face]>0 ? halfSize : -halfSize;
+        corners[i][x]=coordinates[i][0]*halfSize; corners[i][y]=coordinates[i][1]*halfSize;
+        value[i]=LocalLightAtVertex(corners[i],face,point[face]>0 ? 1 : -1,angle,spot);
+    }
+    // Barycentric weights in the actual object-space triangle automatically
+    // account for perspective-correct interpolation at the visible ray hit.
+    return b<=a ? (1-a)*value[0]+(a-b)*value[1]+b*value[2]
+                : (1-b)*value[0]+a*value[2]+(b-a)*value[3];
+}
 // Independent ray/box reference: it does not project GPU triangles or reuse
 // the engine's MVP multiplication. Exclude edge samples where rasterization
 // and texture filtering conventions can legitimately change the byte result.
@@ -64,8 +103,10 @@ bool ReferencePixel(float u, float v, float aspect, float angle, unsigned lighti
         const float ambient[3]={.08f,.12f,.16f}, color[3]={.6f,.45f,.3f};
         float localLight[3]; InverseRotation(towardLight,angle,localLight);
         float cosine=fmaxf(0,localLight[face]*(point[face]>0 ? 1 : -1));
+        float intensity=lighting>=3 ? InterpolatedLocalLight(point,face,angle,lighting==4)
+                                    : (lighting==2 ? cosine : 0);
         for (int i=0;i<3;++i) {
-            float linear=ambient[i]+(lighting==2 ? color[i]*cosine : 0);
+            float linear=ambient[i]+color[i]*intensity;
             float encoded=gGL->m_bHave_GL_EXT_sRGB_write_control
                 ? (linear<=.0031308f ? 12.92f*linear : 1.055f*powf(linear,1.f/2.4f)-.055f)
                 : powf(linear,1.f/2.2f);
@@ -80,7 +121,7 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
     int width, int height, unsigned frame, SceneSamples &samples, char *detail, size_t capacity)
 {
     samples.count=0;
-    unsigned lighting=(frame/1200)%3;
+    unsigned lighting=(frame/1200)%5;
     IMaterial *draw=material->FindMaterial(lighting ? "ios/lit" : "ios/unlit",TEXTURE_GROUP_OTHER,true);
     if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),lighting ? "VertexLitGeneric" : "UnlitGeneric")) {
         snprintf(detail,capacity,"Perspective material missing"); return false;
@@ -108,9 +149,16 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
     LightDesc_t light;
     // Initialize every field consumed by SetLight, even for a directional light.
     memset(&light,0,sizeof(light));
-    light.m_Type=lighting==2 ? MATERIAL_LIGHT_DIRECTIONAL : MATERIAL_LIGHT_DISABLE;
+    light.m_Type=lighting==4 ? MATERIAL_LIGHT_SPOT : lighting==3 ? MATERIAL_LIGHT_POINT
+                : lighting==2 ? MATERIAL_LIGHT_DIRECTIONAL : MATERIAL_LIGHT_DISABLE;
     light.m_Direction.Init(.48f,-.64f,.6f);
     light.m_Color.Init(.6f,.45f,.3f); light.m_Attenuation0=1;
+    if (lighting>=3) {
+        light.m_Position.Init(-1.4f,1.6f,-2.4f);
+        light.m_Direction=-light.m_Position; VectorNormalize(light.m_Direction);
+        light.m_Attenuation0=.4f; light.m_Attenuation1=.2f; light.m_Attenuation2=.15f;
+        light.m_Range=100; light.m_Theta=.25f; light.m_Phi=.7f; light.m_Falloff=2;
+    }
     context->SetLight(0,light);
     context->Bind(draw);
     IMesh *mesh=context->GetDynamicMesh(true);
@@ -146,15 +194,15 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
         if (!ReferencePixel(sample.u,sample.v,aspect,angle,lighting,sample.rgba,hit)) continue;
         // Grazing faces can have large UV derivatives. Require a stable pixel
         // footprint too, rather than relying only on a fixed UV edge margin.
+        sample.tolerance=lighting && hit ? 2 : 0;
         bool stable=true;
         for (int dy=-1;dy<=1 && stable;++dy) for (int dx=-1;dx<=1 && stable;++dx) {
             unsigned char nearby[4]; bool nearbyHit=false;
             stable=ReferencePixel(sample.u+2.f*dx/width,sample.v+2.f*dy/height,
-                aspect,angle,lighting,nearby,nearbyHit) && nearbyHit==hit && !memcmp(nearby,sample.rgba,4);
+                aspect,angle,lighting,nearby,nearbyHit) && nearbyHit==hit && MatchesSceneSample(nearby,sample);
         }
         if (!stable) continue;
         unsigned char pixel[4]={}; gGL->glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
-        sample.tolerance=lighting && hit ? 2 : 0;
         valid=MatchesSceneSample(pixel,sample);
         if (!valid) snprintf(detail,capacity,"Perspective frame %u pixel %d,%d: %u,%u,%u,%u expected %u,%u,%u,%u",
             frame,x,y,pixel[0],pixel[1],pixel[2],pixel[3],sample.rgba[0],sample.rgba[1],sample.rgba[2],sample.rgba[3]);

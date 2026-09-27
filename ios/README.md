@@ -562,18 +562,26 @@ No standard shader C++ or HLSL source was changed.
 
 The live scene alternates every 1,200 frames between UnlitGeneric, VertexLitGeneric
 with a uniform colored ambient cube, and VertexLitGeneric with ambient plus one
-colored directional light. Each mode includes a full cube revolution. The CPU
-reference computes Lambert lighting from the face normal in world space and
+colored directional, point or spot light. Each mode includes a full cube revolution.
+The CPU reference computes Lambert lighting from the face normal in world space and
 accounts for native sRGB output or the backend's gamma fallback. Lit object RGB
 allows two byte levels of rounding error; alpha, background and unlit samples
 remain exact. Native-window presentation uses the same per-sample tolerance.
+Point and spot modes use constant/linear/quadratic distance attenuation. Spot
+mode adds an inner/outer cone with quadratic angular falloff. Since this shader
+lights vertices, the independent CPU reference lights the four face corners and
+interpolates the active triangle at the object-space ray hit, rather than
+incorrectly comparing against per-pixel lighting. Neighborhood checks permit the
+same two-level RGB tolerance for smooth gradients, while excluding texture and
+silhouette edges. Both local light types reuse the existing one-light bytecode.
 
 This covers opaque, unskinned, uncompressed geometry with one base texture,
-material color modulation, ambient and one directional light. It is not a complete
-standard shader library: vertex colors, detail textures, environment maps, alpha blending, fog, skinning,
-compressed vertices, point/spot lights and additional lighting variants remain
-uncompiled/untested. Missing combinations are not filled with unrelated bytecode. Compressed VCS blocks and
-full-library build times also remain outside this milestone.
+material color modulation, ambient and one directional, point or spot light.
+It is not a complete standard shader library: vertex colors, detail textures,
+environment maps, alpha blending, fog, skinning, compressed vertices, multiple
+simultaneous lights and additional lighting variants remain uncompiled/untested.
+Missing combinations are not filled with unrelated bytecode. Compressed VCS
+blocks and full-library build times also remain outside this milestone.
 
 ### Filesystem and material data
 
@@ -641,7 +649,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend lighting to point/spot lights and additional material features,
+1. Extend lighting to multiple simultaneous lights and additional material features,
    with reference checks in the perspective scene.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
