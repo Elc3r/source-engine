@@ -587,14 +587,14 @@ This covers opaque, unskinned, uncompressed geometry with one base texture,
 material color modulation, ambient, individual directional/point/spot lights,
 and a spot-plus-directional pair.
 It is not a complete standard shader library: vertex colors, detail textures,
-environment maps, fog, skinning, compressed vertices, more than
+environment maps, height/water fog, skinning, compressed vertices, more than
 two simultaneous lights and additional lighting variants remain uncompiled/untested.
 Missing combinations are not filled with unrelated bytecode. Compressed VCS
 blocks and full-library build times also remain outside this milestone.
 
 ### Standard translucent materials
 
-The live cycle starts with an UnlitGeneric alpha-blending phase. An opaque
+The live cycle includes an UnlitGeneric alpha-blending phase. An opaque
 four-color base is followed by one or two mirrored layers of `ios/draw-alpha`.
 The VTF contains alpha values 255, 192, 128 and 64. Every 120 frames the test
 switches between one layer and two layers in either order. A CPU source-over
@@ -610,6 +610,23 @@ This also checks that blending is disabled again for opaque draws. The existing
 compiled UnlitGeneric bytecode is reused; the production shader selects the
 blend/depth/alpha-write states from the new translucent VMT. Sorting arbitrary
 transparent 3D geometry and other blend modes remain outside this check.
+
+### Range fog
+
+The cycle starts with a range-fog phase using the production UnlitGeneric shader
+and a material without `$nofog`. Five red bands have projected depths .1, .3,
+.5, .7 and .9 with fog start/end .3/.7 and identity projection. This deliberately
+isolates the shader's projected-depth fog input from camera transformations.
+The CPU reference squares the clamped range ramp, as required by the production
+ps_2_b shader, and encodes the resulting linear color for the backbuffer.
+
+Every 120 frames the phase switches between full blue fog, maximum density .5,
+fog disabled, and full green fog. Fifteen samples check before/start/middle/end/
+after distances, a `$nofog` center override, and a fogged draw after that override.
+RGB tolerance is two byte levels (exact when disabled or overridden); alpha is
+always exact. The samples are also checked after native-window presentation.
+Existing compiled bytecode is reused. Height/water fog and fog on transparent
+or lit materials remain untested.
 
 ### Filesystem and material data
 
@@ -677,7 +694,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend coverage to fog and additional material features,
+1. Extend coverage to fog on lit/translucent materials and additional material features,
    with reference checks in the perspective scene.
 2. Connect the remaining engine modules, game-data paths and a single HL2 map.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

@@ -125,6 +125,7 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
 {
     samples.count=0;
     unsigned lighting=SceneLightingMode(frame);
+    if (lighting==9) return DrawFogScene(material,context,width,height,frame,samples,detail,capacity);
     if (lighting==8) return DrawBlendScene(material,context,width,height,frame,samples,detail,capacity);
     IMaterial *draw=material->FindMaterial(lighting ? "ios/lit" : "ios/unlit",TEXTURE_GROUP_OTHER,true);
     if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),lighting ? "VertexLitGeneric" : "UnlitGeneric")) {

@@ -28,10 +28,14 @@ inline bool MatchesSceneSample(const unsigned char pixel[4], const SceneSample &
 // lights, a lone light in slot 1, and the same pair with swapped slots.
 inline unsigned SceneLightingMode(unsigned frame)
 {
-    unsigned mode=(frame/1200+6)%7;
+    unsigned mode=(frame/1200+7)%8;
+    if (mode==7) return 9;
     if (mode==6) return 8;
     return mode==5 ? 5+(frame%360)/120 : mode;
 }
 
 bool DrawBlendScene(IMaterialSystem *material, IMatRenderContext *context,
+    int width, int height, unsigned frame, SceneSamples &samples, char *detail, size_t capacity);
+
+bool DrawFogScene(IMaterialSystem *material, IMatRenderContext *context,
     int width, int height, unsigned frame, SceneSamples &samples, char *detail, size_t capacity);
