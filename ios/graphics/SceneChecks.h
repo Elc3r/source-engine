@@ -24,11 +24,12 @@ inline bool MatchesSceneSample(const unsigned char pixel[4], const SceneSample &
     return true;
 }
 
-// Each base mode spans one full revolution. The final mode exercises both
-// lights, a lone light in slot 1, and the same pair with swapped slots.
+// Each base mode lasts 1,200 frames. Start with the lightmap atlas; mode 5
+// exercises two lights, slot 1 alone, and the pair with swapped slots.
 inline unsigned SceneLightingMode(unsigned frame)
 {
-    unsigned mode=(frame/1200+7)%8;
+    unsigned mode=(frame/1200+8)%9;
+    if (mode==8) return 10;
     if (mode==7) return 9;
     if (mode==6) return 8;
     return mode==5 ? 5+(frame%360)/120 : mode;
@@ -39,3 +40,6 @@ bool DrawBlendScene(IMaterialSystem *material, IMatRenderContext *context,
 
 bool DrawFogScene(IMaterialSystem *material, IMatRenderContext *context,
     int width, int height, unsigned frame, SceneSamples &samples, char *detail, size_t capacity);
+
+bool DrawLightmapScene(IMaterialSystem *, IMatRenderContext *, int, int, unsigned, SceneSamples &, char *, size_t);
+void ResetLightmapScene();

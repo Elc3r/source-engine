@@ -613,7 +613,7 @@ transparent 3D geometry and other blend modes remain outside this check.
 
 ### Range fog
 
-The cycle starts with a range-fog phase using the production UnlitGeneric shader
+The cycle includes a range-fog phase using the production UnlitGeneric shader
 and a material without `$nofog`. Five bands have projected depths .1, .3,
 .5, .7 and .9 with fog start/end .3/.7 and identity projection. This deliberately
 isolates the shader's projected-depth fog input from camera transformations.
@@ -634,6 +634,39 @@ RGB tolerance is two byte levels (exact for the no-fog override); alpha is alway
 exact. Samples are also checked after native-window presentation. Lights and fog
 are reset before returning to the other scenes. Existing compiled bytecode is
 reused. Height/water fog remains untested.
+
+### LightmappedGeneric atlas
+
+The cycle starts with two quads rendered by production `LightmappedGeneric`.
+The material system allocates two 4×4 regions in one atlas, resolves their sort
+IDs to a page and uploads original linear RGB light values. One region stays
+unchanged while the other rotates four lighting patterns every 120 frames.
+Updates alternate direct subrectangle locks and `Begin/EndUpdateLightmaps`
+whole-page locks. Base UVs and horizontally mirrored lightmap UVs are independent.
+Eight pixel references verify both regions, RGB channel order, gamma/overbright
+conversion and native-window presentation, with two-byte RGB tolerance and exact
+alpha. A material-system restore callback invalidates uploaded contents after
+Device Reset, so both regions are repopulated on the next draw. The callback is
+removed and atlas state reset when the retained material system shuts down.
+
+On iOS, dynamic ToGLES textures now use the existing CPU-backed upload path.
+The legacy PBO path ignored a subrectangle's origin and source row stride and
+bypassed the D3D channel-order conversion. CPU backing preserves neighboring
+atlas regions and uses the existing stride-aware GLES upload/conversion logic;
+asynchronous PBO uploads remain a future optimization. Other platforms retain
+their existing allocation path.
+
+The shader cache adds static-zero LightmappedGeneric VS/PS combinations for
+normal and fast paths (including the fast-path contrast switch), and the pixel
+shader's TEXCOORD2/3 centroid mask. This is still a synthetic geometry/atlas test;
+BSP loading, baked map lighting, bumped lightmaps, HDR lightmaps and flashlight
+shader combinations are not covered.
+
+Validated on iOS 27 Simulator at 1206×2622 and 2622×1206, including rotation
+within the lightmap phase, all four update patterns, background/resume and the
+transition back to the perspective scene (1,680 frames, all checks PASS).
+The device-SDK build and ad-hoc signature verification pass; physical-device
+runtime behavior is still untested.
 
 ### Filesystem and material data
 

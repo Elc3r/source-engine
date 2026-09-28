@@ -783,6 +783,10 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 	m_mapped = NULL;
 	m_pbo = 0;
 
+	// iOS uses CPU backing for dynamic textures too. The legacy PBO path
+	// uploads packed rows from offset zero and bypasses D3D-to-RGBA conversion;
+	// lightmap atlas subrectangles require the normal stride-aware upload path.
+#ifndef IOS
 	if( m_layout->m_key.m_texFlags & kGLMTexDynamic )
 	{
 		gGL->glGenBuffers(1, &m_pbo);
@@ -790,6 +794,8 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 		gGL->glBufferData(GL_PIXEL_UNPACK_BUFFER, m_layout->m_storageTotalSize, 0, GL_DYNAMIC_DRAW);
 		gGL->glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 	}
+
+#endif
 
 	// Sense whether to try and apply client storage upon teximage/subimage.
 	//  This should only be true if we're running on OSX 10.6 or it was explicitly
@@ -3752,7 +3758,7 @@ void CGLMTex::Lock( GLMTexLockParams *params, char** addressOut, int* yStrideOut
 	// d - the params of the lock request have been saved in the lock table (in the context)
 	
 	// so step 1 is unambiguous.  If there's no backing storage, make some.
-	if (!m_backing && !(m_layout->m_key.m_texFlags & kGLMTexDynamic))
+	if (!m_backing && !m_pbo)
 	{
 		if ( gl_pow2_tempmem.GetBool() )
 		{
@@ -3864,7 +3870,7 @@ void CGLMTex::Lock( GLMTexLockParams *params, char** addressOut, int* yStrideOut
 
 	desc->m_sliceRegionOffset = offsetInSlice + desc->m_sliceBaseOffset;
 
-	if ( (m_layout->m_key.m_texFlags & kGLMTexDynamic) || (params->m_readonly && copyout) )
+	if ( m_pbo || (params->m_readonly && copyout) )
 	{
 		// read the whole slice
 		// (odds are we'll never request anything but a whole slice to be read..)

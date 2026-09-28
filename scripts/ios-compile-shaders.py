@@ -43,6 +43,10 @@ def combo_layout(source, profile):
 
 SPARSE = {}
 for name, source, profile, choices in [
+    ('lightmappedgeneric_vs20', 'lightmappedgeneric_vs20.fxc',
+     'vs_2_0', [{}, {'FASTPATH': 1}]),
+    ('lightmappedgeneric_ps20b', 'lightmappedgeneric_ps2x.fxc',
+     'ps_2_b', [{}, {'FASTPATH': 1}, {'FASTPATH': 1, 'FASTPATHENVMAPCONTRAST': 1}]),
     ('vertexlit_and_unlit_generic_vs20', 'vertexlit_and_unlit_generic_vs20.fxc',
      'vs_2_0', ([{'USE_STATIC_CONTROL_FLOW': flow} for flow in (0, 1)] +
                  [{'USE_STATIC_CONTROL_FLOW': flow, 'DYNAMIC_LIGHT': 1, 'NUM_LIGHTS': lights}
@@ -92,7 +96,7 @@ def validate_combo_indices():
             raise ValueError('HLSL combo indices disagree with C++ header: ' + name)
 
 
-def sparse_vcs(layout, variants, codes):
+def sparse_vcs(layout, variants, codes, centroid_mask=0):
     groups = {}
     for defines, code in zip(variants, codes):
         static, static_count = combo_index(layout['STATIC'], defines)
@@ -112,7 +116,7 @@ def sparse_vcs(layout, variants, codes):
         payload += struct.pack('<I', 0xffffffff)
     records += struct.pack('<2I', 0xffffffff, offset + len(payload))
     return (struct.pack('<7I', 6, static_count * dynamic_count, dynamic_count,
-                        0, 0, len(groups) + 1, 0) + records + struct.pack('<I', 0) + payload)
+                        0, centroid_mask, len(groups) + 1, 0) + records + struct.pack('<I', 0) + payload)
 
 
 def digest(path):
@@ -197,7 +201,8 @@ def compile_cache(cache, compiler, runner):
                     raise ValueError('Invalid SM2 bytecode: ' + name + ' version=' + code[:4].hex())
                 codes.append(code)
             binary = temporary / (name + '.vcs')
-            binary.write_bytes(sparse_vcs(SPARSE[name], variants, codes) if name in SPARSE else vcs(codes))
+            binary.write_bytes(sparse_vcs(SPARSE[name], variants, codes,
+                0xC if name == "lightmappedgeneric_ps20b" else 0) if name in SPARSE else vcs(codes))
             manifest['outputs'][binary.name] = digest(binary)
         for name in manifest['outputs']:
             shutil.copy2(temporary / name, cache / name)

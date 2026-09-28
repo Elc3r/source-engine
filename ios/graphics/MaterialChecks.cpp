@@ -488,13 +488,14 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
     if (valid && (!livePresentation->valid || livePresentation->swaps!=swaps+1)) {
         snprintf(detail,capacity,"Live material window pixels/swap failed"); return false;
     }
-    const char *sceneModes[]={"3D UnlitGeneric","3D ambient","3D directional","3D point","3D spot","3D two lights","3D slot 1 only","3D swapped lights","UnlitGeneric alpha blend","Lit/unlit fog + alpha"};
+    const char *sceneModes[]={"3D UnlitGeneric","3D ambient","3D directional","3D point","3D spot","3D two lights","3D slot 1 only","3D swapped lights","UnlitGeneric alpha blend","Lit/unlit fog + alpha","LightmappedGeneric atlas"};
     if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"%s %ux%u + depth/stencil: PASS (%d sizes)",scene ? sceneModes[SceneLightingMode(sceneFrame-1)] : "Native",targetWidth,targetHeight,resizeChecks);
     return valid && error==GL_NO_ERROR;
 }
 void StopToGLESLiveMaterial()
 {
     if (!liveMaterial) return;
+    ResetLightmapScene();
     liveMaterial->ModShutdown(); liveMaterial->Shutdown(); liveMaterial->Disconnect();
     checkedWidth=checkedHeight=resizeChecks=0; sceneFrame=0;
     liveMaterial=NULL; livePresentation=NULL; applicationMaterial=NULL; applicationHost=NULL;
