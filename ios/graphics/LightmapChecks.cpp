@@ -2,6 +2,7 @@
 #include "materialsystem/imaterialsystem.h"
 #include "materialsystem/imesh.h"
 #include "SceneChecks.h"
+#include "BspGeometry.h"
 #include <math.h>
 #include <vector>
 
@@ -10,7 +11,9 @@ int page=-1,offsets[2][2],pageWidth,pageHeight;
 unsigned uploaded=~0u;
 IMaterialSystem *owner=NULL;
 void RestoreLightmapScene(int) { uploaded=~0u; }
-const float levels[4]={.125f,.25f,.5f,1.f};
+BspRenderGeometry geometry;
+const float levels[4]={32.f/255,64.f/255,128.f/255,1.f};
+const float guard[3]={32.f/255,64.f/255,.5f};
 unsigned char LightmapByte(float value)
 {
     // Independent LDR upload reference: gamma 2.2, overbright 2, byte rounding.
@@ -26,14 +29,23 @@ unsigned char LightmapByte(float value)
 void ResetLightmapScene()
 {
     if (owner) owner->RemoveRestoreFunc(RestoreLightmapScene);
-    owner=NULL; page=-1; uploaded=~0u;
+    owner=NULL; page=-1; uploaded=~0u; geometry.faces.clear();
 }
 
 bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     int width,int height,unsigned frame,SceneSamples &samples,char *detail,size_t capacity)
 {
     samples.count=0;
-    IMaterial *draw=material->FindMaterial("ios/lightmapped",TEXTURE_GROUP_OTHER,true);
+    if (geometry.faces.empty()) {
+        if (!LoadBspGeometryFixture(geometry,detail,capacity)) return false;
+        // This scene's independent pixel reference describes our two-face fixture.
+        if (geometry.faces.size()!=2 || geometry.faces[0].material!=geometry.faces[1].material
+            || geometry.faces[0].lightmapSize[0]!=4 || geometry.faces[0].lightmapSize[1]!=4
+            || geometry.faces[1].lightmapSize[0]!=4 || geometry.faces[1].lightmapSize[1]!=4) {
+            snprintf(detail,capacity,"Unexpected BSP reference fixture layout"); return false;
+        }
+    }
+    IMaterial *draw=material->FindMaterial(geometry.faces[0].material.c_str(),TEXTURE_GROUP_OTHER,true);
     if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),"LightmappedGeneric")) {
         snprintf(detail,capacity,"LightmappedGeneric lookup failed"); return false;
     }
@@ -68,9 +80,9 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
             float pixels[4*4*4];
             for (int y=0;y<4;++y) for (int x=0;x<4;++x) {
                 int index=(y*4+x)*4;
-                for (int c=0;c<3;++c)
-                    pixels[index+c]=levels[tile ? (x/2+2*(y/2)+phase+c)%4 : (c+1)%4];
-                pixels[index+3]=1;
+                int quadrant=(x/2+2*(y/2)+(tile ? phase : 0))%4;
+                int source=((quadrant/2*2+y%2)*4+quadrant%2*2+x%2)*4;
+                for (int c=0;c<4;++c) pixels[index+c]=geometry.faces[tile].lighting[source+c];
             }
             material->UpdateLightmap(page,size,offsets[tile],pixels,NULL,NULL,NULL);
         }
@@ -85,16 +97,19 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     for (int tile=0;tile<2;++tile) {
         context->Bind(draw);
         IMesh *mesh=context->GetDynamicMesh(true);
-        CMeshBuilder builder; builder.Begin(mesh,MATERIAL_TRIANGLES,2);
-        const float vertices[6][2]={{0,0},{1,0},{1,1},{0,0},{1,1},{0,1}};
-        for (const auto &v:vertices) {
-            builder.Position3f(-1+tile+v[0],-1+2*v[1],.5f);
-            if (draw->GetVertexFormat() & VERTEX_NORMAL) builder.Normal3f(0,0,1);
-            builder.TexCoord2f(0,v[0],v[1]);
-            // Mirror only the lightmap UV to distinguish the two samplers.
-            builder.TexCoord2f(1,(offsets[tile][0]+.5f+3*(1-v[0]))/pageWidth,
-                (offsets[tile][1]+.5f+3*v[1])/pageHeight);
-            builder.AdvanceVertex();
+        const auto &face=geometry.faces[tile];
+        CMeshBuilder builder; builder.Begin(mesh,MATERIAL_TRIANGLES,int(face.vertices.size())-2);
+        for (size_t triangle=1;triangle+1<face.vertices.size();++triangle) {
+            const size_t indices[3]={0,triangle,triangle+1};
+            for (size_t index:indices) {
+                const auto &vertex=face.vertices[index];
+                builder.Position3fv(vertex.position);
+                if (draw->GetVertexFormat() & VERTEX_NORMAL) builder.Normal3fv(vertex.normal);
+                builder.TexCoord2fv(0,vertex.uv);
+                builder.TexCoord2f(1,(offsets[tile][0]+.5f+vertex.luxel[0])/pageWidth,
+                    (offsets[tile][1]+.5f+vertex.luxel[1])/pageHeight);
+                builder.AdvanceVertex();
+            }
         }
         builder.End(); mesh->Draw();
     }
@@ -112,7 +127,7 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
         int textureRow=1-row,base=col+2*textureRow;
         for (int c=0;c<3;++c) {
             bool present=c==0 ? (base==0 || base==3) : c==1 ? (base==1 || base==3) : base==2;
-            float value=levels[tile ? (1-col+2*textureRow+phase+c)%4 : (c+1)%4];
+            float value=tile ? levels[(1-col+2*textureRow+phase+c)%4] : guard[c];
             sample.rgba[c]=present ? LightmapByte(value) : 0;
         }
         sample.rgba[3]=255; sample.tolerance=2;

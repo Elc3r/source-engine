@@ -659,14 +659,54 @@ their existing allocation path.
 The shader cache adds static-zero LightmappedGeneric VS/PS combinations for
 normal and fast paths (including the fast-path contrast switch), and the pixel
 shader's TEXCOORD2/3 centroid mask. This is still a synthetic geometry/atlas test;
-BSP loading, baked map lighting, bumped lightmaps, HDR lightmaps and flashlight
-shader combinations are not covered.
+The full engine BSP loader, bumped lightmaps, HDR lightmaps and flashlight
+shader combinations are not covered. The render-lump fixture below now supplies
+the geometry and static lighting for this scene.
 
 Validated on iOS 27 Simulator at 1206×2622 and 2622×1206, including rotation
 within the lightmap phase, all four update patterns, background/resume and the
 transition back to the perspective scene (1,680 frames, all checks PASS).
 The device-SDK build and ad-hoc signature verification pass; physical-device
 runtime behavior is still untested.
+
+### BSP render-lump input
+
+`scripts/ios-bsp-fixtures.py` packages an original `maps/ios-lightmap.bsp` (BSP 21).
+It contains two planar world faces and the render lumps needed for their vertices,
+signed surfedges, planes, texinfo, texture-name indirection and RGBExp32 light
+samples. It is a synthetic render fixture, not a VBSP/VVIS-built playable map;
+its nodes, visibility, collision and gameplay data are not supplied.
+
+`BspGeometry.cpp` reads through the real `IFileSystem` GAME path and uses the
+repository's `bspfile.h` records. It reconstructs ordered convex polygons,
+calculates base UVs from texture-space vectors and source texture dimensions,
+calculates luxels from the independent lightmap vectors/minima, and decodes
+RGBExp32 with the engine's `TexLightToLinear`. The renderer triangulates those
+polygons and uploads their light samples through the existing atlas path. Later
+update phases permute the fixture's stored luxels; no vertices, UVs or light
+samples are synthesized in the draw code. The independent pixel reference still
+uses the known fixture colors/positions, including the negative light exponent.
+
+The reader intentionally accepts only uncompressed BSP 21 world geometry with
+planar convex faces, zero surface flags and a single static LDR light style.
+Limits include a 16 MiB file, 256 world faces, 64 vertices per face, coordinates
+within ±32768, 128×128 luxels per face and linear light values up to 4. Unsupported
+features return an error rather than silently falling back. The reader validates
+lump bounds/overlap, record versions/sizes, all followed indices, relative and
+terminated material names, finite coordinates, closed edge chains, face planes,
+convex winding and light-sample bounds. Partial parse results are never returned.
+
+At fixture load, 15 mutated inputs exercise truncation, wrong magic/version,
+overlap, compression, record size, signed-edge overflow, invalid vertex indices,
+light offsets/extents/styles, unterminated names, NaN UVs/vertices and broken edge
+chains. These must all fail before GPU allocation. Simulator validation passed
+2,640 frames, all update phases, landscape-to-portrait reset during the BSP scene,
+background/resume and subsequent perspective scenes. Device-SDK build and ad-hoc
+signature verification also pass; physical-device runtime remains untested.
+
+The full `engine/modelloader.cpp` is not linked by this probe. Integrating its
+world/visibility/model lifecycle and a complete compiled map remains a separate
+milestone; this reader only establishes the render-data boundary.
 
 ### Filesystem and material data
 

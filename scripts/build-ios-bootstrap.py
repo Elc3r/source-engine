@@ -87,6 +87,7 @@ def main():
         if args.togles:
             shutil.copytree(ROOT / 'ios/fixtures', app / 'probe-assets')
             run(sys.executable, ROOT / 'scripts/ios-material-fixtures.py', app / 'probe-assets')
+            run(sys.executable, ROOT / 'scripts/ios-bsp-fixtures.py', app / 'probe-assets')
             if args.shader_cache:
                 run(sys.executable, ROOT / 'scripts/ios-compile-shaders.py',
                     '--output', args.shader_cache, '--stage', app / 'probe-assets')
