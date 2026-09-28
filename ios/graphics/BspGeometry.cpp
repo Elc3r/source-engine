@@ -214,9 +214,9 @@ bool CheckRejectedFixtures(const std::vector<unsigned char> &original,char *deta
 }
 }
 
-bool LoadBspGeometryFixture(BspRenderGeometry &result,char *detail,size_t capacity)
+bool LoadBspGeometryFixture(BspRenderGeometry &result,char *detail,size_t capacity,bool spatial)
 {
-    FileHandle_t file=g_pFullFileSystem->Open("maps/ios-lightmap.bsp","rb","GAME");
+    FileHandle_t file=g_pFullFileSystem->Open(spatial ? "maps/ios-spatial.bsp" : "maps/ios-lightmap.bsp","rb","GAME");
     if (file==FILESYSTEM_INVALID_HANDLE) return Reject(detail,capacity,"fixture not found");
     unsigned size=g_pFullFileSystem->Size(file);
     if (size<sizeof(dheader_t) || size>16*1024*1024) {

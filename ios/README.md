@@ -637,7 +637,7 @@ reused. Height/water fog remains untested.
 
 ### LightmappedGeneric atlas
 
-The cycle starts with two quads rendered by production `LightmappedGeneric`.
+The cycle includes two quads rendered by production `LightmappedGeneric`.
 The material system allocates two 4×4 regions in one atlas, resolves their sort
 IDs to a page and uploads original linear RGB light values. One region stays
 unchanged while the other rotates four lighting patterns every 120 frames.
@@ -707,6 +707,32 @@ signature verification also pass; physical-device runtime remains untested.
 The full `engine/modelloader.cpp` is not linked by this probe. Integrating its
 world/visibility/model lifecycle and a complete compiled map remains a separate
 milestone; this reader only establishes the render-data boundary.
+
+### Perspective BSP scene
+
+The cycle now starts with `maps/ios-spatial.bsp`, generated alongside the flat
+fixture. It places a larger rear face at z=.5 and a smaller inclined front face
+at z=.4*x-.4, each with its own plane and texinfo. All vertices, UVs and lightmap
+samples still come through the BSP reader. A 60-degree perspective camera moves
+sideways over a 1,200-frame period. Face submission order reverses every frame
+to expose incorrect depth occlusion. The flat BSP scene follows, rebuilding the
+atlas and its restore callback when the fixture changes.
+
+An analytic CPU reference intersects camera rays with the two known fixture
+planes without reading the parsed geometry or reusing engine matrix operations.
+It checks the nearest visible face, base-texture quadrant, independently mirrored
+lightmap coordinates, quantized LDR upload, sRGB decode before bilinear lightmap
+filtering, overbright and output encoding. Up to 49 pixel locations are checked
+both offscreen and after native presentation. Edge/unstable footprints are
+excluded, but every frame must retain at least three samples each of foreground,
+rear surface and background. The RGB tolerance is two bytes; alpha is exact.
+This adds perspective/occlusion coverage, not BSP visibility traversal, collision
+or a playable map.
+
+Validated on iOS 27 Simulator in both native orientations, including reset during
+the perspective phase, background/resume and transition to the flat BSP fixture
+(3,120 frames, all checks PASS). Device-SDK build and ad-hoc signature
+verification pass; physical-device runtime remains untested.
 
 ### Filesystem and material data
 

@@ -24,14 +24,12 @@ inline bool MatchesSceneSample(const unsigned char pixel[4], const SceneSample &
     return true;
 }
 
-// Each base mode lasts 1,200 frames. Start with the lightmap atlas; mode 5
+// Each base mode lasts 1,200 frames. Start with the spatial BSP scene; mode 5
 // exercises two lights, slot 1 alone, and the pair with swapped slots.
 inline unsigned SceneLightingMode(unsigned frame)
 {
-    unsigned mode=(frame/1200+8)%9;
-    if (mode==8) return 10;
-    if (mode==7) return 9;
-    if (mode==6) return 8;
+    const unsigned phases[]={11,10,0,1,2,3,4,5,8,9};
+    unsigned mode=phases[(frame/1200)%10];
     return mode==5 ? 5+(frame%360)/120 : mode;
 }
 
@@ -41,5 +39,5 @@ bool DrawBlendScene(IMaterialSystem *material, IMatRenderContext *context,
 bool DrawFogScene(IMaterialSystem *material, IMatRenderContext *context,
     int width, int height, unsigned frame, SceneSamples &samples, char *detail, size_t capacity);
 
-bool DrawLightmapScene(IMaterialSystem *, IMatRenderContext *, int, int, unsigned, SceneSamples &, char *, size_t);
+bool DrawLightmapScene(IMaterialSystem *, IMatRenderContext *, int, int, unsigned, SceneSamples &, char *, size_t, bool spatial=false);
 void ResetLightmapScene();

@@ -19,4 +19,4 @@ struct BspRenderGeometry {
 // lighting. Unsupported features fail explicitly; this is not the engine loader.
 bool ReadBspGeometry(const void *bytes, size_t size, BspRenderGeometry &result,
     char *detail, size_t capacity);
-bool LoadBspGeometryFixture(BspRenderGeometry &result, char *detail, size_t capacity);
+bool LoadBspGeometryFixture(BspRenderGeometry &result, char *detail, size_t capacity, bool spatial=false);

@@ -125,6 +125,7 @@ bool DrawPerspectiveScene(IMaterialSystem *material, IMatRenderContext *context,
 {
     samples.count=0;
     unsigned lighting=SceneLightingMode(frame);
+    if (lighting==11) return DrawLightmapScene(material,context,width,height,frame,samples,detail,capacity,true);
     if (lighting==10) return DrawLightmapScene(material,context,width,height,frame,samples,detail,capacity);
     if (lighting==9) return DrawFogScene(material,context,width,height,frame,samples,detail,capacity);
     if (lighting==8) return DrawBlendScene(material,context,width,height,frame,samples,detail,capacity);

@@ -3,6 +3,7 @@
 #include "materialsystem/imesh.h"
 #include "SceneChecks.h"
 #include "BspGeometry.h"
+#include "mathlib/vmatrix.h"
 #include <math.h>
 #include <vector>
 
@@ -12,6 +13,7 @@ unsigned uploaded=~0u;
 IMaterialSystem *owner=NULL;
 void RestoreLightmapScene(int) { uploaded=~0u; }
 BspRenderGeometry geometry;
+bool spatialGeometry=false;
 const float levels[4]={32.f/255,64.f/255,128.f/255,1.f};
 const float guard[3]={32.f/255,64.f/255,.5f};
 unsigned char LightmapByte(float value)
@@ -25,6 +27,88 @@ unsigned char LightmapByte(float value)
         : powf(linear,1.f/2.2f);
     return static_cast<unsigned char>(result*255+.5f);
 }
+float DecodeLightmap(float value)
+{
+    value=floorf(value*1024+.5f)/1024;
+    float encoded=floorf(powf(value,1.f/2.2f)*.5f*255+.5f)/255;
+    return encoded<=.04045f ? encoded/12.92f : powf((encoded+.055f)/1.055f,2.4f);
+}
+unsigned char EncodeLight(float linear)
+{
+    linear=fminf(1,linear*powf(2,2.2f));
+    float value=gGL->m_bHave_GL_EXT_sRGB_write_control
+        ? (linear<=.0031308f ? 12.92f*linear : 1.055f*powf(linear,1.f/2.4f)-.055f)
+        : powf(linear,1.f/2.2f);
+    return static_cast<unsigned char>(value*255+.5f);
+}
+// Analytic fixture reference, independent of BSP parsing, triangulation and
+// engine matrix operations. Rays intersect z=.5 and z=.4*x-.4 from (cameraX,0,-4).
+bool SpatialReference(float u,float v,float aspect,float cameraX,unsigned phase,
+    unsigned char rgba[4],int &hit)
+{
+    float dx=(2*u-1)*aspect/1.7320508f,dy=(1-2*v)/1.7320508f;
+    float tx=0,ty=0; hit=-1;
+    float best=100;
+    for (int face=0;face<2;++face) {
+        float t=face ? (3.6f+.4f*cameraX)/(1-.4f*dx) : 4.5f;
+        float x=cameraX+t*dx,y=t*dy,extent=face ? .65f : 1;
+        if (fabsf(fabsf(x)-extent)<.012f || fabsf(fabsf(y)-extent)<.012f) return false;
+        if (t>0 && t<best && fabsf(x)<extent && fabsf(y)<extent) {
+            best=t; hit=face; tx=(x/extent+1)*.5f; ty=(y/extent+1)*.5f;
+        }
+    }
+    rgba[3]=255;
+    if (hit<0) { rgba[0]=37; rgba[1]=91; rgba[2]=163; return true; }
+    if (fabsf(tx-.5f)<.015f || fabsf(ty-.5f)<.015f) return false;
+    int base=(tx>=.5f ? 1 : 0)+(ty>=.5f ? 2 : 0);
+    float lx=3*(1-tx),ly=3*ty;
+    int x0=int(lx),y0=int(ly); float fx=lx-x0,fy=ly-y0;
+    for (int c=0;c<3;++c) {
+        bool present=c==0 ? (base==0 || base==3) : c==1 ? (base==1 || base==3) : base==2;
+        float linear=0;
+        for (int y=0;y<2;++y) for (int x=0;x<2;++x) {
+            int xx=x0+x,yy=y0+y; if (xx>3) xx=3; if (yy>3) yy=3;
+            float value=hit ? levels[(xx/2+2*(yy/2)+phase+c)%4] : guard[c];
+            linear+=DecodeLightmap(value)*(x ? fx : 1-fx)*(y ? fy : 1-fy);
+        }
+        rgba[c]=present ? EncodeLight(linear) : 0;
+    }
+    return true;
+}
+bool CheckSpatialBspPixels(int width,int height,float cameraX,unsigned phase,
+    SceneSamples &samples,char *detail,size_t capacity)
+{
+    const float positions[7]={-.43f,-.17f,-.105f,.035f,.105f,.17f,.43f};
+    int coverage[3]={};
+    for (int row=0;row<7;++row) for (int col=0;col<7;++col) {
+        int x=int(width*.5f+positions[col]*height),y=int(height*.5f+positions[row]*height);
+        if (x<0 || x>=width || y<0 || y>=height) continue;
+        SceneSample sample={}; sample.u=(x+.5f)/width; sample.v=(y+.5f)/height;
+        int hit=-1;
+        if (!SpatialReference(sample.u,sample.v,float(width)/height,cameraX,phase,sample.rgba,hit)) continue;
+        sample.tolerance=hit<0 ? 0 : 2;
+        bool stable=true;
+        for (int dy=-1;dy<=1 && stable;++dy) for (int dx=-1;dx<=1 && stable;++dx) {
+            unsigned char nearby[4]; int nearbyHit;
+            stable=SpatialReference(sample.u+2.f*dx/width,sample.v+2.f*dy/height,float(width)/height,
+                cameraX,phase,nearby,nearbyHit) && hit==nearbyHit && MatchesSceneSample(nearby,sample);
+        }
+        if (!stable) continue;
+        unsigned char pixel[4]; gGL->glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
+        if (!MatchesSceneSample(pixel,sample)) {
+            snprintf(detail,capacity,"Spatial BSP phase %u face %d pixel %d,%d: %u,%u,%u expected %u,%u,%u",
+                phase,hit,x,y,pixel[0],pixel[1],pixel[2],sample.rgba[0],sample.rgba[1],sample.rgba[2]);
+            return false;
+        }
+        ++coverage[hit+1]; samples.points[samples.count++]=sample;
+    }
+    if (coverage[0]<3 || coverage[1]<3 || coverage[2]<3) {
+        snprintf(detail,capacity,"Spatial BSP coverage: background %d rear %d front %d",coverage[0],coverage[1],coverage[2]);
+        return false;
+    }
+    return true;
+}
+
 }
 void ResetLightmapScene()
 {
@@ -33,11 +117,12 @@ void ResetLightmapScene()
 }
 
 bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
-    int width,int height,unsigned frame,SceneSamples &samples,char *detail,size_t capacity)
+    int width,int height,unsigned frame,SceneSamples &samples,char *detail,size_t capacity,bool spatial)
 {
     samples.count=0;
+    if (spatial!=spatialGeometry) { ResetLightmapScene(); spatialGeometry=spatial; }
     if (geometry.faces.empty()) {
-        if (!LoadBspGeometryFixture(geometry,detail,capacity)) return false;
+        if (!LoadBspGeometryFixture(geometry,detail,capacity,spatial)) return false;
         // This scene's independent pixel reference describes our two-face fixture.
         if (geometry.faces.size()!=2 || geometry.faces[0].material!=geometry.faces[1].material
             || geometry.faces[0].lightmapSize[0]!=4 || geometry.faces[0].lightmapSize[1]!=4
@@ -91,10 +176,20 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     }
     const MaterialMatrixMode_t modes[]={MATERIAL_MODEL,MATERIAL_VIEW,MATERIAL_PROJECTION};
     for (auto mode:modes) { context->MatrixMode(mode); context->PushMatrix(); context->LoadIdentity(); }
+    float cameraX=.2f*sinf(float(frame%1200)*6.2831853f/1200);
+    if (spatial) {
+        VMatrix view,projection; view.Identity(); memset(projection.Base(),0,sizeof(float)*16);
+        view[0][3]=-cameraX; view[2][3]=4;
+        projection[0][0]=1.7320508f/(float(width)/height); projection[1][1]=1.7320508f;
+        projection[2][2]=20.f/19; projection[2][3]=-20.f/19; projection[3][2]=1;
+        context->MatrixMode(MATERIAL_VIEW); context->LoadMatrix(view);
+        context->MatrixMode(MATERIAL_PROJECTION); context->LoadMatrix(projection);
+    }
     context->FogMode(MATERIAL_FOG_NONE); context->SetToneMappingScaleLinear(Vector(1,1,1));
     context->ClearColor4ub(37,91,163,255); context->ClearBuffers(true,true,true);
     context->BindLightmapPage(page);
-    for (int tile=0;tile<2;++tile) {
+    for (int index=0;index<2;++index) {
+        int tile=spatial && frame%2 ? 1-index : index;
         context->Bind(draw);
         IMesh *mesh=context->GetDynamicMesh(true);
         const auto &face=geometry.faces[tile];
@@ -119,7 +214,8 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&write);
     gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,write);
     bool valid=true;
-    for (int tile=0;tile<2;++tile) for (int row=0;row<2;++row) for (int col=0;col<2;++col) {
+    if (spatial) valid=CheckSpatialBspPixels(width,height,cameraX,phase,samples,detail,capacity);
+    else for (int tile=0;tile<2;++tile) for (int row=0;row<2;++row) for (int col=0;col<2;++col) {
         int x=int((tile*.5f+.125f+.25f*col)*width),y=int((.25f+.5f*row)*height);
         SceneSample sample={}; sample.u=(x+.5f)/width; sample.v=(y+.5f)/height;
         // The D3D vertex translator flips projected Y; framebuffer rows therefore
