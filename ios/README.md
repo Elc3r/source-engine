@@ -864,7 +864,7 @@ the resulting material sort records, page IDs and atlas offsets, then computes
 the UVs used by the actual draw calls. The scene no longer allocates its lightmap
 regions or calculates its draw UVs manually.
 
-The adapter accepts only the existing two-face, one-material, non-bumped fixture
+The adapter accepts only the existing two-face, non-bumped fixtures
 with 4x4 lightmaps and matching material mapping dimensions. It validates sort
 IDs, page bounds, distinct atlas regions and finite UVs. Temporary world state,
 sort-info binding and the hunk arena are released after setup; the previous
@@ -920,8 +920,8 @@ pass. Desktop builds and physical-device execution remain untested here.
 The surface bridge now submits the registered BSP faces to the real
 `CMSurfaceSortList`, keyed by their material-system sort IDs. It exports each
 group's face order and geometry counts, verifies that every face occurs exactly
-once, and checks that a group has one material/page binding. The two reference
-faces must coalesce into one batch; a failure to merge stops the probe.
+once, and checks that a group has one material/page binding. The two spatial
+reference faces must coalesce into one batch; a failure to merge stops the probe.
 
 The scene uploads one shared static mesh for that batch, with distinct vertex
 and index ranges for each face. Even frames draw the whole batch in one call.
@@ -929,8 +929,7 @@ Odd frames draw the individual index ranges in reverse face order, exercising
 nonzero index and vertex offsets against the same independent pixel reference.
 Mesh release/rebuild and lightmap restoration retain the existing reset lifecycle.
 
-This connects the existing engine sorter to real rendering, but the fixture
-still contains only one material/page batch. Multiple-material/page separation,
+This connects the existing engine sorter to real rendering. Multi-page coverage,
 engine vertex-limit splitting, shadow buckets and the complete
 `WorldStaticMeshCreate` orchestration remain unintegrated. CPU assembly and mesh
 ownership still belong to the probe adapter.
@@ -940,6 +939,31 @@ draws pass the unchanged pixel reference in both BSP scenes, including both
 orientations, graphics reset and background/resume. Simulator and device builds
 and device signature verification pass. Physical-device execution remains
 untested.
+
+### Distinct materials in the BSP batches
+
+The flat BSP fixture now has two texdata/name-table entries and uses two distinct
+`LightmappedGeneric` materials. Its second material uses an original texture
+whose RGB channels are rotated, so using the wrong material changes the checked
+pixels. The independent flat-scene reference includes this channel permutation;
+the lightmap reference and tolerances are unchanged. The perspective fixture
+retains one shared material and continues to verify coalescing.
+
+The scene resolves each face's material; the bridge validates it and requires one
+batch for a shared material/page or two for distinct bindings. Each draw binds
+its batch's material and lightmap page, including reverse-order face-range draws.
+Lightmap updates also use the owning face's page. Material references are scoped
+across setup/drawing and released on every return path.
+
+This checks real material separation and switching, not forced lightmap-page
+overflow: the two small lightmaps may share an atlas page. Multiple pages and
+vertex-budget splitting remain subsequent coverage work.
+
+Validated on iOS 27 Simulator for 3,960 frames: shared-material coalescing,
+distinct-material batches and reverse-order draws pass their pixel references,
+including orientation reset during the BSP sequence and background/resume.
+Both SDK builds, fixture-generator syntax checks and device signature verification
+pass. Physical-device execution remains untested.
 
 ### Filesystem and material data
 
@@ -1007,7 +1031,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Cover multiple material/page batches and vertex limits, then integrate the
+1. Cover multiple lightmap pages and vertex limits, then integrate the
    full world-mesh orchestration and remaining host/cache lifecycle
    from the actual world-loader dependency report, then establish a linked
    loader check. The allocator, shared world-model binding and surface batching

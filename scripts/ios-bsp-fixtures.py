@@ -14,7 +14,7 @@ def write_fixture(root, spatial=False):
     lumps = {}
     lumps[0] = b'{\n"classname" "worldspawn"\n}\n\0'
     planes = []
-    lumps[2] = struct.pack('<3f5i', .5, .5, .5, 0, 4, 4, 4, 4)
+    lumps[2] = b''.join(struct.pack('<3f5i', .5, .5, .5, i, 4, 4, 4, 4) for i in range(1 if spatial else 2))
     vertices, edges, surfedges, texinfo, faces, lighting = [], [(0, 0)], [], [], [], bytearray()
     for tile in range(2):
         left = (-.65 if tile else -1) if spatial else tile-1
@@ -35,7 +35,7 @@ def write_fixture(root, spatial=False):
         # Normalize base UVs across the face; lightmap U alone is mirrored.
         texinfo.append(struct.pack('<16f2i',
             4/(right-left), 0, 0, -4*left/(right-left), 0, 4/(top-bottom), 0, -4*bottom/(top-bottom),
-            -3/(right-left), 0, 0, 3*right/(right-left), 0, 3/(top-bottom), 0, -3*bottom/(top-bottom), 0, 0))
+            -3/(right-left), 0, 0, 3*right/(right-left), 0, 3/(top-bottom), 0, -3*bottom/(top-bottom), 0, 0 if spatial else tile))
         lightofs = len(lighting)
         for y in range(4):
             for x in range(4):
@@ -60,6 +60,9 @@ def write_fixture(root, spatial=False):
     lumps[14] = struct.pack('<9f3i', -1, -1, -.66 if spatial else .5, 1, 1, .5, 0, 0, 0, -1, 0, 2)
     lumps[43] = b'ios/lightmapped\0'
     lumps[44] = struct.pack('<i', 0)
+    if not spatial:
+        lumps[44] += struct.pack('<i', len(lumps[43]))
+        lumps[43] += b'ios/lightmapped-alt\0'
     header_size = 8 + 64*16 + 4
     result = bytearray(header_size)
     struct.pack_into('<4si', result, 0, b'VBSP', 21)

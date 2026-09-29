@@ -20,18 +20,20 @@ struct WorldScope {
 };
 }
 
-bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
+bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *const *faceMaterials,
     const BspRenderGeometry &geometry, std::vector<WorldSurfaceBinding> &bindings,
     std::vector<WorldSurfaceBatch> &batches, char *detail, size_t capacity)
 {
     bindings.clear(); batches.clear();
     // This adapter is deliberately limited to the two-face reference scene.
-    if (!system || !material || geometry.faces.size()!=2 || host_state.worldmodel
+    if (!system || !faceMaterials || !faceMaterials[0] || !faceMaterials[1] || geometry.faces.size()!=2 || host_state.worldmodel
         || host_state.worldbrush || materialSortInfoArray || g_HunkMemoryStack.GetBase()) {
         snprintf(detail,capacity,"World surface bridge: invalid input or world already owned"); return false;
     }
-    for (const auto &face:geometry.faces) {
-        if (face.material!=geometry.faces[0].material || face.lightmapSize[0]!=4
+    for (int i=0; i<2; ++i) {
+        const auto &face=geometry.faces[i];
+        IMaterial *material=faceMaterials[i];
+        if (material->GetPropertyFlag(MATERIAL_PROPERTY_NEEDS_BUMPED_LIGHTMAPS) || face.lightmapSize[0]!=4
             || face.lightmapSize[1]!=4 || face.vertices.size()<3 || face.vertices.size()>64
             || face.textureSize[0]!=material->GetMappingWidth()
             || face.textureSize[1]!=material->GetMappingHeight()
@@ -40,8 +42,7 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
             snprintf(detail,capacity,"World surface bridge: unsupported fixture layout"); return false;
         }
     }
-    if (material->GetPropertyFlag(MATERIAL_PROPERTY_NEEDS_BUMPED_LIGHTMAPS)
-        || !g_HunkMemoryStack.Init(1024*1024)) {
+    if (!g_HunkMemoryStack.Init(1024*1024)) {
         snprintf(detail,capacity,"World surface bridge: bumped material or arena initialization failed"); return false;
     }
     std::vector<MaterialSystem_SortInfo_t> sort;
@@ -64,7 +65,7 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
     host_state.SetWorldModel(&model);
     for (int i=0; i<2; ++i) {
         const auto &face=geometry.faces[i];
-        auto &info=world.texinfo[i]; info.material=material;
+        auto &info=world.texinfo[i]; info.material=faceMaterials[i];
         for (int axis=0; axis<2; ++axis) {
             for (int c=0; c<4; ++c) {
                 info.textureVecsTexelsPerWorldUnits[axis][c]=face.textureVectors[axis][c];
@@ -96,7 +97,7 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
     for (int i=0; i<2; ++i) {
         SurfaceHandle_t surface=SurfaceHandleFromIndex(i);
         const int id=MSurf_MaterialSortID(surface);
-        if (id<0 || id>=count || sort[id].material!=material || sort[id].lightmapPageID<0) {
+        if (id<0 || id>=count || sort[id].material!=faceMaterials[i] || sort[id].lightmapPageID<0) {
             snprintf(detail,capacity,"World surface bridge: invalid material/page binding"); return false;
         }
         WorldSurfaceBinding binding={}; binding.page=SortInfoToLightmapPage(id);
@@ -124,9 +125,9 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
         }
         result.push_back(binding);
     }
-    if (result[0].page!=result[1].page
-        || (result[0].offset[0]==result[1].offset[0] && result[0].offset[1]==result[1].offset[1])) {
-        snprintf(detail,capacity,"World surface bridge: expected distinct regions on one page"); return false;
+    if (result[0].page==result[1].page
+        && result[0].offset[0]==result[1].offset[0] && result[0].offset[1]==result[1].offset[1]) {
+        snprintf(detail,capacity,"World surface bridge: overlapping reference regions"); return false;
     }
     CMSurfaceSortList sorted;
     sorted.Init(count,1);
@@ -161,9 +162,10 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
         }
         grouped.push_back(batch);
     }
-    // Both reference faces share a material/page and must actually coalesce.
-    if (!seen[0] || !seen[1] || grouped.size()!=1 || grouped[0].faces.size()!=2) {
-        snprintf(detail,capacity,"World batches: reference faces did not coalesce"); return false;
+    // Equal bindings must coalesce; different materials/pages must separate.
+    const size_t expected=(faceMaterials[0]==faceMaterials[1] && result[0].page==result[1].page) ? 1 : 2;
+    if (!seen[0] || !seen[1] || grouped.size()!=expected) {
+        snprintf(detail,capacity,"World batches: unexpected material/page group count"); return false;
     }
     batches.swap(grouped);
     bindings.swap(result);

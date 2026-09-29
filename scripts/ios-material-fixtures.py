@@ -88,6 +88,9 @@ def write_fixtures(root):
     textures = root / 'materials/ios'
     textures.mkdir(parents=True, exist_ok=True)
     (textures / 'draw.vtf').write_bytes(header + pixels)
+    rotated = bytes(c for i in range(0, len(pixels), 4)
+                    for c in (pixels[i+1], pixels[i+2], pixels[i], pixels[i+3]))
+    (textures / 'draw-rotated.vtf').write_bytes(header + rotated)
     # Force an alpha-bearing upload as well as the opaque RGB path above.
     struct.pack_into('<I', header, 20, 0x230d)
     alpha_pixels = bytearray(pixels)

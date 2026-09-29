@@ -143,21 +143,31 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     if (geometry.faces.empty()) {
         if (!LoadBspGeometryFixture(geometry,detail,capacity,spatial)) return false;
         // This scene's independent pixel reference describes our two-face fixture.
-        if (geometry.faces.size()!=2 || geometry.faces[0].material!=geometry.faces[1].material
+        if (geometry.faces.size()!=2
             || geometry.faces[0].lightmapSize[0]!=4 || geometry.faces[0].lightmapSize[1]!=4
             || geometry.faces[1].lightmapSize[0]!=4 || geometry.faces[1].lightmapSize[1]!=4) {
             snprintf(detail,capacity,"Unexpected BSP reference fixture layout"); return false;
         }
     }
-    IMaterial *draw=material->FindMaterial(geometry.faces[0].material.c_str(),TEXTURE_GROUP_OTHER,true);
-    if (!draw || draw->IsErrorMaterial() || Q_stricmp(draw->GetShaderName(),"LightmappedGeneric")) {
-        snprintf(detail,capacity,"LightmappedGeneric lookup failed"); return false;
+    struct MaterialReferences {
+        IMaterial *faces[2]={};
+        ~MaterialReferences() { for (auto *entry:faces) if (entry) entry->DecrementReferenceCount(); }
+    } references;
+    for (int face=0; face<2; ++face) {
+        IMaterial *entry=material->FindMaterial(geometry.faces[face].material.c_str(),TEXTURE_GROUP_OTHER,true);
+        if (!entry || entry->IsErrorMaterial() || Q_stricmp(entry->GetShaderName(),"LightmappedGeneric")) {
+            snprintf(detail,capacity,"LightmappedGeneric lookup failed"); return false;
+        }
+        entry->IncrementReferenceCount(); references.faces[face]=entry;
     }
-    draw->IncrementReferenceCount(); context->Bind(draw);
+    if ((references.faces[0]==references.faces[1])!=spatial) {
+        snprintf(detail,capacity,"Unexpected BSP material sharing"); return false;
+    }
+    context->Bind(references.faces[0]);
     if (page<0) {
         context->Flush();
-        if (!BuildWorldSurfaceBindings(material,draw,geometry,worldBindings,worldBatches,detail,capacity)) {
-            draw->DecrementReferenceCount(); return false;
+        if (!BuildWorldSurfaceBindings(material,references.faces,geometry,worldBindings,worldBatches,detail,capacity)) {
+            return false;
         }
         worldMeshes.assign(worldBatches.size(),NULL);
         page=worldBindings[0].page;
@@ -171,11 +181,13 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     }
     for (size_t batchIndex=0; batchIndex<worldBatches.size(); ++batchIndex) if (!worldMeshes[batchIndex]) {
         const auto &batch=worldBatches[batchIndex];
+        IMaterial *draw=references.faces[batch.faces[0]];
+        context->Bind(draw);
         worldMeshes[batchIndex]=context->CreateStaticMesh(draw->GetVertexFormat() & ~VERTEX_FORMAT_COMPRESSED,
             TEXTURE_GROUP_STATIC_VERTEX_BUFFER_WORLD,draw);
         if (!worldMeshes[batchIndex]) {
             snprintf(detail,capacity,"World static batch allocation failed");
-            draw->DecrementReferenceCount(); return false;
+            return false;
         }
         CMeshBuilder builder;
         builder.Begin(worldMeshes[batchIndex],MATERIAL_TRIANGLES,batch.vertexCount,batch.indexCount);
@@ -214,7 +226,7 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
                 int source=((quadrant/2*2+y%2)*4+quadrant%2*2+x%2)*4;
                 for (int c=0;c<4;++c) pixels[index+c]=geometry.faces[tile].lighting[source+c];
             }
-            material->UpdateLightmap(page,size,offsets[tile],pixels,NULL,NULL,NULL);
+            material->UpdateLightmap(worldBindings[tile].page,size,offsets[tile],pixels,NULL,NULL,NULL);
         }
         if (phase%2) material->EndUpdateLightmaps();
         uploaded=phase;
@@ -233,17 +245,20 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     context->FogMode(MATERIAL_FOG_NONE); context->SetToneMappingScaleLinear(Vector(1,1,1));
     context->ClearColor4ub(37,91,163,255); context->ClearBuffers(true,true,true);
     context->BindLightmapPage(page);
-    context->Bind(draw);
     if (frame%2==0) {
         for (size_t batch=0; batch<worldMeshes.size(); ++batch) {
+            context->Bind(references.faces[worldBatches[batch].faces[0]]);
             context->BindLightmapPage(worldBatches[batch].page);
             worldMeshes[batch]->Draw();
         }
     } else {
         // Same shared mesh, separate ranges in reverse order: exercise nonzero
         // vertex/index offsets and depth without changing the pixel reference.
-        for (int face=1; face>=0; --face)
+        for (int face=1; face>=0; --face) {
+            context->Bind(references.faces[face]);
+            context->BindLightmapPage(worldBindings[face].page);
             worldMeshes[faceMesh[face]]->Draw(faceFirstIndex[face],faceIndexCount[face]);
+        }
     }
     context->Flush();
     GLint read=0,write=0;
@@ -259,7 +274,8 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
         // run opposite to this quad's texture V coordinate.
         int textureRow=1-row,base=col+2*textureRow;
         for (int c=0;c<3;++c) {
-            bool present=c==0 ? (base==0 || base==3) : c==1 ? (base==1 || base==3) : base==2;
+            const int channel=tile ? (c+1)%3 : c; // Second flat material rotates RGB.
+            bool present=channel==0 ? (base==0 || base==3) : channel==1 ? (base==1 || base==3) : base==2;
             float value=tile ? levels[(1-col+2*textureRow+phase+c)%4] : guard[c];
             sample.rgba[c]=present ? LightmapByte(value) : 0;
         }
@@ -275,5 +291,5 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,read);
     context->BindLightmapPage(MATERIAL_SYSTEM_LIGHTMAP_PAGE_WHITE);
     for (auto mode:modes) { context->MatrixMode(mode); context->PopMatrix(); }
-    draw->DecrementReferenceCount(); return valid;
+    return valid;
 }
