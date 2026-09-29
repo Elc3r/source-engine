@@ -84,7 +84,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../thirdparty/SDL-src/include)
     add_library(EngineWorldServices OBJECT ../../engine/world_state.cpp WorldStateChecks.cpp
         ../../engine/surface_sort.cpp SurfaceSortChecks.cpp
-        ../../engine/world_lightmaps.cpp WorldSurfaceBridge.cpp)
+        ../../engine/world_lightmaps.cpp ../../engine/world_vertices.cpp WorldSurfaceBridge.cpp)
     target_compile_features(EngineWorldServices PRIVATE cxx_std_11)
     target_compile_options(EngineWorldServices PRIVATE -fsigned-char)
     target_compile_definitions(EngineWorldServices PRIVATE

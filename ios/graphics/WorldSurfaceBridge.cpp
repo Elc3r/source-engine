@@ -52,6 +52,14 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
     world.surfaces2=static_cast<msurface2_t *>(Hunk_Alloc(2*sizeof(msurface2_t)));
     world.surfacelighting=static_cast<msurfacelighting_t *>(Hunk_Alloc(2*sizeof(msurfacelighting_t)));
     world.texinfo=static_cast<mtexinfo_t *>(Hunk_Alloc(2*sizeof(mtexinfo_t)));
+    const int vertexCount=geometry.faces[0].vertices.size()+geometry.faces[1].vertices.size();
+    world.numvertexes=world.numvertindices=world.numvertnormals=world.numvertnormalindices=vertexCount;
+    world.vertexes=static_cast<mvertex_t *>(Hunk_Alloc(vertexCount*sizeof(mvertex_t)));
+    world.vertindices=static_cast<unsigned short *>(Hunk_Alloc(vertexCount*sizeof(unsigned short)));
+    world.vertnormals=static_cast<Vector *>(Hunk_Alloc(vertexCount*sizeof(Vector)));
+    world.vertnormalindices=static_cast<unsigned short *>(Hunk_Alloc(vertexCount*sizeof(unsigned short)));
+    world.surfacenormals=static_cast<msurfacenormal_t *>(Hunk_Alloc(2*sizeof(msurfacenormal_t)));
+    int firstVertex=0;
     model.type=mod_brush; model.brush.pShared=&world;
     host_state.SetWorldModel(&model);
     for (int i=0; i<2; ++i) {
@@ -64,6 +72,14 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
             }
             world.surfacelighting[i].m_LightmapMins[axis]=face.lightmapMins[axis];
             world.surfacelighting[i].m_LightmapExtents[axis]=face.lightmapSize[axis]-1;
+        }
+        world.surfaces2[i].firstvertindex=firstVertex;
+        world.surfacenormals[i].firstvertnormal=firstVertex;
+        for (const auto &vertex:face.vertices) {
+            world.vertexes[firstVertex].position.Init(vertex.position[0],vertex.position[1],vertex.position[2]);
+            world.vertnormals[firstVertex].Init(vertex.normal[0],vertex.normal[1],vertex.normal[2]);
+            world.vertindices[firstVertex]=world.vertnormalindices[firstVertex]=firstVertex;
+            ++firstVertex;
         }
         world.surfaces2[i].texinfo=i;
         world.surfaces2[i].flags=SURFDRAW_NODE;
@@ -90,17 +106,21 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
             || binding.offset[0]+4>binding.width || binding.offset[1]+4>binding.height) {
             snprintf(detail,capacity,"World surface bridge: atlas bounds invalid"); return false;
         }
-        SurfaceCtx_t context; SurfSetupSurfaceContext(context,surface);
-        for (const auto &vertex:geometry.faces[i].vertices) {
-            Vector position(vertex.position[0],vertex.position[1],vertex.position[2]);
-            Vector2D texture,lightmap;
-            SurfComputeTextureCoordinate(context,surface,position,texture);
-            SurfComputeLightmapCoordinate(context,surface,position,lightmap);
-            if (!texture.IsValid() || !lightmap.IsValid()) {
-                snprintf(detail,capacity,"World surface bridge: non-finite UVs"); return false;
+        const size_t count=geometry.faces[i].vertices.size();
+        BrushVertex_t *vertices=static_cast<BrushVertex_t *>(Hunk_Alloc(count*sizeof(BrushVertex_t)));
+        BuildBrushModelVertexArray(&world,surface,vertices);
+        for (size_t v=0; v<count; ++v) {
+            const auto &vertex=vertices[v];
+            if (!vertex.m_Pos.IsValid() || !vertex.m_Normal.IsValid()
+                || !vertex.m_TexCoord.IsValid() || !vertex.m_LightmapCoord.IsValid()) {
+                snprintf(detail,capacity,"World surface bridge: non-finite brush vertex"); return false;
             }
-            WorldSurfaceUV uv={{texture.x,texture.y},{lightmap.x,lightmap.y}};
-            binding.vertices.push_back(uv);
+            WorldSurfaceVertex output={};
+            memcpy(output.position,vertex.m_Pos.Base(),sizeof(output.position));
+            memcpy(output.normal,vertex.m_Normal.Base(),sizeof(output.normal));
+            memcpy(output.texture,vertex.m_TexCoord.Base(),sizeof(output.texture));
+            memcpy(output.lightmap,vertex.m_LightmapCoord.Base(),sizeof(output.lightmap));
+            binding.vertices.push_back(output);
         }
         result.push_back(binding);
     }

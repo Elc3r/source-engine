@@ -2,10 +2,10 @@
 #include "BspGeometry.h"
 class IMaterial;
 class IMaterialSystem;
-struct WorldSurfaceUV { float texture[2], lightmap[2]; };
+struct WorldSurfaceVertex { float position[3], normal[3], texture[2], lightmap[2]; };
 struct WorldSurfaceBinding {
     int page, offset[2], width, height;
-    std::vector<WorldSurfaceUV> vertices;
+    std::vector<WorldSurfaceVertex> vertices;
 };
 // The caller holds the material reference and flushes pending draws first.
 // Allocates real lightmap pages; temporary engine world/arena state is released.

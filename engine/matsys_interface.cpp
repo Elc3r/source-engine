@@ -1660,39 +1660,6 @@ void RestoreMaterialSystemObjects( int nChangeFlags )
 	Host_AllowQueuedMaterialSystem( bThreadingAllowed );
 }
 
-bool TangentSpaceSurfaceSetup( SurfaceHandle_t surfID, Vector &tVect )
-{
-	Vector sVect;
-	VectorCopy( MSurf_TexInfo( surfID )->textureVecsTexelsPerWorldUnits[0].AsVector3D(), sVect );
-	VectorCopy( MSurf_TexInfo( surfID )->textureVecsTexelsPerWorldUnits[1].AsVector3D(), tVect );
-	VectorNormalize( sVect );
-	VectorNormalize( tVect );
-	Vector tmpVect;
-	CrossProduct( sVect, tVect, tmpVect );
-	// Make sure that the tangent space works if textures are mapped "backwards".
-	if( DotProduct( MSurf_Plane( surfID ).normal, tmpVect ) > 0.0f )
-	{
-		return true;
-	}
-	return false;
-}
-
-void TangentSpaceComputeBasis( Vector& tangentS, Vector& tangentT, const Vector& normal, const Vector& tVect, bool negateTangent )
-{
-	// tangent x binormal = normal
-	// tangent = sVect
-	// binormal = tVect
-	CrossProduct( normal, tVect, tangentS );
-	VectorNormalize( tangentS );
-	CrossProduct( tangentS, normal, tangentT );
-	VectorNormalize( tangentT );
-
-	if ( negateTangent )
-	{
-		VectorScale( tangentS, -1.0f, tangentS );
-	}
-}
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------

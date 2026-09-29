@@ -12,6 +12,16 @@ namespace {
 int page=-1,offsets[2][2];
 unsigned uploaded=~0u;
 IMaterialSystem *owner=NULL;
+IMesh *worldMeshes[2]={};
+void ReleaseWorldMeshes()
+{
+    if (!owner) return;
+    CMatRenderContextPtr context(owner);
+    for (auto &mesh:worldMeshes) {
+        if (mesh) context->DestroyStaticMesh(mesh);
+        mesh=NULL;
+    }
+}
 void RestoreLightmapScene(int) { uploaded=~0u; }
 BspRenderGeometry geometry;
 std::vector<WorldSurfaceBinding> worldBindings;
@@ -114,7 +124,11 @@ bool CheckSpatialBspPixels(int width,int height,float cameraX,unsigned phase,
 }
 void ResetLightmapScene()
 {
-    if (owner) owner->RemoveRestoreFunc(RestoreLightmapScene);
+    if (owner) {
+        owner->RemoveReleaseFunc(ReleaseWorldMeshes);
+        owner->RemoveRestoreFunc(RestoreLightmapScene);
+        ReleaseWorldMeshes();
+    }
     owner=NULL; page=-1; uploaded=~0u; geometry.faces.clear(); worldBindings.clear();
 }
 
@@ -147,7 +161,33 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
             offsets[face][axis]=worldBindings[face].offset[axis];
         // Device Reset recreates lightmap textures without their contents.
         // Re-upload both regions on the next draw, even if the phase is unchanged.
-        owner=material; owner->AddRestoreFunc(RestoreLightmapScene);
+        owner=material;
+        owner->AddReleaseFunc(ReleaseWorldMeshes);
+        owner->AddRestoreFunc(RestoreLightmapScene);
+    }
+    for (int tile=0; tile<2; ++tile) if (!worldMeshes[tile]) {
+        const auto &vertices=worldBindings[tile].vertices;
+        worldMeshes[tile]=context->CreateStaticMesh(draw->GetVertexFormat() & ~VERTEX_FORMAT_COMPRESSED,
+            TEXTURE_GROUP_STATIC_VERTEX_BUFFER_WORLD,draw);
+        if (!worldMeshes[tile]) {
+            snprintf(detail,capacity,"World static mesh allocation failed");
+            draw->DecrementReferenceCount(); return false;
+        }
+        CMeshBuilder builder;
+        builder.Begin(worldMeshes[tile],MATERIAL_TRIANGLES,vertices.size(),3*(vertices.size()-2));
+        for (const auto &vertex:vertices) {
+            builder.Position3fv(vertex.position);
+            if (draw->GetVertexFormat() & VERTEX_NORMAL) builder.Normal3fv(vertex.normal);
+            builder.TexCoord2fv(0,vertex.texture);
+            builder.TexCoord2fv(1,vertex.lightmap);
+            builder.AdvanceVertex();
+        }
+        for (size_t triangle=1; triangle+1<vertices.size(); ++triangle) {
+            builder.Index(0); builder.AdvanceIndex();
+            builder.Index(triangle); builder.AdvanceIndex();
+            builder.Index(triangle+1); builder.AdvanceIndex();
+        }
+        builder.End();
     }
     unsigned phase=(frame/120)%4;
     if (uploaded!=phase) {
@@ -185,21 +225,7 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     for (int index=0;index<2;++index) {
         int tile=spatial && frame%2 ? 1-index : index;
         context->Bind(draw);
-        IMesh *mesh=context->GetDynamicMesh(true);
-        const auto &face=geometry.faces[tile];
-        CMeshBuilder builder; builder.Begin(mesh,MATERIAL_TRIANGLES,int(face.vertices.size())-2);
-        for (size_t triangle=1;triangle+1<face.vertices.size();++triangle) {
-            const size_t indices[3]={0,triangle,triangle+1};
-            for (size_t index:indices) {
-                const auto &vertex=face.vertices[index];
-                builder.Position3fv(vertex.position);
-                if (draw->GetVertexFormat() & VERTEX_NORMAL) builder.Normal3fv(vertex.normal);
-                builder.TexCoord2fv(0,worldBindings[tile].vertices[index].texture);
-                builder.TexCoord2fv(1,worldBindings[tile].vertices[index].lightmap);
-                builder.AdvanceVertex();
-            }
-        }
-        builder.End(); mesh->Draw();
+        worldMeshes[tile]->Draw();
     }
     context->Flush();
     GLint read=0,write=0;

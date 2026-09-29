@@ -184,6 +184,7 @@ def build(bld):
 		'world.cpp',
 		'world_state.cpp',
 		'world_lightmaps.cpp',
+		'world_vertices.cpp',
 		'surface_sort.cpp',
 		'../public/XZip.cpp',
 		'../public/XUnzip.cpp',

@@ -868,12 +868,12 @@ The adapter accepts only the existing two-face, one-material, non-bumped fixture
 with 4x4 lightmaps and matching material mapping dimensions. It validates sort
 IDs, page bounds, distinct atlas regions and finite UVs. Temporary world state,
 sort-info binding and the hunk arena are released after setup; the previous
-material-system binding is restored. The scene keeps only page/offset/UV data
+material-system binding is restored. The scene keeps page/offset and vertex data
 and retains its existing restore callback to re-upload lightmaps after reset.
 
 The independent pixel reference and its tolerances are unchanged. Light sample
 decoding/upload and mesh submission still use the probe path; the full BSP
-loader, world visibility, static world meshes, white/bumped lightmap paths and
+loader, world visibility, full world-mesh batching, white/bumped lightmap paths and
 engine sort-info remapping are not runtime-tested by this adapter.
 
 Validated on iOS 27 Simulator for 2,760 frames: both orientations, reset during
@@ -882,6 +882,38 @@ scene, background/resume and return to the cube scene pass the existing pixel
 checks. Both SDK builds and world-loader compilation checks pass, as does device
 signature verification. Physical-device execution and desktop builds remain
 untested in this step.
+
+### Engine brush vertices and persistent meshes
+
+The bridge now populates the actual world vertex, vertex-index, normal and
+normal-index arrays, then calls `BuildBrushModelVertexArray`. That implementation
+and its tangent-space helpers have moved unchanged into `engine/world_vertices.cpp`,
+included by both Waf and VPC. Positions, normals and both UV sets used for drawing
+come from this engine function; temporary brush vertices also use the hunk arena.
+
+Each BSP face is uploaded once into an indexed `IMesh` created through
+`CreateStaticMesh`, using the uncompressed material vertex format and the world
+vertex-buffer budget group. The validated convex polygon gets fan indices in
+the probe adapter. Subsequent frames reuse these static meshes, including while
+lightmap contents change, and the perspective scene still reverses face draw
+order every frame to check depth occlusion.
+
+A material release callback destroys both meshes before graphics reset. The
+next draw rebuilds them from retained CPU vertex data; the existing restore
+callback re-uploads the lightmap atlas. Scene changes and material shutdown
+remove the callbacks and destroy meshes before clearing their owner. The pixel
+reference and tolerances remain unchanged.
+
+This exercises real engine brush-vertex construction and material-system static
+GPU meshes. It does not yet run `WorldStaticMeshCreate`, engine mesh batching,
+visibility traversal, displacement or tangent-space rendering, or the full BSP
+loader. Mesh triangulation and ownership still belong to the probe adapter.
+
+Validated on iOS 27 Simulator for 4,440 frames with unchanged pixel checks:
+portrait/landscape, reset during the BSP sequence, perspective-to-flat transition,
+all lightmap update phases, background/resume and return to the cube scene pass.
+Both SDK builds, world-loader compilation audits and device signature verification
+pass. Desktop builds and physical-device execution remain untested here.
 
 ### Filesystem and material data
 
@@ -949,10 +981,11 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Integrate world mesh construction and the remaining host/cache lifecycle
+1. Integrate full world-mesh batching and the remaining host/cache lifecycle
    from the actual world-loader dependency report, then establish a linked
    loader check. The allocator, shared world-model binding and surface batching
-   are linked now; BSP scenes use engine lightmap registration and surface UVs.
+   are linked now; BSP scenes use engine lightmap registration, brush vertices
+   and persistent GPU meshes.
 2. Connect visibility, collision and remaining engine modules, game-data paths
    and a single HL2 map; extend world-shader reference coverage as needed.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
