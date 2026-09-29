@@ -176,6 +176,10 @@ static BOOL StartRenderer(void)
     engineChecksPassed = RunToGLESChecks(documents.path.fileSystemRepresentation, detail, sizeof(detail));
     engineDetail = @(detail);
     if (engineChecksPassed) {
+        engineChecksPassed = CheckWorldMemory(detail, sizeof(detail));
+        runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
+    }
+    if (engineChecksPassed) {
         engineChecksPassed = CheckToGLESUploads(detail, sizeof(detail));
         runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
     }

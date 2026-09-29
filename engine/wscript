@@ -185,6 +185,7 @@ def build(bld):
 		'../public/XZip.cpp',
 		'../public/XUnzip.cpp',
 		'zone.cpp',
+		'zone_memory.cpp',
 		'cheatcodes.cpp',
 		'../public/editor_sendcommand.cpp',
 		'keys.cpp',

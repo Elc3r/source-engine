@@ -365,6 +365,7 @@ $Project "engine"
 		$File	"$SRCDIR\public\XZip.cpp"
 		$File	"$SRCDIR\public\XUnzip.cpp"
 		$File	"zone.cpp"
+		$File	"zone_memory.cpp"
 		$File	"bugreporter.cpp" [!$DEDICATED]
 		$File	"cheatcodes.cpp"
 		$File	"download.cpp" [!$DEDICATED]

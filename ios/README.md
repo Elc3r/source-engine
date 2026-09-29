@@ -768,6 +768,31 @@ meshes), followed by visibility, model cache, physics and displacement services.
 The existing synthetic BSP fixtures still exercise the limited render-lump
 reader described above; they do not exercise these newly compiled engine units.
 
+### Linked world-memory allocator
+
+The probe now links the actual `engine/zone.cpp` hunk allocator. Its existing
+cache-dependent `Memory_Init` / `Memory_Shutdown` implementation has moved to
+`engine/zone_memory.cpp`, with both Waf and VPC engine source lists updated.
+Allocation and lifecycle behavior are unchanged; the split lets the allocator
+link independently of host parameters and `IDataCache`.
+
+At startup, `WorldMemoryChecks.cpp` owns a 1 MiB `CMemoryStack` arena and checks
+the real `Hunk_Alloc`, `Hunk_AllocName`, marks, rewind and `CHunkMemory` paths.
+Odd-sized allocations exercise alignment; a 65,539-byte block is dirtied,
+released and allocated again to check zeroing and preservation of the preceding
+guard allocation. Two initialization/termination cycles verify cleanup. Results
+are included in `togles.json` under `runtime_checks`; a failure stops the probe.
+The check refuses to touch an arena already owned by another service.
+
+Validated on iOS 27 Simulator: the allocator checks pass and the existing BSP
+render loop continues with all checks passing (1,200 frames). Device-SDK build
+and signature verification pass. The extracted cache lifecycle also passes
+syntax compilation with both SDKs; its function bodies are unchanged, but its
+runtime integration and desktop builds have not been tested in this step.
+
+This does not initialize the full engine memory/cache lifecycle or load a world.
+Host/world state and material/surface services remain the next integration work.
+
 ### Filesystem and material data
 
 The app now links the repository's actual stdio/base filesystem, asynchronous
