@@ -3,16 +3,18 @@
 #include "materialsystem/imesh.h"
 #include "SceneChecks.h"
 #include "BspGeometry.h"
+#include "WorldSurfaceBridge.h"
 #include "mathlib/vmatrix.h"
 #include <math.h>
 #include <vector>
 
 namespace {
-int page=-1,offsets[2][2],pageWidth,pageHeight;
+int page=-1,offsets[2][2];
 unsigned uploaded=~0u;
 IMaterialSystem *owner=NULL;
 void RestoreLightmapScene(int) { uploaded=~0u; }
 BspRenderGeometry geometry;
+std::vector<WorldSurfaceBinding> worldBindings;
 bool spatialGeometry=false;
 const float levels[4]={32.f/255,64.f/255,128.f/255,1.f};
 const float guard[3]={32.f/255,64.f/255,.5f};
@@ -113,7 +115,7 @@ bool CheckSpatialBspPixels(int width,int height,float cameraX,unsigned phase,
 void ResetLightmapScene()
 {
     if (owner) owner->RemoveRestoreFunc(RestoreLightmapScene);
-    owner=NULL; page=-1; uploaded=~0u; geometry.faces.clear();
+    owner=NULL; page=-1; uploaded=~0u; geometry.faces.clear(); worldBindings.clear();
 }
 
 bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
@@ -137,20 +139,12 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     draw->IncrementReferenceCount(); context->Bind(draw);
     if (page<0) {
         context->Flush();
-        material->BeginLightmapAllocation();
-        int first=material->AllocateLightmap(4,4,offsets[0],draw);
-        int second=material->AllocateLightmap(4,4,offsets[1],draw);
-        material->EndLightmapAllocation();
-        std::vector<MaterialSystem_SortInfo_t> sort(material->GetNumSortIDs());
-        material->GetSortInfo(sort.data());
-        if (first<0 || second<0 || first>=int(sort.size()) || second>=int(sort.size())
-            || sort[first].lightmapPageID!=sort[second].lightmapPageID
-            || (offsets[0][0]==offsets[1][0] && offsets[0][1]==offsets[1][1])) {
-            snprintf(detail,capacity,"Lightmap atlas allocation failed");
+        if (!BuildWorldSurfaceBindings(material,draw,geometry,worldBindings,detail,capacity)) {
             draw->DecrementReferenceCount(); return false;
         }
-        page=sort[first].lightmapPageID;
-        material->GetLightmapPageSize(page,&pageWidth,&pageHeight);
+        page=worldBindings[0].page;
+        for (int face=0; face<2; ++face) for (int axis=0; axis<2; ++axis)
+            offsets[face][axis]=worldBindings[face].offset[axis];
         // Device Reset recreates lightmap textures without their contents.
         // Re-upload both regions on the next draw, even if the phase is unchanged.
         owner=material; owner->AddRestoreFunc(RestoreLightmapScene);
@@ -200,9 +194,8 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
                 const auto &vertex=face.vertices[index];
                 builder.Position3fv(vertex.position);
                 if (draw->GetVertexFormat() & VERTEX_NORMAL) builder.Normal3fv(vertex.normal);
-                builder.TexCoord2fv(0,vertex.uv);
-                builder.TexCoord2f(1,(offsets[tile][0]+.5f+vertex.luxel[0])/pageWidth,
-                    (offsets[tile][1]+.5f+vertex.luxel[1])/pageHeight);
+                builder.TexCoord2fv(0,worldBindings[tile].vertices[index].texture);
+                builder.TexCoord2fv(1,worldBindings[tile].vertices[index].lightmap);
                 builder.AdvanceVertex();
             }
         }

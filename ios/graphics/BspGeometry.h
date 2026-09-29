@@ -9,7 +9,8 @@ struct BspRenderVertex {
 struct BspRenderFace {
     std::string material;
     std::vector<BspRenderVertex> vertices; // ordered convex polygon
-    int lightmapSize[2];
+    int lightmapSize[2], lightmapMins[2], textureSize[2];
+    float textureVectors[2][4], lightmapVectors[2][4];
     std::vector<float> lighting; // linear RGBA, one static style
 };
 struct BspRenderGeometry {

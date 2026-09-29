@@ -220,16 +220,6 @@ void Surf_ComputeCentroid( SurfaceHandle_t surfID, Vector *pVecCentroid )
 	}
 }
 
-//-----------------------------------------------------------------------------
-// Converts sort infos to lightmap pages
-//-----------------------------------------------------------------------------
-int SortInfoToLightmapPage( int sortID )
-{
-        return materialSortInfoArray[sortID].lightmapPageID;
-}
-
-
-
 #ifndef SWDS
 
 class CWorldRenderList : public CRefCounted1<IWorldRenderList>

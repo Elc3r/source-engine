@@ -102,6 +102,10 @@ bool ReadBspGeometry(const void *data,size_t size,BspRenderGeometry &result,char
             int extent=face.m_LightmapTextureSizeInLuxels[axis];
             if (extent<0 || extent>127) return Reject(detail,capacity,"unsupported lightmap dimensions");
             output.lightmapSize[axis]=extent+1;
+            output.lightmapMins[axis]=face.m_LightmapTextureMinsInLuxels[axis];
+            output.textureSize[axis]=axis ? texture.height : texture.width;
+            memcpy(output.textureVectors[axis],texinfo.textureVecsTexelsPerWorldUnits[axis],sizeof(float)*4);
+            memcpy(output.lightmapVectors[axis],texinfo.lightmapVecsLuxelsPerWorldUnits[axis],sizeof(float)*4);
         }
         int count=output.lightmapSize[0]*output.lightmapSize[1];
         if (face.lightofs<0 || face.lightofs%sizeof(ColorRGBExp32)

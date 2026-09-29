@@ -198,7 +198,6 @@ ConVar mat_hdr_level( "mat_hdr_level", "2", FCVAR_ARCHIVE,
 					  mat_hdr_level_Callback );
 #endif
 
-MaterialSystem_SortInfo_t *materialSortInfoArray = 0;
 static bool s_bConfigLightingChanged = false;
 
 extern unsigned long GetRam();
@@ -2224,99 +2223,5 @@ void WorldStaticMeshDestroy( void )
 	g_Meshes.RemoveAll();
 }
 
-
-//-----------------------------------------------------------------------------
-// Compute texture and lightmap coordinates
-//-----------------------------------------------------------------------------
-
-void SurfComputeTextureCoordinate( SurfaceCtx_t const& ctx, SurfaceHandle_t surfID, 
-									    Vector const& vec, Vector2D& uv )
-{
-	mtexinfo_t* pTexInfo = MSurf_TexInfo( surfID );
-
-	// base texture coordinate
-	uv.x = DotProduct (vec, pTexInfo->textureVecsTexelsPerWorldUnits[0].AsVector3D()) + 
-		pTexInfo->textureVecsTexelsPerWorldUnits[0][3];
-	uv.x /= pTexInfo->material->GetMappingWidth();
-
-	uv.y = DotProduct (vec, pTexInfo->textureVecsTexelsPerWorldUnits[1].AsVector3D()) + 
-		pTexInfo->textureVecsTexelsPerWorldUnits[1][3];
-	uv.y /= pTexInfo->material->GetMappingHeight();
-}
-
-#if _DEBUG
-void CheckTexCoord( float coord )
-{
-	Assert(coord <= 1.0f );
-}
-#endif
-
-void SurfComputeLightmapCoordinate( SurfaceCtx_t const& ctx, SurfaceHandle_t surfID, 
-										 Vector const& vec, Vector2D& uv )
-{
-	if ( (MSurf_Flags( surfID ) & SURFDRAW_NOLIGHT) )
-	{
-		uv.x = uv.y = 0.5f;
-	}
-	else if ( MSurf_LightmapExtents( surfID )[0] == 0 )
-	{
-		uv = (0.5f * ctx.m_Scale + ctx.m_Offset);
-	}
-	else
-	{
-		mtexinfo_t* pTexInfo = MSurf_TexInfo( surfID );
-
-		uv.x = DotProduct (vec, pTexInfo->lightmapVecsLuxelsPerWorldUnits[0].AsVector3D()) + 
-			pTexInfo->lightmapVecsLuxelsPerWorldUnits[0][3];
-		uv.x -= MSurf_LightmapMins( surfID )[0];
-		uv.x += 0.5f;
-
-		uv.y = DotProduct (vec, pTexInfo->lightmapVecsLuxelsPerWorldUnits[1].AsVector3D()) + 
-			pTexInfo->lightmapVecsLuxelsPerWorldUnits[1][3];
-		uv.y -= MSurf_LightmapMins( surfID )[1];
-		uv.y += 0.5f;
-
-		uv *= ctx.m_Scale;
-		uv += ctx.m_Offset;
-
-		assert( uv.IsValid() );
-	}
-#if _DEBUG
-	// This was here for check against displacements and they actually get calculated later correctly.
-//	CheckTexCoord( uv.x );
-//	CheckTexCoord( uv.y );
-#endif
-	uv.x = clamp(uv.x, 0.0f, 1.0f);
-	uv.y = clamp(uv.y, 0.0f, 1.0f);
-}
-
-
-//-----------------------------------------------------------------------------
-// Compute a context necessary for creating vertex data
-//-----------------------------------------------------------------------------
-
-void SurfSetupSurfaceContext( SurfaceCtx_t& ctx, SurfaceHandle_t surfID )
-{
-	materials->GetLightmapPageSize( 
-		SortInfoToLightmapPage( MSurf_MaterialSortID( surfID ) ), 
-		&ctx.m_LightmapPageSize[0], &ctx.m_LightmapPageSize[1] );
-	ctx.m_LightmapSize[0] = ( MSurf_LightmapExtents( surfID )[0] ) + 1;
-	ctx.m_LightmapSize[1] = ( MSurf_LightmapExtents( surfID )[1] ) + 1;
-
-	ctx.m_Scale.x = 1.0f / ( float )ctx.m_LightmapPageSize[0];
-	ctx.m_Scale.y = 1.0f / ( float )ctx.m_LightmapPageSize[1];
-
-	ctx.m_Offset.x = ( float )MSurf_OffsetIntoLightmapPage( surfID )[0] * ctx.m_Scale.x;
-	ctx.m_Offset.y = ( float )MSurf_OffsetIntoLightmapPage( surfID )[1] * ctx.m_Scale.y;
-
-	if ( ctx.m_LightmapPageSize[0] != 0.0f )
-	{
-		ctx.m_BumpSTexCoordOffset = ( float )ctx.m_LightmapSize[0] / ( float )ctx.m_LightmapPageSize[0];
-	}
-	else
-	{
-		ctx.m_BumpSTexCoordOffset = 0.0f;
-	}
-}
 
 #endif // SWDS

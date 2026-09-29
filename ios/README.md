@@ -736,7 +736,7 @@ verification pass; physical-device runtime remains untested.
 
 ### Actual engine world-loader compilation
 
-An optional build target compiles the repository's unmodified
+An optional build target compiles the repository's actual
 `engine/modelloader.cpp`, `gl_lightmap.cpp`, `gl_rsurf.cpp` and `cmodel_bsp.cpp`
 against the iOS headers and existing engine foundation. Run the configurations
 sequentially because Waf shares a configuration lock:
@@ -755,7 +755,7 @@ Definitions found in tier0, tier1 and mathlib are candidate providers; this is
 not a full link check or proof of runtime map loading.
 
 Both iOS 27 SDK builds pass with deployment target 16.0. The simulator archive
-has 251 external symbols, and the device archive has 252 (the additional symbol
+has 252 external symbols, and the device archive has 253 (the additional symbol
 is `__chkstk_darwin`). Both have 66 candidate definitions in the foundation
 artifacts. These counts include system and C++ runtime symbols, so the remainder
 is not a count of missing engine functions. The checker also rejects a mismatched
@@ -836,14 +836,52 @@ group-list pointers; adding new high sort IDs and resetting must leave groups
 independent and clear old entries. Failures stop startup and are reported in
 `togles.json` alongside the world-state checks.
 
-These are real CPU batching services exercised with synthetic sort IDs. Material
-lookup, material/lightmap sort-info generation and submission of these batches
-through the full world renderer remain integration work.
+These are real CPU batching services exercised with synthetic sort IDs. The
+scene's lightmap registration is integrated below; submission of these batches
+through the full world renderer remains integration work.
 
 Validated on iOS 27 Simulator: the batching, world-state, memory and existing
 graphics checks all pass, followed by the perspective BSP render loop. Simulator
 and device builds link the real batching methods; device signature verification
 passes. Desktop builds and physical-device execution remain untested here.
+
+### Engine lightmap registration and surface coordinates
+
+Both BSP scenes now use the actual engine `MaterialSystem_RegisterLightmapSurfaces`,
+`SortInfoToLightmapPage`, `SurfSetupSurfaceContext`, `SurfComputeTextureCoordinate`
+and `SurfComputeLightmapCoordinate` functions. Their implementations and lightmap
+property helpers have moved into `engine/world_lightmaps.cpp` without behavior
+changes; Waf and VPC include the new unit. The sort-info global also lives there.
+The separate world-loader archive now references the extracted page-lookup
+function, accounting for one more external symbol in that archive.
+
+`WorldSurfaceBridge.cpp` converts the validated two-face render fixture into real
+engine surface, lighting and texinfo arrays allocated through `Hunk_Alloc`.
+The BSP reader retains the original texture/lightmap vectors, texture dimensions
+and lightmap minima for this conversion. With shared world state bound, the
+engine registers the surfaces against the live material system. The bridge reads
+the resulting material sort records, page IDs and atlas offsets, then computes
+the UVs used by the actual draw calls. The scene no longer allocates its lightmap
+regions or calculates its draw UVs manually.
+
+The adapter accepts only the existing two-face, one-material, non-bumped fixture
+with 4x4 lightmaps and matching material mapping dimensions. It validates sort
+IDs, page bounds, distinct atlas regions and finite UVs. Temporary world state,
+sort-info binding and the hunk arena are released after setup; the previous
+material-system binding is restored. The scene keeps only page/offset/UV data
+and retains its existing restore callback to re-upload lightmaps after reset.
+
+The independent pixel reference and its tolerances are unchanged. Light sample
+decoding/upload and mesh submission still use the probe path; the full BSP
+loader, world visibility, static world meshes, white/bumped lightmap paths and
+engine sort-info remapping are not runtime-tested by this adapter.
+
+Validated on iOS 27 Simulator for 2,760 frames: both orientations, reset during
+the perspective scene, all lightmap update phases, transition to the flat BSP
+scene, background/resume and return to the cube scene pass the existing pixel
+checks. Both SDK builds and world-loader compilation checks pass, as does device
+signature verification. Physical-device execution and desktop builds remain
+untested in this step.
 
 ### Filesystem and material data
 
@@ -911,10 +949,10 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Integrate material/surface services and the remaining host/cache lifecycle
+1. Integrate world mesh construction and the remaining host/cache lifecycle
    from the actual world-loader dependency report, then establish a linked
    loader check. The allocator, shared world-model binding and surface batching
-   are linked now.
+   are linked now; BSP scenes use engine lightmap registration and surface UVs.
 2. Connect visibility, collision and remaining engine modules, game-data paths
    and a single HL2 map; extend world-shader reference coverage as needed.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
