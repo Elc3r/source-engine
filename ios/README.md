@@ -891,7 +891,7 @@ and its tangent-space helpers have moved unchanged into `engine/world_vertices.c
 included by both Waf and VPC. Positions, normals and both UV sets used for drawing
 come from this engine function; temporary brush vertices also use the hunk arena.
 
-Each BSP face is uploaded once into an indexed `IMesh` created through
+Initially each BSP face was uploaded into its own indexed `IMesh` created through
 `CreateStaticMesh`, using the uncompressed material vertex format and the world
 vertex-buffer budget group. The validated convex polygon gets fan indices in
 the probe adapter. Subsequent frames reuse these static meshes, including while
@@ -914,6 +914,32 @@ portrait/landscape, reset during the BSP sequence, perspective-to-flat transitio
 all lightmap update phases, background/resume and return to the cube scene pass.
 Both SDK builds, world-loader compilation audits and device signature verification
 pass. Desktop builds and physical-device execution remain untested here.
+
+### Engine sort groups in the rendered scene
+
+The surface bridge now submits the registered BSP faces to the real
+`CMSurfaceSortList`, keyed by their material-system sort IDs. It exports each
+group's face order and geometry counts, verifies that every face occurs exactly
+once, and checks that a group has one material/page binding. The two reference
+faces must coalesce into one batch; a failure to merge stops the probe.
+
+The scene uploads one shared static mesh for that batch, with distinct vertex
+and index ranges for each face. Even frames draw the whole batch in one call.
+Odd frames draw the individual index ranges in reverse face order, exercising
+nonzero index and vertex offsets against the same independent pixel reference.
+Mesh release/rebuild and lightmap restoration retain the existing reset lifecycle.
+
+This connects the existing engine sorter to real rendering, but the fixture
+still contains only one material/page batch. Multiple-material/page separation,
+engine vertex-limit splitting, shadow buckets and the complete
+`WorldStaticMeshCreate` orchestration remain unintegrated. CPU assembly and mesh
+ownership still belong to the probe adapter.
+
+Validated on iOS 27 Simulator for 3,480 frames: whole-batch and reversed-range
+draws pass the unchanged pixel reference in both BSP scenes, including both
+orientations, graphics reset and background/resume. Simulator and device builds
+and device signature verification pass. Physical-device execution remains
+untested.
 
 ### Filesystem and material data
 
@@ -981,7 +1007,8 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Integrate full world-mesh batching and the remaining host/cache lifecycle
+1. Cover multiple material/page batches and vertex limits, then integrate the
+   full world-mesh orchestration and remaining host/cache lifecycle
    from the actual world-loader dependency report, then establish a linked
    loader check. The allocator, shared world-model binding and surface batching
    are linked now; BSP scenes use engine lightmap registration, brush vertices

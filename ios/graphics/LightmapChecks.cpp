@@ -12,7 +12,8 @@ namespace {
 int page=-1,offsets[2][2];
 unsigned uploaded=~0u;
 IMaterialSystem *owner=NULL;
-IMesh *worldMeshes[2]={};
+std::vector<IMesh *> worldMeshes;
+int faceMesh[2]={},faceFirstIndex[2]={},faceIndexCount[2]={};
 void ReleaseWorldMeshes()
 {
     if (!owner) return;
@@ -25,6 +26,7 @@ void ReleaseWorldMeshes()
 void RestoreLightmapScene(int) { uploaded=~0u; }
 BspRenderGeometry geometry;
 std::vector<WorldSurfaceBinding> worldBindings;
+std::vector<WorldSurfaceBatch> worldBatches;
 bool spatialGeometry=false;
 const float levels[4]={32.f/255,64.f/255,128.f/255,1.f};
 const float guard[3]={32.f/255,64.f/255,.5f};
@@ -130,6 +132,7 @@ void ResetLightmapScene()
         ReleaseWorldMeshes();
     }
     owner=NULL; page=-1; uploaded=~0u; geometry.faces.clear(); worldBindings.clear();
+    worldBatches.clear(); worldMeshes.clear();
 }
 
 bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
@@ -153,9 +156,10 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     draw->IncrementReferenceCount(); context->Bind(draw);
     if (page<0) {
         context->Flush();
-        if (!BuildWorldSurfaceBindings(material,draw,geometry,worldBindings,detail,capacity)) {
+        if (!BuildWorldSurfaceBindings(material,draw,geometry,worldBindings,worldBatches,detail,capacity)) {
             draw->DecrementReferenceCount(); return false;
         }
+        worldMeshes.assign(worldBatches.size(),NULL);
         page=worldBindings[0].page;
         for (int face=0; face<2; ++face) for (int axis=0; axis<2; ++axis)
             offsets[face][axis]=worldBindings[face].offset[axis];
@@ -165,27 +169,34 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
         owner->AddReleaseFunc(ReleaseWorldMeshes);
         owner->AddRestoreFunc(RestoreLightmapScene);
     }
-    for (int tile=0; tile<2; ++tile) if (!worldMeshes[tile]) {
-        const auto &vertices=worldBindings[tile].vertices;
-        worldMeshes[tile]=context->CreateStaticMesh(draw->GetVertexFormat() & ~VERTEX_FORMAT_COMPRESSED,
+    for (size_t batchIndex=0; batchIndex<worldBatches.size(); ++batchIndex) if (!worldMeshes[batchIndex]) {
+        const auto &batch=worldBatches[batchIndex];
+        worldMeshes[batchIndex]=context->CreateStaticMesh(draw->GetVertexFormat() & ~VERTEX_FORMAT_COMPRESSED,
             TEXTURE_GROUP_STATIC_VERTEX_BUFFER_WORLD,draw);
-        if (!worldMeshes[tile]) {
-            snprintf(detail,capacity,"World static mesh allocation failed");
+        if (!worldMeshes[batchIndex]) {
+            snprintf(detail,capacity,"World static batch allocation failed");
             draw->DecrementReferenceCount(); return false;
         }
         CMeshBuilder builder;
-        builder.Begin(worldMeshes[tile],MATERIAL_TRIANGLES,vertices.size(),3*(vertices.size()-2));
-        for (const auto &vertex:vertices) {
-            builder.Position3fv(vertex.position);
-            if (draw->GetVertexFormat() & VERTEX_NORMAL) builder.Normal3fv(vertex.normal);
-            builder.TexCoord2fv(0,vertex.texture);
-            builder.TexCoord2fv(1,vertex.lightmap);
-            builder.AdvanceVertex();
-        }
-        for (size_t triangle=1; triangle+1<vertices.size(); ++triangle) {
-            builder.Index(0); builder.AdvanceIndex();
-            builder.Index(triangle); builder.AdvanceIndex();
-            builder.Index(triangle+1); builder.AdvanceIndex();
+        builder.Begin(worldMeshes[batchIndex],MATERIAL_TRIANGLES,batch.vertexCount,batch.indexCount);
+        int baseVertex=0,firstIndex=0;
+        for (int face:batch.faces) {
+            const auto &vertices=worldBindings[face].vertices;
+            faceMesh[face]=batchIndex; faceFirstIndex[face]=firstIndex;
+            faceIndexCount[face]=3*(vertices.size()-2);
+            for (const auto &vertex:vertices) {
+                builder.Position3fv(vertex.position);
+                if (draw->GetVertexFormat() & VERTEX_NORMAL) builder.Normal3fv(vertex.normal);
+                builder.TexCoord2fv(0,vertex.texture);
+                builder.TexCoord2fv(1,vertex.lightmap);
+                builder.AdvanceVertex();
+            }
+            for (size_t triangle=1; triangle+1<vertices.size(); ++triangle) {
+                builder.Index(baseVertex); builder.AdvanceIndex();
+                builder.Index(baseVertex+triangle); builder.AdvanceIndex();
+                builder.Index(baseVertex+triangle+1); builder.AdvanceIndex();
+            }
+            baseVertex+=vertices.size(); firstIndex+=faceIndexCount[face];
         }
         builder.End();
     }
@@ -222,10 +233,17 @@ bool DrawLightmapScene(IMaterialSystem *material, IMatRenderContext *context,
     context->FogMode(MATERIAL_FOG_NONE); context->SetToneMappingScaleLinear(Vector(1,1,1));
     context->ClearColor4ub(37,91,163,255); context->ClearBuffers(true,true,true);
     context->BindLightmapPage(page);
-    for (int index=0;index<2;++index) {
-        int tile=spatial && frame%2 ? 1-index : index;
-        context->Bind(draw);
-        worldMeshes[tile]->Draw();
+    context->Bind(draw);
+    if (frame%2==0) {
+        for (size_t batch=0; batch<worldMeshes.size(); ++batch) {
+            context->BindLightmapPage(worldBatches[batch].page);
+            worldMeshes[batch]->Draw();
+        }
+    } else {
+        // Same shared mesh, separate ranges in reverse order: exercise nonzero
+        // vertex/index offsets and depth without changing the pixel reference.
+        for (int face=1; face>=0; --face)
+            worldMeshes[faceMesh[face]]->Draw(faceFirstIndex[face],faceIndexCount[face]);
     }
     context->Flush();
     GLint read=0,write=0;

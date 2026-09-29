@@ -22,9 +22,9 @@ struct WorldScope {
 
 bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
     const BspRenderGeometry &geometry, std::vector<WorldSurfaceBinding> &bindings,
-    char *detail, size_t capacity)
+    std::vector<WorldSurfaceBatch> &batches, char *detail, size_t capacity)
 {
-    bindings.clear();
+    bindings.clear(); batches.clear();
     // This adapter is deliberately limited to the two-face reference scene.
     if (!system || !material || geometry.faces.size()!=2 || host_state.worldmodel
         || host_state.worldbrush || materialSortInfoArray || g_HunkMemoryStack.GetBase()) {
@@ -128,6 +128,44 @@ bool BuildWorldSurfaceBindings(IMaterialSystem *system, IMaterial *material,
         || (result[0].offset[0]==result[1].offset[0] && result[0].offset[1]==result[1].offset[1])) {
         snprintf(detail,capacity,"World surface bridge: expected distinct regions on one page"); return false;
     }
+    CMSurfaceSortList sorted;
+    sorted.Init(count,1);
+    for (int i=0; i<world.numsurfaces; ++i) {
+        SurfaceHandle_t surface=SurfaceHandleFromIndex(i);
+        sorted.AddSurfaceToTail(surface,0,MSurf_MaterialSortID(surface));
+    }
+    std::vector<WorldSurfaceBatch> grouped;
+    bool seen[2]={};
+    const auto &groups=sorted.GetSortList(0);
+    for (int g=0; g<groups.Count(); ++g) {
+        CUtlVector<msurface2_t *> surfaces;
+        sorted.GetSurfaceListForGroup(surfaces,*groups[g]);
+        WorldSurfaceBatch batch={}; batch.sortID=-1;
+        for (int s=0; s<surfaces.Count(); ++s) {
+            const int face=MSurf_Index(surfaces[s]);
+            if (face<0 || face>=2 || seen[face]) {
+                snprintf(detail,capacity,"World batches: invalid or duplicate surface"); return false;
+            }
+            seen[face]=true;
+            const int id=MSurf_MaterialSortID(surfaces[s]);
+            if (batch.sortID<0) { batch.sortID=id; batch.page=result[face].page; }
+            if (id!=batch.sortID || result[face].page!=batch.page) {
+                snprintf(detail,capacity,"World batches: mixed material/page group"); return false;
+            }
+            batch.faces.push_back(face);
+            batch.vertexCount+=result[face].vertices.size();
+            batch.indexCount+=3*(result[face].vertices.size()-2);
+        }
+        if (batch.vertexCount!=groups[g]->vertexCount || batch.indexCount!=3*groups[g]->triangleCount) {
+            snprintf(detail,capacity,"World batches: engine geometry counts disagree"); return false;
+        }
+        grouped.push_back(batch);
+    }
+    // Both reference faces share a material/page and must actually coalesce.
+    if (!seen[0] || !seen[1] || grouped.size()!=1 || grouped[0].faces.size()!=2) {
+        snprintf(detail,capacity,"World batches: reference faces did not coalesce"); return false;
+    }
+    batches.swap(grouped);
     bindings.swap(result);
     return true;
 }
