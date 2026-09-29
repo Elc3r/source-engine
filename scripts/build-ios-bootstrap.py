@@ -27,10 +27,14 @@ def main():
     mode.add_argument('--graphics', action='store_true', help='Build the independent SDL/Metal GPU probe')
     mode.add_argument('--angle', action='store_true', help='Build the SDL/ANGLE GLES texture probe (downloads pinned ANGLE)')
     mode.add_argument('--togles', action='store_true', help='Test engine shader translation and DXT decoding through ANGLE')
+    parser.add_argument('--world-loader-check', action='store_true',
+                        help='Compile actual engine world-loading units and report link dependencies (ToGLES only)')
     parser.add_argument('--shader-cache', type=Path, help='Validated FXC shader cache from ios-compile-shaders.py (ToGLES only)')
     parser.add_argument('--min-version', help='Default: 16.0 for ANGLE, 15.0 otherwise')
     parser.add_argument('--simulator', metavar='UDID', help='Install, launch and verify on this simulator')
     args = parser.parse_args()
+    if args.world_loader_check and not args.togles:
+        parser.error('--world-loader-check requires --togles')
     if args.shader_cache and not args.togles:
         parser.error('--shader-cache requires --togles')
     if args.shader_cache:
@@ -41,6 +45,8 @@ def main():
         parser.error('--simulator requires --target=simulator')
     os.chdir(ROOT)
     build = ROOT / ('build-ios-' + args.target)
+    if args.world_loader_check:
+        (build / 'world-loader-check.json').unlink(missing_ok=True)
     # Waf's lock file is shared by configurations; always configure the requested
     # output first so a preceding desktop/device build cannot select the wrong SDK.
     import sys
@@ -73,6 +79,10 @@ def main():
             '-DCMAKE_OSX_ARCHITECTURES=arm64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=' + args.min_version,
             '-DCMAKE_BUILD_TYPE=Debug', *angle_options)
         run('cmake', '--build', graphics_build, '--parallel', '8', '--target', executable)
+        if args.world_loader_check:
+            run('cmake', '--build', graphics_build, '--parallel', '4', '--target', 'EngineWorldLoader')
+            run(sys.executable, ROOT / 'scripts/ios-world-loader-check.py',
+                '--build-dir', build, '--target', args.target)
     else:
         run(sys.executable, 'waf', 'configure', '--ios-target=' + args.target,
             '--ios-min-version=' + args.min_version, '-o', build)

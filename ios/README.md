@@ -734,6 +734,40 @@ the perspective phase, background/resume and transition to the flat BSP fixture
 (3,120 frames, all checks PASS). Device-SDK build and ad-hoc signature
 verification pass; physical-device runtime remains untested.
 
+### Actual engine world-loader compilation
+
+An optional build target compiles the repository's unmodified
+`engine/modelloader.cpp`, `gl_lightmap.cpp`, `gl_rsurf.cpp` and `cmodel_bsp.cpp`
+against the iOS headers and existing engine foundation. Run the configurations
+sequentially because Waf shares a configuration lock:
+
+```sh
+python3 scripts/build-ios-bootstrap.py --togles --world-loader-check --shader-cache build-ios-shaders/compiled
+python3 scripts/build-ios-bootstrap.py --togles --world-loader-check --shader-cache build-ios-shaders/compiled --target device
+```
+
+`EngineWorldLoader` is an opt-in static archive, excluded from the normal build
+and not linked into the probe application. The checker verifies ARM64, the
+target Mach-O platform, all four objects and actual loader/render entry points.
+It writes `build-ios-{simulator,device}/world-loader-check.json`, including
+source/archive hashes and external symbols grouped by their referring objects.
+Definitions found in tier0, tier1 and mathlib are candidate providers; this is
+not a full link check or proof of runtime map loading.
+
+Both iOS 27 SDK builds pass with deployment target 16.0. The simulator archive
+has 251 external symbols, and the device archive has 252 (the additional symbol
+is `__chkstk_darwin`). Both have 66 candidate definitions in the foundation
+artifacts. These counts include system and C++ runtime symbols, so the remainder
+is not a count of missing engine functions. The checker also rejects a mismatched
+platform; the build helper rejects `--world-loader-check` without `--togles`.
+
+The dependency report identifies the next integration work: host/world state
+and allocation (`host_state`, `CCommonHostState::SetWorldModel`, `Hunk_Alloc`),
+material and surface services (`GL_LoadMaterial`, `CMSurfaceSortList`, world
+meshes), followed by visibility, model cache, physics and displacement services.
+The existing synthetic BSP fixtures still exercise the limited render-lump
+reader described above; they do not exercise these newly compiled engine units.
+
 ### Filesystem and material data
 
 The app now links the repository's actual stdio/base filesystem, asynchronous
@@ -800,7 +834,8 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend coverage to additional material features and map/world shaders,
-   with reference checks in the perspective scene.
-2. Connect the remaining engine modules, game-data paths and a single HL2 map.
+1. Integrate host/world state, allocation and material/surface services from the
+   actual world-loader dependency report, then establish a linked loader check.
+2. Connect visibility, collision and remaining engine modules, game-data paths
+   and a single HL2 map; extend world-shader reference coverage as needed.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

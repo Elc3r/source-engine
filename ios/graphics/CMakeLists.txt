@@ -67,6 +67,21 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_include_directories(ToGLESRuntime PRIVATE ../../public ../../public/tier0
         ../../public/tier1 ../../common ../../togles/linuxwin
         ../../thirdparty/SDL-src/include "${ANGLE_ROOT}/include")
+    # Compile the actual engine world-loading units separately. This archive is
+    # intentionally not linked into the probe until their engine services exist.
+    add_library(EngineWorldLoader STATIC EXCLUDE_FROM_ALL
+        ../../engine/modelloader.cpp ../../engine/gl_lightmap.cpp
+        ../../engine/gl_rsurf.cpp ../../engine/cmodel_bsp.cpp)
+    target_compile_features(EngineWorldLoader PRIVATE cxx_std_11)
+    target_compile_options(EngineWorldLoader PRIVATE -fsigned-char)
+    target_compile_definitions(EngineWorldLoader PRIVATE IOS=1 POSIX=1 _POSIX=1
+        PLATFORM_POSIX=1 PLATFORM_64BITS=1 GNUC NDEBUG ENGINE_DLL=1
+        NO_HOOK_MALLOC NO_MEMOVERRIDE_NEW_DELETE TIER1_STATIC_LIB=1
+        DX_TO_GL_ABSTRACTION=1 TOGLES=1 USE_SDL=1 _DLL_EXT=.dylib)
+    target_include_directories(EngineWorldLoader PRIVATE
+        ../../engine ../../engine/audio ../../public ../../public/tier0
+        ../../public/tier1 ../../public/engine/audio ../../common
+        ../../thirdparty/SDL-src/include)
     add_library(EngineFilesystem OBJECT
         ../../filesystem/basefilesystem.cpp ../../filesystem/packfile.cpp
         ../../filesystem/filetracker.cpp ../../filesystem/filesystem_async.cpp
