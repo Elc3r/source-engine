@@ -183,6 +183,7 @@ def build(bld):
 		'vprof_record.cpp',
 		'world.cpp',
 		'world_state.cpp',
+		'surface_sort.cpp',
 		'../public/XZip.cpp',
 		'../public/XUnzip.cpp',
 		'zone.cpp',

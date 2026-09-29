@@ -819,6 +819,32 @@ checks passing. Both SDK builds contain exactly one definition of the shared
 state and binding method; device signature verification passes. Desktop builds
 and physical-device execution remain untested in this step.
 
+### Linked world-surface batching
+
+The actual `CMSurfaceSortList` implementation now lives in
+`engine/surface_sort.cpp`, extracted without behavior changes from
+`gl_matsysiface.cpp`. Waf and VPC include this unit, and the iOS
+`EngineWorldServices` object target links it alongside shared world state.
+This is the batching implementation used by `gl_rsurf.cpp`, independent of
+material-system startup and host orchestration.
+
+`SurfaceSortChecks.cpp` submits 31 synthetic triangle/quad/pentagon surfaces to
+each sort group, crossing the internal 15-surface block boundaries. It checks
+submission order, vertex/triangle counts and the separate non-detail counts.
+Growing the sort-ID capacity twice must preserve batches and repair the compact
+group-list pointers; adding new high sort IDs and resetting must leave groups
+independent and clear old entries. Failures stop startup and are reported in
+`togles.json` alongside the world-state checks.
+
+These are real CPU batching services exercised with synthetic sort IDs. Material
+lookup, material/lightmap sort-info generation and submission of these batches
+through the full world renderer remain integration work.
+
+Validated on iOS 27 Simulator: the batching, world-state, memory and existing
+graphics checks all pass, followed by the perspective BSP render loop. Simulator
+and device builds link the real batching methods; device signature verification
+passes. Desktop builds and physical-device execution remain untested here.
+
 ### Filesystem and material data
 
 The app now links the repository's actual stdio/base filesystem, asynchronous
@@ -887,7 +913,8 @@ concurrently in the same checkout.
 
 1. Integrate material/surface services and the remaining host/cache lifecycle
    from the actual world-loader dependency report, then establish a linked
-   loader check. The allocator and shared world-model binding are linked now.
+   loader check. The allocator, shared world-model binding and surface batching
+   are linked now.
 2. Connect visibility, collision and remaining engine modules, game-data paths
    and a single HL2 map; extend world-shader reference coverage as needed.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

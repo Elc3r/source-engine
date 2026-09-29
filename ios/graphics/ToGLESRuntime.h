@@ -11,6 +11,7 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules);
 int StartToGLESMaterialLoop(const char *modules, char *detail, size_t capacity);
 int DrawToGLESMaterialLoop(char *detail, size_t capacity);
 void StopToGLESMaterialLoop(void);
+int CheckSurfaceSort(char *detail, size_t capacity);
 int CheckWorldState(char *detail, size_t capacity);
 int CheckWorldMemory(char *detail, size_t capacity);
 int CheckToGLESUploads(char *detail, size_t capacity);

@@ -184,6 +184,10 @@ static BOOL StartRenderer(void)
         runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
     }
     if (engineChecksPassed) {
+        engineChecksPassed = CheckSurfaceSort(detail, sizeof(detail));
+        runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
+    }
+    if (engineChecksPassed) {
         engineChecksPassed = CheckToGLESUploads(detail, sizeof(detail));
         runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
     }
