@@ -82,6 +82,13 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine ../../engine/audio ../../public ../../public/tier0
         ../../public/tier1 ../../public/engine/audio ../../common
         ../../thirdparty/SDL-src/include)
+    add_library(EngineWorldState OBJECT ../../engine/world_state.cpp WorldStateChecks.cpp)
+    target_compile_features(EngineWorldState PRIVATE cxx_std_11)
+    target_compile_options(EngineWorldState PRIVATE -fsigned-char)
+    target_compile_definitions(EngineWorldState PRIVATE
+        $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
+    target_include_directories(EngineWorldState PRIVATE
+        $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
     add_library(EngineFilesystem OBJECT
         ../../filesystem/basefilesystem.cpp ../../filesystem/packfile.cpp
         ../../filesystem/filetracker.cpp ../../filesystem/filesystem_async.cpp
@@ -97,7 +104,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         $<TARGET_PROPERTY:ToGLESRuntime,INCLUDE_DIRECTORIES> ../../filesystem)
     set_target_properties(ToGLESRuntime PROPERTIES BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
-    target_link_libraries(ToGLESRuntime PRIVATE EngineFilesystem ToGLESChecks
+    target_link_libraries(ToGLESRuntime PRIVATE EngineFilesystem EngineWorldState ToGLESChecks
         "${ENGINE_BUILD}/mathlib/libmathlib.a" "${ENGINE_BUILD}/tier1/libtier1.a"
         "${ENGINE_BUILD}/tier0/libtier0.dylib" SDL2-static libEGL libGLESv2
         "-framework UIKit" "-framework Foundation" "-framework Metal" "-framework QuartzCore" iconv)

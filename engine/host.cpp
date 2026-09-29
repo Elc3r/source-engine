@@ -448,7 +448,6 @@ extern bool gfBackground;
 
 static bool host_checkheap = false;
 
-CCommonHostState host_state;
 
 
 //-----------------------------------------------------------------------------
@@ -685,18 +684,6 @@ bool GetFileFromRemoteStorage( ISteamRemoteStorage *pRemoteStorage, const char *
 }
 
 
-void CCommonHostState::SetWorldModel( model_t *pModel )
-{
-	worldmodel = pModel;
-	if ( pModel )
-	{
-		worldbrush = pModel->brush.pShared;
-	}
-	else
-	{
-		worldbrush = NULL;
-	}
-}
 
 void Host_DefaultMapFileName( const char *pFullMapName, /* out */ char *pDiskName, unsigned int nDiskNameSize )
 {

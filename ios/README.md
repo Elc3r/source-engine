@@ -791,7 +791,33 @@ syntax compilation with both SDKs; its function bodies are unchanged, but its
 runtime integration and desktop builds have not been tested in this step.
 
 This does not initialize the full engine memory/cache lifecycle or load a world.
-Host/world state and material/surface services remain the next integration work.
+Full host orchestration and material/surface services remain integration work.
+
+### Linked world-model state
+
+`engine/world_state.cpp` now owns `host_state` and the existing
+`CCommonHostState::SetWorldModel` implementation, extracted unchanged from
+`host.cpp`. Waf and VPC include the new unit. The iOS runtime links it directly,
+without pulling in the host frame loop, client/server state or networking.
+
+At startup, `WorldStateChecks.cpp` allocates real engine surface and lighting
+arrays through the hunk allocator. It binds a world model, a second model
+sharing its brush data, a replacement world and the original world again.
+The real `SurfaceHandleFromIndex`, `MSurf_Index`, `MSurf_TextureMins` and
+`MSurf_LightmapExtents` accessors must resolve the currently bound arrays through
+their default `host_state` argument. Two cycles unbind both world pointers before
+releasing the arena and preserve the host tick interval. An already owned world
+or arena is rejected. Failure stops the probe; `runtime_checks` in `togles.json`
+records the result.
+
+This validates the shared world-data binding and allocator integration using
+synthetic in-memory surfaces. It does not load a BSP through `CModelLoader` or
+connect that loader to the running render scene.
+
+Validated on iOS 27 Simulator with the new world-state check and existing render
+checks passing. Both SDK builds contain exactly one definition of the shared
+state and binding method; device signature verification passes. Desktop builds
+and physical-device execution remain untested in this step.
 
 ### Filesystem and material data
 
@@ -859,8 +885,9 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Integrate host/world state, allocation and material/surface services from the
-   actual world-loader dependency report, then establish a linked loader check.
+1. Integrate material/surface services and the remaining host/cache lifecycle
+   from the actual world-loader dependency report, then establish a linked
+   loader check. The allocator and shared world-model binding are linked now.
 2. Connect visibility, collision and remaining engine modules, game-data paths
    and a single HL2 map; extend world-shader reference coverage as needed.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
