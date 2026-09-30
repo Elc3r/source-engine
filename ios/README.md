@@ -793,7 +793,7 @@ message implementations. `sv_main.cpp` now reports `IOS` in its server-spawn
 platform field, resolving its unsupported-platform compile error. These sources
 compile, but their runtime behavior has not been exercised.
 
-The full-export link now fails with **412 unresolved symbols**: host/client
+The full-export link now fails with **382 unresolved symbols**: host/client
 sources expose networking, audio, demo and platform services that were absent
 from the earlier frontier. Symbol counts are not a completion percentage.
 To inspect the smaller loader/renderer interface boundary, run:
@@ -805,7 +805,7 @@ python3 scripts/ios-link-map.py --interface-scope
 This exports both real interface anchors and enables linker dead stripping.
 Their reachable implementations, virtual tables and static initializers remain;
 there are no placeholder services or unresolved-symbol bypasses. That link
-currently fails with **179 unresolved symbols**. Adding the actual `cl` and `sv`
+currently fails with **154 unresolved symbols**. Adding the actual `cl` and `sv`
 objects retains their constructors and virtual tables. The support target now
 includes `CBaseServer`, `CBaseClient`, `CGameClient`, the actual client packet
 handlers, client frames, snapshots, packed entities, network string tables and
@@ -834,6 +834,15 @@ is also included; this does not provide a Steam runtime. Expanding these paths
 changed the scoped result from 124 to 179 missing symbols and the full-export
 result from 440 to 412. UI, audio, Steam runtime and further module/lifecycle
 services still prevent linking. No host startup or map execution has succeeded.
+The original sound client/server interfaces, mixer/DSP, WAV/ADPCM/MP3 source
+and mixer code, sentence/voice handling, sound gain calculations and SDL audio
+playback/capture backends now compile in the support archive. The iOS build
+selects SDL through the existing `USE_SDL` device-selection path. The existing
+non-macOS mixer-controls implementation explicitly reports desktop microphone
+controls as unsupported and identifies itself as iOS on this platform; it does
+not link OpenAL or Carbon. No playback, recording, audio-session lifecycle or
+codec module loading has been exercised. This reduces the scoped link from 179
+to 154 unresolved symbols and the full-export audit from 412 to 382.
 The application
 still cannot construct and initialize the complete client/server state.
 The interface check does not cover future startup entry points until they are

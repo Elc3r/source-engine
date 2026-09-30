@@ -33,7 +33,16 @@ public:
 	virtual bool	GetValue_Float(Control iControl, float &value ) {return false;}
 	virtual bool	SetValue_Float(Control iControl, float value) {return false;}
 	virtual bool	SelectMicrophoneForWaveInput() {return false;}
-	virtual const char *GetMixerName() {return "Linux"; }
+	virtual const char *GetMixerName()
+	{
+#if defined(IOS)
+		// iOS owns microphone routing and does not expose these desktop
+		// mixer controls. The methods above explicitly report unsupported.
+		return "iOS";
+#else
+		return "Linux";
+#endif
+	}
 	
 private:
 };

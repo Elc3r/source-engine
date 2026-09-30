@@ -106,6 +106,34 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/host.cpp ../../engine/client.cpp ../../engine/baseclientstate.cpp
         ../../engine/common.cpp ../../engine/cmd.cpp ../../engine/initmathlib.cpp
         ../../engine/mapreslistgenerator.cpp ../../engine/precache.cpp
+        ../../engine/snd_io.cpp ../../engine/EngineSoundClient.cpp
+        ../../engine/EngineSoundServer.cpp ../../engine/engsoundservice.cpp
+        ../../engine/audio/MPAFile.cpp
+        ../../engine/audio/MPAHeader.cpp
+        ../../engine/audio/circularbuffer.cpp
+        ../../engine/audio/snd_dev_common.cpp
+        ../../engine/audio/snd_dev_sdl.cpp
+        ../../engine/audio/snd_dma.cpp
+        ../../engine/audio/snd_dsp.cpp
+        ../../engine/audio/snd_mix.cpp
+        ../../engine/audio/snd_sentence_mixer.cpp
+        ../../engine/audio/snd_wave_data.cpp
+        ../../engine/audio/snd_wave_mixer.cpp
+        ../../engine/audio/snd_wave_mixer_adpcm.cpp
+        ../../engine/audio/snd_wave_source.cpp
+        ../../engine/audio/snd_wave_temp.cpp
+        ../../engine/audio/snd_win.cpp
+        ../../engine/audio/snd_posix.cpp
+        ../../engine/audio/voice_gain.cpp
+        ../../engine/audio/snd_mp3_source.cpp
+        ../../engine/audio/snd_wave_mixer_mp3.cpp
+        ../../engine/audio/VBRHeader.cpp
+        ../../engine/audio/voice.cpp
+        ../../engine/audio/voice_sound_engine_interface.cpp
+        ../../engine/audio/voice_wavefile.cpp
+        ../../engine/audio/voice_record_sdl.cpp
+        ../../engine/audio/voice_mixer_controls_openal.cpp ../../engine/sound_shared.cpp
+        ../../engine/audio/vox.cpp
         ../../engine/host_state.cpp ../../engine/host_cmd.cpp
         ../../engine/cdll_engine_int.cpp ../../engine/cl_pred.cpp
         ../../engine/gl_shader.cpp ../../engine/materialproxyfactory.cpp
