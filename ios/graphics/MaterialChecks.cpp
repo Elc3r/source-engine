@@ -11,6 +11,7 @@
 #include "materialsystem/imesh.h"
 #include "mathlib/vmatrix.h"
 #include "SceneChecks.h"
+#include "MapServices.h"
 
 namespace {
 const GLMContextHost *applicationHost=NULL;
@@ -25,6 +26,7 @@ void *ApplicationFactory(const char *name, int *status)
     }
     void *service=VStdLib_GetICVarFactory()(name,status);
     if (!service && applicationMaterial) service=applicationMaterial->QueryInterface(name);
+    if (!service) service=QueryMapService(name);
     if (status) *status=service ? IFACE_OK : IFACE_FAILED;
     return service;
 }
@@ -363,12 +365,14 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                     }
 
                 }
+                if (valid) valid=InitializeMapServices(modules,ApplicationFactory,detail,capacity);
                 if (valid && retain) {
                     livePresentation=&presentation;
                     liveModule=module;
                     liveMaterial=material;
                     return true;
                 }
+                ShutdownMapServices();
                 material->ModShutdown();
                 material->Shutdown();
             }
@@ -496,6 +500,7 @@ void StopToGLESLiveMaterial()
 {
     if (!liveMaterial) return;
     ResetLightmapScene();
+    ShutdownMapServices();
     liveMaterial->ModShutdown(); liveMaterial->Shutdown(); liveMaterial->Disconnect();
     checkedWidth=checkedHeight=resizeChecks=0; sceneFrame=0;
     liveMaterial=NULL; livePresentation=NULL; applicationMaterial=NULL; applicationHost=NULL;

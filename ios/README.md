@@ -921,12 +921,19 @@ conversion. Build these modules with:
 cmake --build build-ios-simulator/togles --parallel 8 --target EngineMapModules
 ```
 
-These modules are not yet packaged or initialized by the probe application.
-`CMDLCache::Connect` requires physics, material and studio-render interfaces;
-studio-render in turn queries the studio-data interface exposed by the cache.
-The application factory must expose all interfaces before their Connect calls,
-then initialize them in dependency order. Successful dylib links do not verify
-IVP ARM64 behavior, model-cache initialization or a real BSP load.
+The ToGLES application packages all three modules and initializes them through
+`MapServices.cpp`. Its shared factory exposes every module interface before
+Connect, including the cache/studio-render mutual interface dependency. It
+connects data cache, physics, model cache and studio render, then initializes
+those systems in that order. Shutdown and Disconnect run in reverse order,
+while the material system and filesystem remain available; modules unload last.
+Partial failures return a named service/stage error and unwind prior services.
+
+On the iOS 27 ARM64 simulator, two complete service lifecycles passed alongside
+the existing material lifecycle checks, followed by live rendering with the
+services retained. The result explicitly reports the two service lifecycles.
+This verifies module loading and Connect/Init/Shutdown/Disconnect, not physics
+simulation, studio model decoding, engine-loader startup or a real BSP load.
 
 The default command explicitly disables interface scoping and writes
 `build-ios-simulator/map-link.json` and `map-link.log`. The scoped command writes

@@ -51,7 +51,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         NO_HOOK_MALLOC NO_MEMOVERRIDE_NEW_DELETE TIER1_STATIC_LIB=1)
     target_include_directories(ToGLESChecks PRIVATE ../../public ../../public/tier0
         ../../common ../../togles/linuxwin "${ANGLE_ROOT}/include")
-    add_library(ToGLESRuntime SHARED ToGLESRuntime.cpp EngineServices.cpp WorldMemoryChecks.cpp ../../engine/zone.cpp FilesystemChecks.cpp MaterialChecks.cpp SceneChecks.cpp BlendChecks.cpp FogChecks.cpp LightmapChecks.cpp BspGeometry.cpp ../ToGLESBackend.cpp
+    add_library(ToGLESRuntime SHARED ToGLESRuntime.cpp MapServices.cpp EngineServices.cpp WorldMemoryChecks.cpp ../../engine/zone.cpp FilesystemChecks.cpp MaterialChecks.cpp SceneChecks.cpp BlendChecks.cpp FogChecks.cpp LightmapChecks.cpp BspGeometry.cpp ../ToGLESBackend.cpp
         ../../togles/linuxwin/glentrypoints.cpp ../../togles/linuxwin/cglmbuffer.cpp
         ../../togles/linuxwin/texture_upload.cpp ToGLESObjectChecks.cpp ToGLESShaderChecks.cpp ToGLESD3DChecks.cpp
         ../../togles/linuxwin/dxabstract.cpp
@@ -619,7 +619,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../materialsystem/stdshaders/fxctmp9 ../../materialsystem/stdshaders/vshtmp9)
     set_target_properties(stdshader_dbg PROPERTIES PREFIX "")
     add_executable(SourceToGLES ANGLEProbe.m)
-    add_dependencies(SourceToGLES materialsystem shaderapidx9 stdshader_dx9 stdshader_dbg)
+    add_dependencies(SourceToGLES materialsystem shaderapidx9 stdshader_dx9 stdshader_dbg EngineMapModules)
     set_target_properties(SourceToGLES PROPERTIES MACOSX_BUNDLE TRUE
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path/Frameworks")
     target_compile_options(SourceToGLES PRIVATE -fobjc-arc)

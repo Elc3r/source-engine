@@ -149,7 +149,7 @@ def main():
         run('xcrun', 'install_name_tool', '-change', build / 'tier0/libtier0.dylib',
             '@rpath/libtier0.dylib', app / executable)
         libraries.append(library)
-        for name in ['libToGLESRuntime', 'libshaderapidx9', 'libmaterialsystem', 'stdshader_dx9', 'stdshader_dbg']:
+        for name in ['libToGLESRuntime', 'libshaderapidx9', 'libmaterialsystem', 'stdshader_dx9', 'stdshader_dbg', 'libdatacache', 'libvphysics', 'libstudiorender']:
             module = app / 'Frameworks' / (name + '.dylib')
             shutil.copy2(graphics_build / module.name, module)
             run('xcrun', 'install_name_tool', '-id', '@rpath/' + module.name, module)
