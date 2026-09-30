@@ -106,6 +106,14 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/host.cpp ../../engine/client.cpp ../../engine/baseclientstate.cpp
         ../../engine/common.cpp ../../engine/cmd.cpp ../../engine/initmathlib.cpp
         ../../engine/mapreslistgenerator.cpp ../../engine/precache.cpp
+        ../../engine/console.cpp ../../engine/keys.cpp ../../engine/gl_screen.cpp
+        ../../engine/tmessage.cpp ../../engine/traceinit.cpp ../../engine/zone_memory.cpp
+        ../../tier2/riff.cpp ../../tier2/utlstreambuffer.cpp ../../public/sentence.cpp
+        ../../public/filesystem_helpers.cpp ../../common/language.cpp
+        ../../engine/DownloadListGenerator.cpp ../../engine/DevShotGenerator.cpp
+        ../../engine/sys_mainwind.cpp ../../engine/enginethreads.cpp
+        ../../engine/ccs.cpp ../../engine/cheatcodes.cpp ../../engine/cl_parse_event.cpp
+        ../../engine/sv_redirect.cpp ../../engine/world.cpp ../../engine/cbenchmark.cpp
         ../../engine/snd_io.cpp ../../engine/EngineSoundClient.cpp
         ../../engine/EngineSoundServer.cpp ../../engine/engsoundservice.cpp
         ../../engine/audio/MPAFile.cpp
