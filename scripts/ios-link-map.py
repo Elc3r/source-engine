@@ -40,14 +40,18 @@ def main():
                              transcript, re.M):
         missing.append({'symbol': match[1],
                         'references': [line.strip() for line in match[2].splitlines()]})
+    failure_phase = 'link' if missing else phase
     report.write_text(json.dumps({
         'linked': result.returncode == 0, 'runtime_map_load_tested': False,
-        'phase': 'link' if missing else phase, 'exit_code': result.returncode,
+        'phase': failure_phase, 'exit_code': result.returncode,
         'unresolved_count': len(missing), 'unresolved': missing,
         'log': 'map-link.log',
         'scope': 'Strict dylib link of actual engine sources against the iOS graphics runtime. No startup or map execution.',
     }, indent=2) + '\n')
-    print(f'Map link: {"PASS" if result.returncode == 0 else "FAIL"}; {len(missing)} unresolved symbols')
+    if result.returncode and not missing:
+        print(f'Map link: NOT COMPLETED; {failure_phase} failed (exit {result.returncode})')
+    else:
+        print(f'Map link: {"PASS" if result.returncode == 0 else "FAIL"}; {len(missing)} unresolved symbols')
     print(f'Report: {report}\nFull diagnostics: {build / "map-link.log"}')
     return result.returncode
 

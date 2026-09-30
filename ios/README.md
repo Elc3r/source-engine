@@ -750,6 +750,10 @@ This builds `EngineMapLinkCheck`, an optional strict dylib link that force-loads
 the four actual world-loader/render units against the graphics runtime and
 `EngineMapSupport`. The support archive compiles real collision, displacement
 collision, visibility, material loading, lump-file and geometry helper sources.
+It also includes the original material/render integration, light cache and dynamic
+lighting, decals and clipping, area portals, displacement rendering/loading,
+overlays, skybox and renderer statistics. SDL is linked explicitly for display
+queries; the decal source selects the Apple malloc header on iOS.
 No unresolved-symbol bypasses or placeholder engine services are used. The link
 anchor exposes the actual model-loader interface only; it is not a startup path.
 Neither target is packaged into the working graphics app.
@@ -757,12 +761,14 @@ Neither target is packaged into the working graphics app.
 The first direct simulator link had 117 unresolved symbols. Adding these support
 sources resolves 27 of them, including `CM_LoadMap`, `CM_PointLeafnum`,
 `CM_VCollideForModel`, displacement collision helpers, `GL_LoadMaterial`,
-`GL_UnloadMaterial`, `Map_VisClear` and `GenerateLumpFileName`. The current link
-still fails with 90 unresolved symbols. Principal remaining groups are host and
-client/server state (`Host_Error`, `Host_GetServerCount`, `cl`, `sv`), VGUI progress
-and model services, and world rendering (light cache, overlays, decals, sky and
-mesh construction). Resolved symbols do not establish service initialization;
-physics/cache startup and a runnable map-load path are still required.
+`GL_UnloadMaterial`, `Map_VisClear` and `GenerateLumpFileName`. Integrating the
+renderer implementations then reduced the remaining count from 90 to 73,
+including their newly exposed dependencies. These units compile for the ARM64
+simulator, but the strict link still fails. Principal remaining groups are host
+and client/server state (`Host_Error`, `Host_GetServerCount`, `cl`, `sv`), VGUI,
+model/studio services, spatial partitioning and occlusion. Resolved symbols do
+not establish service initialization; physics/cache startup and a runnable
+map-load path are still required.
 
 `build-ios-simulator/map-link.json` records the actual link result and each missing
 symbol's referring objects; `map-link.log` retains full diagnostics. The script

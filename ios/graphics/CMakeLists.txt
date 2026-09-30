@@ -94,7 +94,17 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     # Actual map-loading dependencies, separate from the runnable graphics probe.
     add_library(EngineMapSupport STATIC EXCLUDE_FROM_ALL
         ../../engine/cmodel.cpp ../../engine/cmodel_disp.cpp ../../engine/gl_draw.cpp
-        ../../engine/mod_vis.cpp ../../public/lumpfiles.cpp ../../public/disp_powerinfo.cpp ../../public/disp_common.cpp
+        ../../engine/mod_vis.cpp ../../engine/gl_matsysiface.cpp
+        ../../engine/matsys_interface.cpp ../../engine/gl_rmain.cpp
+        ../../engine/r_decal.cpp ../../engine/lightcache.cpp
+        ../../engine/decal_clip.cpp ../../engine/gl_drawlights.cpp
+        ../../engine/Overlay.cpp ../../engine/gl_warp.cpp ../../engine/decals.cpp
+        ../../engine/gl_rlight.cpp ../../engine/gl_rmisc.cpp ../../engine/r_areaportal.cpp
+        ../../engine/debug_leafvis.cpp ../../engine/enginestats.cpp
+        ../../engine/disp.cpp ../../engine/disp_mapload.cpp ../../engine/disp_interface.cpp
+        ../../engine/disp_defs.cpp ../../engine/disp_helpers.cpp
+        ../../public/materialsystem/MaterialSystemUtil.cpp
+        ../../public/lumpfiles.cpp ../../public/disp_powerinfo.cpp ../../public/disp_common.cpp
         ../../public/builddisp.cpp ../../public/dispcoll_common.cpp ../../public/collisionutils.cpp)
     target_compile_features(EngineMapSupport PRIVATE cxx_std_11)
     target_compile_options(EngineMapSupport PRIVATE -fsigned-char)
@@ -113,7 +123,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_link_options(EngineMapLinkCheck PRIVATE
         "-Wl,-force_load,$<TARGET_FILE:EngineWorldLoader>")
     target_link_libraries(EngineMapLinkCheck PRIVATE EngineWorldLoader EngineMapSupport
-        ToGLESRuntime "${ENGINE_BUILD}/mathlib/libmathlib.a"
+        ToGLESRuntime SDL2-static "${ENGINE_BUILD}/mathlib/libmathlib.a"
         "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib")
     add_library(EngineFilesystem OBJECT
         ../../filesystem/basefilesystem.cpp ../../filesystem/packfile.cpp
