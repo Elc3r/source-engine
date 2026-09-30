@@ -793,7 +793,7 @@ message implementations. `sv_main.cpp` now reports `IOS` in its server-spawn
 platform field, resolving its unsupported-platform compile error. These sources
 compile, but their runtime behavior has not been exercised.
 
-The full-export link now fails with **94 unresolved symbols**: host/client
+The full-export link now fails with **71 unresolved symbols**: host/client
 sources expose networking, audio, demo and platform services that were absent
 from the earlier frontier. Symbol counts are not a completion percentage.
 To inspect the smaller loader/renderer interface boundary, run:
@@ -805,7 +805,7 @@ python3 scripts/ios-link-map.py --interface-scope
 This exports both real interface anchors and enables linker dead stripping.
 Their reachable implementations, virtual tables and static initializers remain;
 there are no placeholder services or unresolved-symbol bypasses. That link
-currently fails with **89 unresolved symbols**. Adding the actual `cl` and `sv`
+currently fails with **70 unresolved symbols**. Adding the actual `cl` and `sv`
 objects retains their constructors and virtual tables. The support target now
 includes `CBaseServer`, `CBaseClient`, `CGameClient`, the actual client packet
 handlers, client frames, snapshots, packed entities, network string tables and
@@ -861,6 +861,15 @@ Including these original UI implementations changes the scoped result from 82
 to 89 missing symbols and reduces the full-export audit from 308 to 94. Remaining
 services include Steam, application/module setup, downloads, tool/plugin services
 and auxiliary debug/editor UI. No VGUI system/surface module has been initialized.
+The actual application bootstrap, engine/tool framework, server plugins, master
+and phonehome services, demo actions/editors, auxiliary debug panels and video
+mode implementation now compile too. On iOS, desktop Steam Breakpad registration
+is excluded because its APIs are not declared for this target. SDL window sizing
+uses its own local bounds instead of requiring a Win32 RECT; an unused UUID alias
+was removed. These are compile/platform fixes, not verified runtime behavior.
+The scoped link now has 70 missing symbols and the full-export audit has 71,
+down from 89 and 94 respectively. External Steam functions and remaining
+application services still prevent linking and startup.
 The application
 still cannot construct and initialize the complete client/server state.
 The interface check does not cover future startup entry points until they are

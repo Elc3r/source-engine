@@ -1160,17 +1160,6 @@ typedef struct tagRGBQUAD {
 #define BI_RLE4       2L
 #define BI_BITFIELDS  3L
 
-#if 0
-typedef struct _GUID
-{
-    unsigned long Data1;
-    unsigned short Data2;
-    unsigned short Data3;
-    unsigned char Data4[8];
-} GUID;
-
-#endif
-typedef GUID UUID;
 
 #endif //WIN32
 //-----------------------------------------------------------------------------
@@ -1369,7 +1358,12 @@ void CVideoMode_Common::AdjustWindow( int nWidth, int nHeight, int nBPP, bool bW
 	// Use Change Display Settings to go full screen
 	ChangeDisplaySettingsToFullscreen( nWidth, nHeight, nBPP );
 
+#if defined(USE_SDL)
+	// SDL window sizing does not need Win32 RECT declarations.
+	struct { int top, left, right, bottom; } WindowRect;
+#else
 	RECT WindowRect;
+#endif
 	WindowRect.top      = 0;
 	WindowRect.left     = 0;
 	WindowRect.right    = nWidth;

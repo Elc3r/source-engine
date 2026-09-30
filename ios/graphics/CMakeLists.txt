@@ -114,6 +114,19 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/sys_mainwind.cpp ../../engine/enginethreads.cpp
         ../../engine/vgui_baseui_interface.cpp ../../engine/vgui_basepanel.cpp
         ../../engine/vgui_helpers.cpp ../../engine/vgui_askconnectpanel.cpp
+        ../../engine/enginetool.cpp ../../engine/toolframework.cpp ../../engine/sv_plugin.cpp
+        ../../engine/masterserver.cpp ../../engine/host_phonehome.cpp
+        ../../engine/sys_dll2.cpp ../../engine/gametrace_engine.cpp
+        ../../engine/sys_getmodes.cpp ../../engine/cl_pluginhelpers.cpp
+        ../../engine/vgui_drawtreepanel.cpp ../../engine/cl_texturelistpanel.cpp
+        ../../engine/cl_foguipanel.cpp ../../engine/cl_txviewpanel.cpp
+        ../../engine/vgui_DebugSystemPanel.cpp
+        ../../public/dt_utlvector_common.cpp ../../public/dt_utlvector_recv.cpp
+        ../../public/dt_utlvector_send.cpp
+        ../../engine/cl_demoaction.cpp ../../engine/cl_demoactionmanager.cpp
+        ../../engine/cl_demoaction_types.cpp ../../engine/cl_demoactioneditors.cpp
+        ../../engine/cl_demoeditorpanel.cpp ../../engine/cl_demosmootherpanel.cpp
+        ../../public/filesystem_init.cpp
         ../../engine/cl_demouipanel.cpp ../../public/vgui_controls/vgui_controls.cpp
         ../../public/registry.cpp ../../engine/mem_fgets.cpp ../../tier2/fileutils.cpp
         ../../engine/ccs.cpp ../../engine/cheatcodes.cpp ../../engine/cl_parse_event.cpp
