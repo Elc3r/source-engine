@@ -109,6 +109,18 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/clockdriftmgr.cpp ../../engine/cvar.cpp ../../engine/baseautocompletefilelist.cpp
         ../../engine/cl_main.cpp ../../engine/sv_main.cpp ../../engine/view.cpp
         ../../common/netmessages.cpp
+        ../../engine/baseserver.cpp ../../engine/baseclient.cpp ../../engine/sv_client.cpp
+        ../../engine/servermsghandler.cpp ../../engine/clientframe.cpp
+        ../../engine/sv_framesnapshot.cpp ../../engine/packed_entity.cpp
+        ../../engine/networkstringtable.cpp ../../engine/networkstringtableclient.cpp
+        ../../engine/networkstringtableserver.cpp ../../engine/cl_ents_parse.cpp
+        ../../engine/dt.cpp ../../public/dt_send.cpp ../../public/dt_recv.cpp
+        ../../engine/LocalNetworkBackdoor.cpp
+        ../../engine/dt_send_eng.cpp ../../engine/dt_recv_eng.cpp
+        ../../engine/dt_common_eng.cpp ../../engine/dt_recv_decoder.cpp
+        ../../engine/dt_encode.cpp ../../engine/dt_stack.cpp ../../engine/dt_localtransfer.cpp
+        ../../engine/dt_instrumentation.cpp ../../engine/dt_instrumentation_server.cpp
+        ../../engine/changeframelist.cpp ../../engine/sv_packedentities.cpp ../../engine/sv_ents_write.cpp
         ../../engine/staticpropmgr.cpp ../../engine/shadowmgr.cpp
         ../../engine/l_studio.cpp ../../engine/enginetrace.cpp ../../engine/debugoverlay.cpp
         ../../engine/gl_rlight.cpp ../../engine/gl_rmisc.cpp ../../engine/r_areaportal.cpp

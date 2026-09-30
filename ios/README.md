@@ -793,7 +793,7 @@ message implementations. `sv_main.cpp` now reports `IOS` in its server-spawn
 platform field, resolving its unsupported-platform compile error. These sources
 compile, but their runtime behavior has not been exercised.
 
-The full-export link now fails with **407 unresolved symbols**: host/client
+The full-export link now fails with **322 unresolved symbols**: host/client
 sources expose networking, audio, demo and platform services that were absent
 from the earlier frontier. Symbol counts are not a completion percentage.
 To inspect the smaller loader/renderer interface boundary, run:
@@ -805,14 +805,16 @@ python3 scripts/ios-link-map.py --interface-scope
 This exports both real interface anchors and enables linker dead stripping.
 Their reachable implementations, virtual tables and static initializers remain;
 there are no placeholder services or unresolved-symbol bypasses. That link
-currently fails with **240 unresolved symbols**. Adding the actual `cl` and `sv`
-objects retains their constructors and virtual tables, exposing the missing
-`CBaseServer`, client packet handlers, entity replication, demo and network
-services. This is a larger reachable graph than the previous 71-symbol result
-where the global objects themselves were unresolved. Precache and clock-drift
-implementations are now present; the application still cannot construct and
-initialize the complete client/server state. Statically registered host commands
-also require sound/configuration services.
+currently fails with **198 unresolved symbols**. Adding the actual `cl` and `sv`
+objects retains their constructors and virtual tables. The support target now
+includes `CBaseServer`, `CBaseClient`, `CGameClient`, the actual client packet
+handlers, client frames, snapshots, packed entities, network string tables and
+entity delta encode/decode/local-transfer implementations. These sources compile
+for the simulator; `packed_entity.cpp` uses the Apple malloc header on iOS.
+Their addition reduced the scoped unresolved count from 240 to 198 and the
+full-export count from 407 to 322. Network transport, audio/voice, Steam,
+demo/HLTV and platform services remain among the missing groups. The application
+still cannot construct and initialize the complete client/server state.
 The interface check does not cover future startup entry points until they are
 also retained. Neither check establishes a runnable map-load path.
 
