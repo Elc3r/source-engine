@@ -109,6 +109,10 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/clockdriftmgr.cpp ../../engine/cvar.cpp ../../engine/baseautocompletefilelist.cpp
         ../../engine/cl_main.cpp ../../engine/sv_main.cpp ../../engine/view.cpp
         ../../common/netmessages.cpp
+        ../../engine/net_ws.cpp ../../engine/net_chan.cpp
+        ../../engine/net_ws_queued_packet_sender.cpp ../../engine/socketcreator.cpp
+        ../../engine/sys_dll.cpp ../../engine/checksum_engine.cpp
+        ../../engine/cl_rcon.cpp ../../engine/sv_rcon.cpp ../../common/SourceAppInfo.cpp
         ../../engine/baseserver.cpp ../../engine/baseclient.cpp ../../engine/sv_client.cpp
         ../../engine/servermsghandler.cpp ../../engine/clientframe.cpp
         ../../engine/sv_framesnapshot.cpp ../../engine/packed_entity.cpp

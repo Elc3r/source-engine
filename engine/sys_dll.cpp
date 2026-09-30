@@ -12,6 +12,9 @@
 #elif defined(OSX)
 #include <Carbon/Carbon.h>
 #include <sys/sysctl.h>
+#elif defined(IOS)
+#include <sys/types.h>
+#include <sys/sysctl.h>
 #elif defined(PLATFORM_BSD)
 #include <sys/types.h>
 #include <sys/sysctl.h>
@@ -668,7 +671,7 @@ void Sys_InitMemory( void )
 #elif defined(POSIX)
 	uint64_t memsize = ONE_HUNDRED_TWENTY_EIGHT_MB;
 
-#if defined(OSX) || defined(PLATFORM_BSD)
+#if defined(OSX) || defined(IOS) || defined(PLATFORM_BSD)
 	int mib[2] = { CTL_HW, HW_MEMSIZE };
 	u_int namelen = sizeof(mib) / sizeof(mib[0]);
 	size_t len = sizeof(memsize);
