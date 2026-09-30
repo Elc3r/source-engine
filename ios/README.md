@@ -793,7 +793,7 @@ message implementations. `sv_main.cpp` now reports `IOS` in its server-spawn
 platform field, resolving its unsupported-platform compile error. These sources
 compile, but their runtime behavior has not been exercised.
 
-The full-export link now fails with **33 unresolved symbols**: host/client
+The full-export link now fails with **24 unresolved symbols**: host/client
 sources expose networking, audio, demo and platform services that were absent
 from the earlier frontier. Symbol counts are not a completion percentage.
 To inspect the smaller loader/renderer interface boundary, run:
@@ -805,7 +805,7 @@ python3 scripts/ios-link-map.py --interface-scope
 This exports both real interface anchors and enables linker dead stripping.
 Their reachable implementations, virtual tables and static initializers remain;
 there are no placeholder services or unresolved-symbol bypasses. That link
-currently fails with **32 unresolved symbols**. Adding the actual `cl` and `sv`
+currently fails with **23 unresolved symbols**. Adding the actual `cl` and `sv`
 objects retains their constructors and virtual tables. The support target now
 includes `CBaseServer`, `CBaseClient`, `CGameClient`, the actual client packet
 handlers, client frames, snapshots, packed entities, network string tables and
@@ -881,6 +881,20 @@ now has 32 missing symbols and the full-export audit has 33, down from 70/71.
 Most remaining symbols belong to Steam and asset downloading; assert UI,
 telemetry upload and the replay pointer are also unresolved. A complete link
 and runtime initialization are still pending.
+The original HTTP downloader and upload service now compile with vendored
+libcurl and BZip2. Curl uses Apple's Secure Transport backend and native Apple
+frameworks; this older curl CMake needs explicit iOS backend settings. Its poll
+runtime configuration test is disabled for cross compilation, selecting the
+portable select path. No HTTP/HTTPS request has been tested. BZip2's header-only
+index helper now has static linkage so C11 emits its small-memory decompression
+implementation. A native host codec check passes normal/small-memory roundtrips
+and corrupt-header rejection; the ARM64 simulator library builds too.
+
+SDL assert-window state was moved unchanged into `tier0/assert_sdl.cpp`, included
+by the desktop Waf/VPC manifests and this SDL integration target. The actual
+replay integration source is included as well. Remaining scoped/full-export
+counts are 23/24, all related to Steam APIs and Steam client/server integration.
+These are hard link failures; no Steam compatibility library has been supplied.
 The application
 still cannot construct and initialize the complete client/server state.
 The interface check does not cover future startup entry points until they are

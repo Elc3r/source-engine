@@ -91,6 +91,29 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
     target_include_directories(EngineWorldServices PRIVATE
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
+    # HTTP asset downloads use the vendored curl with Apple's TLS backend.
+    set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    set(CMAKE_USE_SECTRANSP ON CACHE BOOL "" FORCE)
+    set(CMAKE_USE_OPENSSL OFF CACHE BOOL "" FORCE)
+    set(CMAKE_USE_LIBSSH2 OFF CACHE BOOL "" FORCE)
+    set(CURL_CA_PATH "none" CACHE STRING "" FORCE)
+    set(CURL_CA_BUNDLE "none" CACHE STRING "" FORCE)
+    # This curl CMake version recognizes macOS only in its Apple TLS block.
+    # Supply the same native backend for iOS without changing vendored sources.
+    set(SSL_ENABLED ON)
+    set(USE_SECTRANSP ON)
+    # Its poll timing test cannot run during this cross build; use select.
+    set(HAVE_POLL_FINE OFF CACHE BOOL "" FORCE)
+    add_subdirectory(../../thirdparty/curl curl EXCLUDE_FROM_ALL)
+    target_link_libraries(libcurl "-framework CoreFoundation"
+        "-framework SystemConfiguration" "-framework Security")
+    add_library(EngineBZip2 STATIC EXCLUDE_FROM_ALL
+        ../../utils/bzip2/blocksort.c ../../utils/bzip2/bzlib.c
+        ../../utils/bzip2/compress.c ../../utils/bzip2/crctable.c
+        ../../utils/bzip2/decompress.c ../../utils/bzip2/huffman.c
+        ../../utils/bzip2/randtable.c)
     # Actual map-loading dependencies, separate from the runnable graphics probe.
     add_library(EngineMapSupport STATIC EXCLUDE_FROM_ALL
         ../../engine/cmodel.cpp ../../engine/cmodel_disp.cpp ../../engine/gl_draw.cpp
@@ -106,6 +129,9 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/host.cpp ../../engine/client.cpp ../../engine/baseclientstate.cpp
         ../../engine/common.cpp ../../engine/cmd.cpp ../../engine/initmathlib.cpp
         ../../engine/mapreslistgenerator.cpp ../../engine/precache.cpp
+        ../../engine/download.cpp ../../engine/downloadthread.cpp
+        ../../engine/sv_uploaddata.cpp ../../tier0/assert_sdl.cpp
+        ../../engine/replay_internal.cpp
         ../../engine/console.cpp ../../engine/keys.cpp ../../engine/gl_screen.cpp
         ../../engine/tmessage.cpp ../../engine/traceinit.cpp ../../engine/zone_memory.cpp
         ../../tier2/riff.cpp ../../tier2/utlstreambuffer.cpp ../../public/sentence.cpp
@@ -218,9 +244,9 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../public/builddisp.cpp ../../public/dispcoll_common.cpp ../../public/collisionutils.cpp)
     target_compile_features(EngineMapSupport PRIVATE cxx_std_11)
     target_compile_options(EngineMapSupport PRIVATE -fsigned-char)
-    target_compile_definitions(EngineMapSupport PRIVATE DMXLOADER_LIB=1
+    target_compile_definitions(EngineMapSupport PRIVATE DMXLOADER_LIB=1 CURL_STATICLIB=1
         $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
-    target_include_directories(EngineMapSupport PRIVATE ../../public/tier2
+    target_include_directories(EngineMapSupport PRIVATE ../../public/tier2 ../../thirdparty/curl/include
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
     # Original VGUI controls library required by the engine UI.
     add_library(EngineVGUIControls STATIC EXCLUDE_FROM_ALL
@@ -326,7 +352,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
             "-Wl,-exported_symbol,_SourceIOSMapLoaderLinkAnchor"
             "-Wl,-exported_symbol,_SourceIOSWorldRendererLinkAnchor")
     endif()
-    target_link_libraries(EngineMapLinkCheck PRIVATE EngineWorldLoader EngineMapSupport EngineVGUIControls
+    target_link_libraries(EngineMapLinkCheck PRIVATE EngineWorldLoader EngineMapSupport EngineVGUIControls EngineBZip2 libcurl
         ToGLESRuntime SDL2-static IOSImage "${ENGINE_BUILD}/mathlib/libmathlib.a"
         "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib")
     add_library(EngineFilesystem OBJECT

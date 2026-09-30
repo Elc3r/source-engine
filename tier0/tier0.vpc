@@ -111,6 +111,7 @@ $Project "tier0"
 	$Folder	"Source Files"
 	{
 		$File	"assert_dialog.cpp"
+		$File	"assert_sdl.cpp"
 		$File	"assert_dialog.rc"		[$WINDOWS]
 		$File	"commandline.cpp"
 		$File	"cpu.cpp"
