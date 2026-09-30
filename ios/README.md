@@ -793,9 +793,9 @@ message implementations. `sv_main.cpp` now reports `IOS` in its server-spawn
 platform field, resolving its unsupported-platform compile error. These sources
 compile, but their runtime behavior has not been exercised.
 
-The full-export link now fails with **24 unresolved symbols**: host/client
-sources expose networking, audio, demo and platform services that were absent
-from the earlier frontier. Symbol counts are not a completion percentage.
+The full-export link now **passes with zero unresolved symbols** for the ARM64
+iOS simulator. It retains the actual loader and renderer with their engine
+support sources. This is a link audit, not a running engine or loaded map.
 To inspect the smaller loader/renderer interface boundary, run:
 
 ```sh
@@ -805,7 +805,7 @@ python3 scripts/ios-link-map.py --interface-scope
 This exports both real interface anchors and enables linker dead stripping.
 Their reachable implementations, virtual tables and static initializers remain;
 there are no placeholder services or unresolved-symbol bypasses. That link
-currently fails with **23 unresolved symbols**. Adding the actual `cl` and `sv`
+also passes with **zero unresolved symbols**. Adding the actual `cl` and `sv`
 objects retains their constructors and virtual tables. The support target now
 includes `CBaseServer`, `CBaseClient`, `CGameClient`, the actual client packet
 handlers, client frames, snapshots, packed entities, network string tables and
@@ -892,11 +892,20 @@ and corrupt-header rejection; the ARM64 simulator library builds too.
 
 SDL assert-window state was moved unchanged into `tier0/assert_sdl.cpp`, included
 by the desktop Waf/VPC manifests and this SDL integration target. The actual
-replay integration source is included as well. Remaining scoped/full-export
-counts are 23/24, all related to Steam APIs and Steam client/server integration.
-These are hard link failures; no Steam compatibility library has been supplied.
-The application
-still cannot construct and initialize the complete client/server state.
+replay integration source is included as well.
+
+The iOS engine targets now use the existing `NO_STEAM` configuration and compile
+the original client/server Steam integration classes. Missing compile guards
+were completed for cloud configuration reads, IPC diagnostics, voice context
+initialization and game-server lifecycle. Steam voice and authenticated client
+connections explicitly fail; client auth tickets have zero length and never
+report a secure session. Server activation selects LAN-only mode without
+initializing an SDK session. Local iOS module loading follows the desktop Apple
+policy of omitting Steam signature checks; the signature-query function itself
+reports that verification is unavailable. No Steam stub library is linked.
+Both full-export and scoped strict links now pass with zero unresolved symbols.
+Offline lifecycle and networking behavior have not been runtime-tested.
+The application still needs real service/module initialization before map loading.
 The interface check does not cover future startup entry points until they are
 also retained. Neither check establishes a runnable map-load path.
 

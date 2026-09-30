@@ -75,7 +75,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_compile_features(EngineWorldLoader PRIVATE cxx_std_11)
     target_compile_options(EngineWorldLoader PRIVATE -fsigned-char)
     target_compile_definitions(EngineWorldLoader PRIVATE IOS=1 POSIX=1 _POSIX=1
-        PLATFORM_POSIX=1 PLATFORM_64BITS=1 GNUC NDEBUG ENGINE_DLL=1 VERSION_SAFE_STEAM_API_INTERFACES
+        PLATFORM_POSIX=1 PLATFORM_64BITS=1 GNUC NDEBUG ENGINE_DLL=1 VERSION_SAFE_STEAM_API_INTERFACES NO_STEAM=1
         NO_HOOK_MALLOC NO_MEMOVERRIDE_NEW_DELETE TIER1_STATIC_LIB=1
         DX_TO_GL_ABSTRACTION=1 TOGLES=1 USE_SDL=1 _DLL_EXT=.dylib)
     target_include_directories(EngineWorldLoader PRIVATE
@@ -211,6 +211,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../public/XZip.cpp ../../public/XUnzip.cpp ../../common/steamid.cpp
         ../../engine/clockdriftmgr.cpp ../../engine/cvar.cpp ../../engine/baseautocompletefilelist.cpp
         ../../engine/cl_main.cpp ../../engine/sv_main.cpp ../../engine/view.cpp
+        ../../engine/cl_steamauth.cpp ../../engine/sv_steamauth.cpp
         ../../common/netmessages.cpp
         ../../engine/net_ws.cpp ../../engine/net_chan.cpp
         ../../engine/net_ws_queued_packet_sender.cpp ../../engine/socketcreator.cpp

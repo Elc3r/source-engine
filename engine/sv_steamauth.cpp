@@ -127,6 +127,9 @@ CSteam3Server::CSteam3Server()
 //-----------------------------------------------------------------------------
 EServerMode CSteam3Server::GetCurrentServerMode()
 {
+#if defined( NO_STEAM )
+	return eServerModeNoAuthentication;
+#else
 	if ( sv_lan.GetBool() )
 	{
 		return eServerModeNoAuthentication;
@@ -139,6 +142,7 @@ EServerMode CSteam3Server::GetCurrentServerMode()
 	{
 		return eServerModeAuthenticationAndSecure;
 	}
+#endif
 }
 
 
@@ -153,6 +157,14 @@ CSteam3Server::~CSteam3Server()
 
 void CSteam3Server::Activate( EServerType serverType )
 {
+#if defined( NO_STEAM )
+	// Local/LAN operation has no Steam session or authenticated identity.
+	m_eServerMode = eServerModeNoAuthentication;
+	m_eServerType = serverType;
+	m_bMasterServerUpdaterSharingGameSocket = false;
+	sv_lan.SetValue( true );
+	return;
+#else
 	// we are active, check if sv_lan changed or we're trying to change server type
 	if ( GetCurrentServerMode() == m_eServerMode && m_eServerType == serverType )
 	{
@@ -293,6 +305,7 @@ steam_no_good:
 #endif
 
 	SendUpdatedServerDetails();
+#endif
 }
 
 
@@ -301,10 +314,12 @@ steam_no_good:
 //-----------------------------------------------------------------------------
 void CSteam3Server::Shutdown()
 {
+#if !defined( NO_STEAM )
 	if ( !BIsActive() )
 		return;
 
 	SteamGameServer_Shutdown();
+#endif
 	m_bHasActivePlayers = false;
 	m_bLogOnResult = false;
 	m_SteamIDGS = k_steamIDNotInitYetGS;
@@ -703,6 +718,10 @@ CBaseClient *CSteam3Server::ClientFindFromSteamID( CSteamID & steamIDFind )
 //-----------------------------------------------------------------------------
 bool CSteam3Server::NotifyClientConnect( CBaseClient *client, uint32 unUserID, netadr_t & adr, const void *pvCookie, uint32 ucbCookie )
 {
+#if defined( NO_STEAM )
+	WarningAndLog( "Steam authentication is unavailable in this build\n" );
+	return false;
+#else
 	if ( !BIsActive() ) 
 		return true;
 
@@ -769,6 +788,7 @@ bool CSteam3Server::NotifyClientConnect( CBaseClient *client, uint32 unUserID, n
 	SendUpdatedServerDetails();
 
 	return true;
+#endif
 }
 
 bool CSteam3Server::NotifyLocalClientConnect( CBaseClient *client )
@@ -859,6 +879,7 @@ void CSteam3Server::RunFrame()
 		SendUpdatedServerDetails();
 	}
 
+#if !defined( NO_STEAM )
 	static double s_fLastRunCallback = 0.0f;
 	double fCurtime = Plat_FloatTime();
 	if ( fCurtime - s_fLastRunCallback > 0.1f )
@@ -866,6 +887,7 @@ void CSteam3Server::RunFrame()
 		s_fLastRunCallback = fCurtime;
 		SteamGameServer_RunCallbacks();
 	}
+#endif
 }
 
 
