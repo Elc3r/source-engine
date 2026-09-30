@@ -787,7 +787,13 @@ implementation. This required the engine's existing
 and opaque launcher-interface declarations instead of desktop GL headers.
 Steam services are not implemented by these compile fixes.
 
-The full-export link now fails with **369 unresolved symbols**: host/client
+The support target additionally includes the original precache, clock-drift,
+cvar utilities, file completion, client/server globals, render-view and network
+message implementations. `sv_main.cpp` now reports `IOS` in its server-spawn
+platform field, resolving its unsupported-platform compile error. These sources
+compile, but their runtime behavior has not been exercised.
+
+The full-export link now fails with **407 unresolved symbols**: host/client
 sources expose networking, audio, demo and platform services that were absent
 from the earlier frontier. Symbol counts are not a completion percentage.
 To inspect the smaller loader/renderer interface boundary, run:
@@ -799,9 +805,14 @@ python3 scripts/ios-link-map.py --interface-scope
 This exports both real interface anchors and enables linker dead stripping.
 Their reachable implementations, virtual tables and static initializers remain;
 there are no placeholder services or unresolved-symbol bypasses. That link
-currently fails with **71 unresolved symbols**. In particular, statically
-registered host commands still require sound/configuration services, and client
-time/model accessors require precache, clock, global client/server and demo state.
+currently fails with **240 unresolved symbols**. Adding the actual `cl` and `sv`
+objects retains their constructors and virtual tables, exposing the missing
+`CBaseServer`, client packet handlers, entity replication, demo and network
+services. This is a larger reachable graph than the previous 71-symbol result
+where the global objects themselves were unresolved. Precache and clock-drift
+implementations are now present; the application still cannot construct and
+initialize the complete client/server state. Statically registered host commands
+also require sound/configuration services.
 The interface check does not cover future startup entry points until they are
 also retained. Neither check establishes a runnable map-load path.
 

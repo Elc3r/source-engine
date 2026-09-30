@@ -105,7 +105,10 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/filesystem_engine.cpp ../../engine/ModelInfo.cpp
         ../../engine/host.cpp ../../engine/client.cpp ../../engine/baseclientstate.cpp
         ../../engine/common.cpp ../../engine/cmd.cpp ../../engine/initmathlib.cpp
-        ../../engine/mapreslistgenerator.cpp
+        ../../engine/mapreslistgenerator.cpp ../../engine/precache.cpp
+        ../../engine/clockdriftmgr.cpp ../../engine/cvar.cpp ../../engine/baseautocompletefilelist.cpp
+        ../../engine/cl_main.cpp ../../engine/sv_main.cpp ../../engine/view.cpp
+        ../../common/netmessages.cpp
         ../../engine/staticpropmgr.cpp ../../engine/shadowmgr.cpp
         ../../engine/l_studio.cpp ../../engine/enginetrace.cpp ../../engine/debugoverlay.cpp
         ../../engine/gl_rlight.cpp ../../engine/gl_rmisc.cpp ../../engine/r_areaportal.cpp
