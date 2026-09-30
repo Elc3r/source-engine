@@ -793,7 +793,7 @@ message implementations. `sv_main.cpp` now reports `IOS` in its server-spawn
 platform field, resolving its unsupported-platform compile error. These sources
 compile, but their runtime behavior has not been exercised.
 
-The full-export link now fails with **440 unresolved symbols**: host/client
+The full-export link now fails with **412 unresolved symbols**: host/client
 sources expose networking, audio, demo and platform services that were absent
 from the earlier frontier. Symbol counts are not a completion percentage.
 To inspect the smaller loader/renderer interface boundary, run:
@@ -805,7 +805,7 @@ python3 scripts/ios-link-map.py --interface-scope
 This exports both real interface anchors and enables linker dead stripping.
 Their reachable implementations, virtual tables and static initializers remain;
 there are no placeholder services or unresolved-symbol bypasses. That link
-currently fails with **124 unresolved symbols**. Adding the actual `cl` and `sv`
+currently fails with **179 unresolved symbols**. Adding the actual `cl` and `sv`
 objects retains their constructors and virtual tables. The support target now
 includes `CBaseServer`, `CBaseClient`, `CGameClient`, the actual client packet
 handlers, client frames, snapshots, packed entities, network string tables and
@@ -826,6 +826,14 @@ compiled from their original sources. These reduce the scoped link from 170 to
 exporting all functions pulls in additional services beyond the two retained
 interfaces (including utility/archive, lifecycle and game-module paths). The two
 counts describe different dependency graphs and are not completion percentages.
+Host state/commands, the engine-client interface, prediction, material-system
+connection, engine state and remote-access implementations now compile too.
+The demo player, HLTV server/client/state/recording, save/restore and ZIP helpers
+are included with their real implementations. The Steam ID formatting helper
+is also included; this does not provide a Steam runtime. Expanding these paths
+changed the scoped result from 124 to 179 missing symbols and the full-export
+result from 440 to 412. UI, audio, Steam runtime and further module/lifecycle
+services still prevent linking. No host startup or map execution has succeeded.
 The application
 still cannot construct and initialize the complete client/server state.
 The interface check does not cover future startup entry points until they are

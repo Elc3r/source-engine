@@ -106,6 +106,15 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/host.cpp ../../engine/client.cpp ../../engine/baseclientstate.cpp
         ../../engine/common.cpp ../../engine/cmd.cpp ../../engine/initmathlib.cpp
         ../../engine/mapreslistgenerator.cpp ../../engine/precache.cpp
+        ../../engine/host_state.cpp ../../engine/host_cmd.cpp
+        ../../engine/cdll_engine_int.cpp ../../engine/cl_pred.cpp
+        ../../engine/gl_shader.cpp ../../engine/materialproxyfactory.cpp
+        ../../engine/sv_remoteaccess.cpp ../../engine/sys_engine.cpp
+        ../../engine/cl_demo.cpp ../../engine/demofile.cpp
+        ../../engine/hltvserver.cpp ../../engine/hltvclient.cpp ../../engine/hltvclientstate.cpp
+        ../../engine/hltvdemo.cpp ../../engine/hltvtest.cpp
+        ../../engine/host_saverestore.cpp ../../engine/saverestore_filesystem.cpp
+        ../../public/XZip.cpp ../../public/XUnzip.cpp ../../common/steamid.cpp
         ../../engine/clockdriftmgr.cpp ../../engine/cvar.cpp ../../engine/baseautocompletefilelist.cpp
         ../../engine/cl_main.cpp ../../engine/sv_main.cpp ../../engine/view.cpp
         ../../common/netmessages.cpp
