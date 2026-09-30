@@ -793,7 +793,7 @@ message implementations. `sv_main.cpp` now reports `IOS` in its server-spawn
 platform field, resolving its unsupported-platform compile error. These sources
 compile, but their runtime behavior has not been exercised.
 
-The full-export link now fails with **308 unresolved symbols**: host/client
+The full-export link now fails with **94 unresolved symbols**: host/client
 sources expose networking, audio, demo and platform services that were absent
 from the earlier frontier. Symbol counts are not a completion percentage.
 To inspect the smaller loader/renderer interface boundary, run:
@@ -805,7 +805,7 @@ python3 scripts/ios-link-map.py --interface-scope
 This exports both real interface anchors and enables linker dead stripping.
 Their reachable implementations, virtual tables and static initializers remain;
 there are no placeholder services or unresolved-symbol bypasses. That link
-currently fails with **82 unresolved symbols**. Adding the actual `cl` and `sv`
+currently fails with **89 unresolved symbols**. Adding the actual `cl` and `sv`
 objects retains their constructors and virtual tables. The support target now
 includes `CBaseServer`, `CBaseClient`, `CGameClient`, the actual client packet
 handlers, client frames, snapshots, packed entities, network string tables and
@@ -852,6 +852,15 @@ input and lifecycle behavior still require a running launcher and remain
 untested. These additions reduce the scoped missing count from 154 to 82 and
 the full-export audit from 382 to 308. UI modules, Steam runtime and further
 application/module services still prevent a complete link.
+The engine VGUI integration, base panel, helpers, ask-connect and demo panels,
+registry and file utilities now compile. `EngineVGUIControls` builds the original
+controls-library source list from `vgui2/vgui_controls/wscript` as a separate
+static archive and is linked into the check. `TextImage.cpp` selects the Apple
+malloc header on iOS. Both support and controls archives build successfully.
+Including these original UI implementations changes the scoped result from 82
+to 89 missing symbols and reduces the full-export audit from 308 to 94. Remaining
+services include Steam, application/module setup, downloads, tool/plugin services
+and auxiliary debug/editor UI. No VGUI system/surface module has been initialized.
 The application
 still cannot construct and initialize the complete client/server state.
 The interface check does not cover future startup entry points until they are
