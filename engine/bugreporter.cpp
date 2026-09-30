@@ -16,7 +16,7 @@
 #elif defined(POSIX)
 #include <sys/stat.h>
 
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <copyfile.h>
 #import <mach/mach_host.h>
 #import <sys/sysctl.h>
@@ -108,6 +108,8 @@
 // Fixme, move these to buguiddata.res script file?
 #ifdef WIN32
 #define BUG_REPOSITORY_URL "\\\\fileserver\\bugs"
+#elif defined(IOS)
+#define BUG_REPOSITORY_URL ""
 #elif defined(OSX)
 #define BUG_REPOSITORY_URL "/Volumes/bugs"
 #elif defined(LINUX) || defined(PLATFORM_BSD)
@@ -144,7 +146,7 @@ unsigned long GetRam()
 	MEMORYSTATUS stat;
 	GlobalMemoryStatus( &stat );
 	return (stat.dwTotalPhys / (1024 * 1024));
-#elif defined(OSX) || defined(PLATFORM_BSD)
+#elif defined(OSX) || defined(IOS) || defined(PLATFORM_BSD)
 	int mib[2] = { CTL_HW, HW_MEMSIZE };
 	u_int namelen = sizeof(mib) / sizeof(mib[0]);
 	uint64_t memsize;
@@ -282,6 +284,18 @@ void DisplaySystemVersion( char *osversion, int maxlen )
 		
 		Q_strncat ( osversion, "Win32s ", maxlen, COPY_ALL_CHARACTERS );
 		break;
+	}
+#elif defined(IOS)
+	char version[128];
+	size_t versionLength = sizeof(version);
+	if ( sysctlbyname( "kern.osrelease", version, &versionLength, NULL, 0 ) == 0 )
+	{
+		version[sizeof(version) - 1] = 0;
+		Q_snprintf( osversion, maxlen, "iOS Darwin %s", version );
+	}
+	else
+	{
+		Q_strncpy( osversion, "iOS", maxlen );
 	}
 #elif defined(OSX)
 	FILE *fpVersionInfo = popen( "/usr/bin/sw_vers", "r" );
@@ -2572,7 +2586,7 @@ void CBugUIPanel::DetermineSubmitterName()
 		Q_snprintf( fn, sizeof( fn ), "%s/%s", GetRepositoryURL(), REPOSITORY_VALIDATION_FILE );
 		Q_FixSlashes( fn );
 
-		FILE *fp = fopen( fn, "rb" );
+		FILE *fp = GetRepositoryURL()[0] ? fopen( fn, "rb" ) : NULL;
 		if ( fp )
 		{
 			ConColorMsg( clr, "Bug Repository '%s'\n", GetRepositoryURL() );

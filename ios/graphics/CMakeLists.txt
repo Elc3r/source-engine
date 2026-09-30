@@ -117,6 +117,21 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/enginetool.cpp ../../engine/toolframework.cpp ../../engine/sv_plugin.cpp
         ../../engine/masterserver.cpp ../../engine/host_phonehome.cpp
         ../../engine/sys_dll2.cpp ../../engine/gametrace_engine.cpp
+        ../../engine/bitbuf_errorhandler.cpp ../../engine/cl_localnetworkbackdoor.cpp
+        ../../engine/host_listmaps.cpp ../../engine/randomstream.cpp ../../engine/cl_check_process.cpp
+        ../../engine/vengineserver_impl.cpp ../../engine/r_efx.cpp ../../engine/xboxsystem.cpp
+        ../../engine/bugreporter.cpp ../../engine/colorcorrectionpanel.cpp
+        ../../engine/matchmakingclient.cpp ../../engine/matchmakinghost.cpp
+        ../../engine/matchmakingmigrate.cpp ../../engine/matchmakingqos.cpp
+        ../../engine/matchmakingshared.cpp ../../engine/Session.cpp
+        ../../engine/perfuipanel.cpp ../../engine/buildcubemaps.cpp
+        ../../vgui2/matsys_controls/curveeditorpanel.cpp
+        ../../vgui2/matsys_controls/proceduraltexturepanel.cpp
+        ../../appframework/AppSystemGroup.cpp
+        ../../public/blockingudpsocket.cpp ../../vgui2/matsys_controls/matsyscontrols.cpp
+        ../../dmxloader/dmxattribute.cpp ../../dmxloader/dmxelement.cpp
+        ../../dmxloader/dmxloader.cpp ../../dmxloader/dmxloadertext.cpp
+        ../../dmxloader/dmxserializationdictionary.cpp
         ../../engine/sys_getmodes.cpp ../../engine/cl_pluginhelpers.cpp
         ../../engine/vgui_drawtreepanel.cpp ../../engine/cl_texturelistpanel.cpp
         ../../engine/cl_foguipanel.cpp ../../engine/cl_txviewpanel.cpp
@@ -203,7 +218,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../public/builddisp.cpp ../../public/dispcoll_common.cpp ../../public/collisionutils.cpp)
     target_compile_features(EngineMapSupport PRIVATE cxx_std_11)
     target_compile_options(EngineMapSupport PRIVATE -fsigned-char)
-    target_compile_definitions(EngineMapSupport PRIVATE
+    target_compile_definitions(EngineMapSupport PRIVATE DMXLOADER_LIB=1
         $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
     target_include_directories(EngineMapSupport PRIVATE ../../public/tier2
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
