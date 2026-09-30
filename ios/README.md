@@ -909,6 +909,25 @@ The application still needs real service/module initialization before map loadin
 The interface check does not cover future startup entry points until they are
 also retained. Neither check establishes a runnable map-load path.
 
+The original `datacache`, `studiorender` and `vphysics` modules now also build
+and strictly link for the ARM64 simulator. Physics uses the existing Waf source
+lists for IVP, compact builder, Havana constraints and Havok base/math, recorded
+explicitly in `ios/graphics/Physics.cmake`. The IVP submodule is unchanged; an iOS
+compatibility include maps legacy `<malloc.h>` to Apple's allocator headers.
+The cache includes the original tier2 file-update helper required by model
+conversion. Build these modules with:
+
+```sh
+cmake --build build-ios-simulator/togles --parallel 8 --target EngineMapModules
+```
+
+These modules are not yet packaged or initialized by the probe application.
+`CMDLCache::Connect` requires physics, material and studio-render interfaces;
+studio-render in turn queries the studio-data interface exposed by the cache.
+The application factory must expose all interfaces before their Connect calls,
+then initialize them in dependency order. Successful dylib links do not verify
+IVP ARM64 behavior, model-cache initialization or a real BSP load.
+
 The default command explicitly disables interface scoping and writes
 `build-ios-simulator/map-link.json` and `map-link.log`. The scoped command writes
 `map-interface-link.json` and `map-interface-link.log`, preserving the full report.

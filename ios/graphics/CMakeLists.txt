@@ -393,6 +393,33 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         set_target_properties(${target} PROPERTIES VISIBILITY_INLINES_HIDDEN YES BUILD_WITH_INSTALL_RPATH TRUE
             INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
     endfunction()
+    # The real model cache requires material, studio-render and physics interfaces
+    # at Connect time; building it does not replace those services with stubs.
+    add_library(datacache SHARED EXCLUDE_FROM_ALL
+        ../../datacache/datacache.cpp ../../datacache/mdlcache.cpp
+        ../../public/studio.cpp ../../public/studio_virtualmodel.cpp
+        ../../common/studiobyteswap.cpp ../../tier3/tier3.cpp ../../tier2/fileutils.cpp)
+    engine_module(datacache)
+    target_include_directories(datacache PRIVATE ../../datacache)
+    include(Physics.cmake)
+    add_library(studiorender SHARED EXCLUDE_FROM_ALL
+        ../../studiorender/studiorender.cpp
+        ../../studiorender/studiorendercontext.cpp
+        ../../studiorender/flexrenderdata.cpp
+        ../../studiorender/r_studio.cpp
+        ../../studiorender/r_studiodecal.cpp
+        ../../studiorender/r_studiodraw.cpp
+        ../../studiorender/r_studiodraw_computeflexedvertex.cpp
+        ../../studiorender/r_studioflex.cpp
+        ../../studiorender/r_studiogettriangles.cpp
+        ../../studiorender/r_studiolight.cpp
+        ../../studiorender/r_studiostats.cpp
+        ../../tier3/tier3.cpp)
+    engine_module(studiorender)
+    target_compile_definitions(studiorender PRIVATE STUDIORENDER_EXPORTS=1)
+    target_include_directories(studiorender PRIVATE ../../studiorender)
+    target_link_libraries(studiorender PRIVATE IOSImage)
+    add_custom_target(EngineMapModules DEPENDS datacache vphysics studiorender)
     add_library(IOSImage STATIC
         ../../bitmap/ImageByteSwap.cpp
         ../../bitmap/colorconversion.cpp
