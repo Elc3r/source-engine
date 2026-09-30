@@ -91,6 +91,30 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
     target_include_directories(EngineWorldServices PRIVATE
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
+    # Actual map-loading dependencies, separate from the runnable graphics probe.
+    add_library(EngineMapSupport STATIC EXCLUDE_FROM_ALL
+        ../../engine/cmodel.cpp ../../engine/cmodel_disp.cpp ../../engine/gl_draw.cpp
+        ../../engine/mod_vis.cpp ../../public/lumpfiles.cpp ../../public/disp_powerinfo.cpp ../../public/disp_common.cpp
+        ../../public/builddisp.cpp ../../public/dispcoll_common.cpp ../../public/collisionutils.cpp)
+    target_compile_features(EngineMapSupport PRIVATE cxx_std_11)
+    target_compile_options(EngineMapSupport PRIVATE -fsigned-char)
+    target_compile_definitions(EngineMapSupport PRIVATE
+        $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
+    target_include_directories(EngineMapSupport PRIVATE
+        $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
+    # Strict link: unresolved host/render services are errors, never stubs or
+    # dynamic-lookup imports. Not packaged or loaded until integration is complete.
+    add_library(EngineMapLinkCheck SHARED EXCLUDE_FROM_ALL MapLinkCheck.cpp)
+    target_compile_features(EngineMapLinkCheck PRIVATE cxx_std_11)
+    target_compile_definitions(EngineMapLinkCheck PRIVATE
+        $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
+    target_include_directories(EngineMapLinkCheck PRIVATE
+        $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
+    target_link_options(EngineMapLinkCheck PRIVATE
+        "-Wl,-force_load,$<TARGET_FILE:EngineWorldLoader>")
+    target_link_libraries(EngineMapLinkCheck PRIVATE EngineWorldLoader EngineMapSupport
+        ToGLESRuntime "${ENGINE_BUILD}/mathlib/libmathlib.a"
+        "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib")
     add_library(EngineFilesystem OBJECT
         ../../filesystem/basefilesystem.cpp ../../filesystem/packfile.cpp
         ../../filesystem/filetracker.cpp ../../filesystem/filesystem_async.cpp

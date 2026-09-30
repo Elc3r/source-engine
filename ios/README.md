@@ -734,6 +734,42 @@ the perspective phase, background/resume and transition to the flat BSP fixture
 (3,120 frames, all checks PASS). Device-SDK build and ad-hoc signature
 verification pass; physical-device runtime remains untested.
 
+### Direct map-loader integration: current blocking link
+
+The immediate milestone is a real BSP loaded by the engine, with a fixed-camera
+first frame. Further synthetic graphics coverage is deferred unless that path
+exposes a concrete problem.
+
+After a simulator `--togles` bootstrap build, run:
+
+```sh
+python3 scripts/ios-link-map.py
+```
+
+This builds `EngineMapLinkCheck`, an optional strict dylib link that force-loads
+the four actual world-loader/render units against the graphics runtime and
+`EngineMapSupport`. The support archive compiles real collision, displacement
+collision, visibility, material loading, lump-file and geometry helper sources.
+No unresolved-symbol bypasses or placeholder engine services are used. The link
+anchor exposes the actual model-loader interface only; it is not a startup path.
+Neither target is packaged into the working graphics app.
+
+The first direct simulator link had 117 unresolved symbols. Adding these support
+sources resolves 27 of them, including `CM_LoadMap`, `CM_PointLeafnum`,
+`CM_VCollideForModel`, displacement collision helpers, `GL_LoadMaterial`,
+`GL_UnloadMaterial`, `Map_VisClear` and `GenerateLumpFileName`. The current link
+still fails with 90 unresolved symbols. Principal remaining groups are host and
+client/server state (`Host_Error`, `Host_GetServerCount`, `cl`, `sv`), VGUI progress
+and model services, and world rendering (light cache, overlays, decals, sky and
+mesh construction). Resolved symbols do not establish service initialization;
+physics/cache startup and a runnable map-load path are still required.
+
+`build-ios-simulator/map-link.json` records the actual link result and each missing
+symbol's referring objects; `map-link.log` retains full diagnostics. The script
+returns nonzero when the link fails. This is a concrete integration blocker,
+not a successful loader runtime test. Only the simulator was built for this
+step; the unchanged graphics scene was not rerun.
+
 ### Actual engine world-loader compilation
 
 An optional build target compiles the repository's actual
@@ -1031,12 +1067,9 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Cover multiple lightmap pages and vertex limits, then integrate the
-   full world-mesh orchestration and remaining host/cache lifecycle
-   from the actual world-loader dependency report, then establish a linked
-   loader check. The allocator, shared world-model binding and surface batching
-   are linked now; BSP scenes use engine lightmap registration, brush vertices
-   and persistent GPU meshes.
-2. Connect visibility, collision and remaining engine modules, game-data paths
-   and a single HL2 map; extend world-shader reference coverage as needed.
+1. Resolve the strict `EngineMapLinkCheck` failures and initialize the required
+   host, cache, model and physics services. Load a minimal real BSP with the
+   actual loader, then connect fixed-camera world rendering for its first frame.
+2. Expand to a single HL2 map and address shaders, visibility, mesh/page limits
+   and other features only as required by actual map loading/rendering.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
