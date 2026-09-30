@@ -770,13 +770,21 @@ angular response and attenuation functions extracted from `l_studio.cpp`;
 `client_lights.cpp` contains the original light storage, allocation and decay
 extracted from `cl_main.cpp`. Function bodies are unchanged and both desktop
 build manifests include the extracted sources under their original conditions.
-These units compile for the ARM64 simulator, but the strict link still fails.
-Principal remaining groups are host
-and client/server state (`Host_Error`, `Host_GetServerCount`, `cl`, `sv`), VGUI,
-model/studio services and client time/pause handling. Spatial partitioning also
-exposes a Steam-universe query through its dependencies. Resolved symbols do
-not establish service initialization; physics/cache startup and a runnable
-map-load path are still required.
+The integration now also includes `ModelInfo.cpp`, `l_studio.cpp`,
+`staticpropmgr.cpp`, `shadowmgr.cpp`, `enginetrace.cpp`, `debugoverlay.cpp`,
+`filesystem_engine.cpp`, the tier3 interface registry and P4 helpers. The existing
+`IOSImage` archive supplies the studio renderer's image-format helpers. These
+sources compile for the ARM64 simulator; the strict link still fails with 53
+unresolved symbols, including newly exposed dependencies. Linking tier3 provides
+its real interface registry and connect/disconnect implementation; it does not
+create or initialize a model cache or studio-render module.
+
+Principal remaining groups are host and client/server state (`Host_Error`,
+`Host_GetServerCount`, `cl`, `sv`), VGUI, command buffering, client time/pause and
+model-precache accessors. Spatial partitioning also exposes a Steam-universe
+query through its dependencies. Resolved symbols do not establish service
+initialization; physics/cache startup and a runnable map-load path are still
+required.
 
 `build-ios-simulator/map-link.json` records the actual link result and each missing
 symbol's referring objects; `map-link.log` retains full diagnostics. The script

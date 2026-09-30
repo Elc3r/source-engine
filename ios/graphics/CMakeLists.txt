@@ -101,7 +101,10 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/Overlay.cpp ../../engine/gl_warp.cpp ../../engine/decals.cpp
         ../../engine/world_lighting.cpp ../../engine/client_lights.cpp ../../engine/OcclusionSystem.cpp
         ../../engine/spatialpartition.cpp ../../engine/r_linefile.cpp
-        ../../tier2/renderutils.cpp
+        ../../tier2/renderutils.cpp ../../tier2/p4helpers.cpp ../../tier3/tier3.cpp
+        ../../engine/filesystem_engine.cpp ../../engine/ModelInfo.cpp
+        ../../engine/staticpropmgr.cpp ../../engine/shadowmgr.cpp
+        ../../engine/l_studio.cpp ../../engine/enginetrace.cpp ../../engine/debugoverlay.cpp
         ../../engine/gl_rlight.cpp ../../engine/gl_rmisc.cpp ../../engine/r_areaportal.cpp
         ../../engine/debug_leafvis.cpp ../../engine/enginestats.cpp
         ../../engine/disp.cpp ../../engine/disp_mapload.cpp ../../engine/disp_interface.cpp
@@ -113,7 +116,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_compile_options(EngineMapSupport PRIVATE -fsigned-char)
     target_compile_definitions(EngineMapSupport PRIVATE
         $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
-    target_include_directories(EngineMapSupport PRIVATE
+    target_include_directories(EngineMapSupport PRIVATE ../../public/tier2
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
     # Strict link: unresolved host/render services are errors, never stubs or
     # dynamic-lookup imports. Not packaged or loaded until integration is complete.
@@ -126,7 +129,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_link_options(EngineMapLinkCheck PRIVATE
         "-Wl,-force_load,$<TARGET_FILE:EngineWorldLoader>")
     target_link_libraries(EngineMapLinkCheck PRIVATE EngineWorldLoader EngineMapSupport
-        ToGLESRuntime SDL2-static "${ENGINE_BUILD}/mathlib/libmathlib.a"
+        ToGLESRuntime SDL2-static IOSImage "${ENGINE_BUILD}/mathlib/libmathlib.a"
         "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib")
     add_library(EngineFilesystem OBJECT
         ../../filesystem/basefilesystem.cpp ../../filesystem/packfile.cpp
