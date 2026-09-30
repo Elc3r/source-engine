@@ -117,6 +117,11 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/servermsghandler.cpp ../../engine/clientframe.cpp
         ../../engine/sv_framesnapshot.cpp ../../engine/packed_entity.cpp
         ../../engine/networkstringtable.cpp ../../engine/networkstringtableclient.cpp
+        ../../engine/NetworkStringTableItem.cpp ../../engine/GameEventManager.cpp
+        ../../engine/enginesingleuserfilter.cpp ../../engine/pr_edict.cpp ../../engine/sv_precache.cpp
+        ../../engine/pure_server.cpp ../../engine/sv_filter.cpp ../../engine/sv_ipratelimit.cpp
+        ../../engine/sv_log.cpp ../../engine/testscriptmgr.cpp
+        ../../engine/cl_entityreport.cpp ../../engine/cl_bounded_cvars.cpp
         ../../engine/networkstringtableserver.cpp ../../engine/cl_ents_parse.cpp
         ../../engine/dt.cpp ../../public/dt_send.cpp ../../public/dt_recv.cpp
         ../../engine/LocalNetworkBackdoor.cpp
