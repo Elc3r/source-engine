@@ -99,6 +99,9 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/r_decal.cpp ../../engine/lightcache.cpp
         ../../engine/decal_clip.cpp ../../engine/gl_drawlights.cpp
         ../../engine/Overlay.cpp ../../engine/gl_warp.cpp ../../engine/decals.cpp
+        ../../engine/world_lighting.cpp ../../engine/client_lights.cpp ../../engine/OcclusionSystem.cpp
+        ../../engine/spatialpartition.cpp ../../engine/r_linefile.cpp
+        ../../tier2/renderutils.cpp
         ../../engine/gl_rlight.cpp ../../engine/gl_rmisc.cpp ../../engine/r_areaportal.cpp
         ../../engine/debug_leafvis.cpp ../../engine/enginestats.cpp
         ../../engine/disp.cpp ../../engine/disp_mapload.cpp ../../engine/disp_interface.cpp

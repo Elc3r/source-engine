@@ -763,10 +763,18 @@ sources resolves 27 of them, including `CM_LoadMap`, `CM_PointLeafnum`,
 `CM_VCollideForModel`, displacement collision helpers, `GL_LoadMaterial`,
 `GL_UnloadMaterial`, `Map_VisClear` and `GenerateLumpFileName`. Integrating the
 renderer implementations then reduced the remaining count from 90 to 73,
-including their newly exposed dependencies. These units compile for the ARM64
-simulator, but the strict link still fails. Principal remaining groups are host
+including their newly exposed dependencies. Adding spatial partitioning, the
+occlusion system, line rendering and shared world/client lighting then reduced
+the count to 62. `world_lighting.cpp` contains the original light conversion,
+angular response and attenuation functions extracted from `l_studio.cpp`;
+`client_lights.cpp` contains the original light storage, allocation and decay
+extracted from `cl_main.cpp`. Function bodies are unchanged and both desktop
+build manifests include the extracted sources under their original conditions.
+These units compile for the ARM64 simulator, but the strict link still fails.
+Principal remaining groups are host
 and client/server state (`Host_Error`, `Host_GetServerCount`, `cl`, `sv`), VGUI,
-model/studio services, spatial partitioning and occlusion. Resolved symbols do
+model/studio services and client time/pause handling. Spatial partitioning also
+exposes a Steam-universe query through its dependencies. Resolved symbols do
 not establish service initialization; physics/cache startup and a runnable
 map-load path are still required.
 

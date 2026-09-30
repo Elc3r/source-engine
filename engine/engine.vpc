@@ -97,6 +97,7 @@ $Project "engine"
 				"cbenchmark.cpp"				\
 				"cdll_engine_int.cpp" [!$DEDICATED]			\
 				"cl_main.cpp"		[!$DEDICATED]			\
+				"client_lights.cpp"		[!$DEDICATED]			\
 				"cl_demo.cpp"		[!$DEDICATED]			\
 				"cl_null.cpp"	[$DEDICATED]	\
 				"cl_demoaction.cpp"	[!$DEDICATED]			\
@@ -161,6 +162,7 @@ $Project "engine"
 				"gl_screen.cpp"		[!$DEDICATED]	\
 				"gl_warp.cpp"		[!$DEDICATED]	\
 				"l_studio.cpp"			\
+				"world_lighting.cpp"			\
 				"matsys_interface.cpp"	\
 				"modelloader.cpp"		\
 				"Overlay.cpp"			\
