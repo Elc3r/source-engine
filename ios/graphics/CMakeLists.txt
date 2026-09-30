@@ -75,7 +75,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_compile_features(EngineWorldLoader PRIVATE cxx_std_11)
     target_compile_options(EngineWorldLoader PRIVATE -fsigned-char)
     target_compile_definitions(EngineWorldLoader PRIVATE IOS=1 POSIX=1 _POSIX=1
-        PLATFORM_POSIX=1 PLATFORM_64BITS=1 GNUC NDEBUG ENGINE_DLL=1
+        PLATFORM_POSIX=1 PLATFORM_64BITS=1 GNUC NDEBUG ENGINE_DLL=1 VERSION_SAFE_STEAM_API_INTERFACES
         NO_HOOK_MALLOC NO_MEMOVERRIDE_NEW_DELETE TIER1_STATIC_LIB=1
         DX_TO_GL_ABSTRACTION=1 TOGLES=1 USE_SDL=1 _DLL_EXT=.dylib)
     target_include_directories(EngineWorldLoader PRIVATE
@@ -103,6 +103,9 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../engine/spatialpartition.cpp ../../engine/r_linefile.cpp
         ../../tier2/renderutils.cpp ../../tier2/p4helpers.cpp ../../tier3/tier3.cpp
         ../../engine/filesystem_engine.cpp ../../engine/ModelInfo.cpp
+        ../../engine/host.cpp ../../engine/client.cpp ../../engine/baseclientstate.cpp
+        ../../engine/common.cpp ../../engine/cmd.cpp ../../engine/initmathlib.cpp
+        ../../engine/mapreslistgenerator.cpp
         ../../engine/staticpropmgr.cpp ../../engine/shadowmgr.cpp
         ../../engine/l_studio.cpp ../../engine/enginetrace.cpp ../../engine/debugoverlay.cpp
         ../../engine/gl_rlight.cpp ../../engine/gl_rmisc.cpp ../../engine/r_areaportal.cpp
@@ -128,6 +131,14 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
     target_link_options(EngineMapLinkCheck PRIVATE
         "-Wl,-force_load,$<TARGET_FILE:EngineWorldLoader>")
+    option(ENGINE_MAP_INTERFACE_SCOPE "Link only the loader/renderer public interfaces" OFF)
+    if(ENGINE_MAP_INTERFACE_SCOPE)
+        # Keep both real interfaces and their reachable code, including vtables
+        # and static initializers. Undefined references remain hard errors.
+        target_link_options(EngineMapLinkCheck PRIVATE "-Wl,-dead_strip"
+            "-Wl,-exported_symbol,_SourceIOSMapLoaderLinkAnchor"
+            "-Wl,-exported_symbol,_SourceIOSWorldRendererLinkAnchor")
+    endif()
     target_link_libraries(EngineMapLinkCheck PRIVATE EngineWorldLoader EngineMapSupport
         ToGLESRuntime SDL2-static IOSImage "${ENGINE_BUILD}/mathlib/libmathlib.a"
         "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib")

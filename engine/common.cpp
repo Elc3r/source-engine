@@ -16,7 +16,7 @@
 #include <characterset.h>
 #include <bitbuf.h>
 #include "common.h"
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

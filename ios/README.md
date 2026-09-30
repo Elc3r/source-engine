@@ -755,7 +755,8 @@ lighting, decals and clipping, area portals, displacement rendering/loading,
 overlays, skybox and renderer statistics. SDL is linked explicitly for display
 queries; the decal source selects the Apple malloc header on iOS.
 No unresolved-symbol bypasses or placeholder engine services are used. The link
-anchor exposes the actual model-loader interface only; it is not a startup path.
+anchors expose the actual model-loader and world-renderer interfaces; neither
+is a startup path.
 Neither target is packaged into the working graphics app.
 
 The first direct simulator link had 117 unresolved symbols. Adding these support
@@ -774,23 +775,42 @@ The integration now also includes `ModelInfo.cpp`, `l_studio.cpp`,
 `staticpropmgr.cpp`, `shadowmgr.cpp`, `enginetrace.cpp`, `debugoverlay.cpp`,
 `filesystem_engine.cpp`, the tier3 interface registry and P4 helpers. The existing
 `IOSImage` archive supplies the studio renderer's image-format helpers. These
-sources compile for the ARM64 simulator; the strict link still fails with 53
-unresolved symbols, including newly exposed dependencies. Linking tier3 provides
+sources compiled for the ARM64 simulator and left 53 unresolved symbols before
+adding host/client sources. Linking tier3 provides
 its real interface registry and connect/disconnect implementation; it does not
 create or initialize a model cache or studio-render module.
 
-Principal remaining groups are host and client/server state (`Host_Error`,
-`Host_GetServerCount`, `cl`, `sv`), VGUI, command buffering, client time/pause and
-model-precache accessors. Spatial partitioning also exposes a Steam-universe
-query through its dependencies. Resolved symbols do not establish service
-initialization; physics/cache startup and a runnable map-load path are still
-required.
+The support archive now also compiles the actual host, client/base-client state,
+command buffer, common helpers, math initialization and map resource-list
+implementation. This required the engine's existing
+`VERSION_SAFE_STEAM_API_INTERFACES` definition, the Apple malloc header on iOS,
+and opaque launcher-interface declarations instead of desktop GL headers.
+Steam services are not implemented by these compile fixes.
 
-`build-ios-simulator/map-link.json` records the actual link result and each missing
-symbol's referring objects; `map-link.log` retains full diagnostics. The script
-returns nonzero when the link fails. This is a concrete integration blocker,
-not a successful loader runtime test. Only the simulator was built for this
-step; the unchanged graphics scene was not rerun.
+The full-export link now fails with **369 unresolved symbols**: host/client
+sources expose networking, audio, demo and platform services that were absent
+from the earlier frontier. Symbol counts are not a completion percentage.
+To inspect the smaller loader/renderer interface boundary, run:
+
+```sh
+python3 scripts/ios-link-map.py --interface-scope
+```
+
+This exports both real interface anchors and enables linker dead stripping.
+Their reachable implementations, virtual tables and static initializers remain;
+there are no placeholder services or unresolved-symbol bypasses. That link
+currently fails with **71 unresolved symbols**. In particular, statically
+registered host commands still require sound/configuration services, and client
+time/model accessors require precache, clock, global client/server and demo state.
+The interface check does not cover future startup entry points until they are
+also retained. Neither check establishes a runnable map-load path.
+
+The default command explicitly disables interface scoping and writes
+`build-ios-simulator/map-link.json` and `map-link.log`. The scoped command writes
+`map-interface-link.json` and `map-interface-link.log`, preserving the full report.
+Each report identifies its mode and lists the actual missing symbols and referring
+objects. Both commands return nonzero on link failure. The support archive builds
+successfully; no runtime map load or device run has been performed for this step.
 
 ### Actual engine world-loader compilation
 
