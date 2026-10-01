@@ -360,6 +360,13 @@ void CShaderDeviceMgrDx8::InitAdapterInfo()
 //--------------------------------------------------------------------------------
 void CShaderDeviceMgrDx8::CheckBorderColorSupport( HardwareCaps_t *pCaps, int nAdapter )
 {
+#if defined( IOS ) && defined( TOGLES )
+    // GLES border addressing is optional; let Source select its non-border
+    // materials when neither extension is present.
+    pCaps->m_bSupportsBorderColor = gGL && (gGL->m_bHave_GL_EXT_texture_border_clamp ||
+        gGL->m_bHave_GL_OES_texture_border_clamp);
+    return;
+#endif
 #ifdef DX_TO_GL_ABSTRACTION
 	if( true )
 #else
