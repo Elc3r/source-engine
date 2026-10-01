@@ -951,16 +951,61 @@ The ToGLES configuration now uses one shared SDL dylib across app/runtime/engine
 Loading the engine with a further static SDL copy prevented the second material
 lifecycle from restarting cleanly; with shared SDL both loader Init/Shutdown
 cycles and subsequent rendering pass on the iOS 27 simulator. The graphics-only
-and ANGLE-only configurations retain their static SDL builds. This check has
-not loaded a BSP or exercised collision/model data.
+and ANGLE-only configurations retain their static SDL builds. The initial empty
+loader lifecycle check did not load a BSP or exercise collision/model data.
+
+The loader bootstrap now also invokes the original `Memory_Init` before loader
+initialization. It owns the world arena for its entire lifetime (the original
+64-bit path reserves up to 128 MiB), with an explicit 256 MiB host memory budget.
+Shutdown unloads the loader/collision data before `Memory_Shutdown`, terminates
+the owned arena, and restores the previous host/cache budget. Two complete
+memory/loader lifecycles pass on the ARM64 iOS 27 simulator.
+
+`SourceIOSLoadWorldMap` provides an explicit engine-module entry point for an
+already mounted `GAME` map. It accepts relative `maps/*.bsp` paths, checks the
+VBSP header/version, lump file bounds and required geometry/collision lumps,
+then invokes the original `IModelLoader::GetModelForName` and checks the loaded
+brush geometry. This preflight is not semantic validation or protection against
+all malformed BSP data. The existing render-lump fixtures intentionally fail the
+required-lump check.
+
+The app can now read the user's existing Portal installation directly on the
+simulator, mounting Portal/HL2 directories and their material VPK archives. It
+loads a requested map after the initial probes, then retains it without drawing
+the synthetic world over its host state. Use:
+
+```sh
+python3 scripts/build-ios-bootstrap.py --togles --simulator <UDID> \
+    --portal-root /path/to/Portal-arm64 --world-map maps/testchmb_a_00.bsp
+```
+
+`--portal-root` is simulator-only and does not copy game assets into the repo or
+app. It requires a root containing `portal/gameinfo.txt`; generalized gameinfo
+mounts and physical-device asset packaging are still pending. The first Portal
+map now loads through the original collision and brush-model path. The JSON
+separately reports `world_map_loaded`, geometry counts in `world_map_detail`, and
+`world_map_rendered: false`. The current live loop only clears/presents while
+holding the real world; real world-renderer setup and drawing remain pending.
+`build-ios-simulator/portal-map-load-result.json` preserves this result separately
+from the standard bootstrap report. On `testchmb_a_00.bsp` (BSP version 20), the
+loader reports 5,307 vertices, 2,694 surfaces, 1,459 nodes and 1,532 leaves.
+Vertex, face and node counts match the original file lumps. Actual loaded-map
+unload/reload and collision trace behavior have not yet been runtime-tested.
+
+Actual VMT loading exposed diagnostic helper coalescing across tier1 copies;
+KeyValues parser stack helpers now have translation-unit-local linkage. The
+shader API also now reports GLES border color support from the actual extension
+flags, allowing Source's existing fallback materials instead of requesting an
+unsupported border-wrap mode. The Portal map load/presentation passes with no
+GL error, while rendering of its materials and world has not been tested.
 
 The default command explicitly disables interface scoping and writes
 `build-ios-simulator/map-link.json` and `map-link.log`. The scoped command writes
 `map-interface-link.json` and `map-interface-link.log`, preserving the full report.
 Each report identifies its mode and lists the actual missing symbols and referring
 objects. Both commands return nonzero on link failure. The support archive builds
-successfully; loader lifecycle now runs in the simulator, but no runtime map load
-or physical-device run has been performed for this integration.
+successfully. Loader lifecycle and the first Portal BSP load now run in the
+simulator; world drawing and physical-device runs remain untested.
 
 ### Actual engine world-loader compilation
 

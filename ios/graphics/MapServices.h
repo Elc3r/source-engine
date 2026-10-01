@@ -4,3 +4,5 @@
 void *QueryMapService(const char *name);
 bool InitializeMapServices(const char *modules, CreateInterfaceFn factory, char *detail, size_t capacity);
 void ShutdownMapServices();
+bool LoadRequestedWorldMap(char *detail, size_t capacity);
+bool HasLoadedWorldMap();

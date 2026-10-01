@@ -30,6 +30,8 @@ def main():
     parser.add_argument('--world-loader-check', action='store_true',
                         help='Compile actual engine world-loading units and report link dependencies (ToGLES only)')
     parser.add_argument('--shader-cache', type=Path, help='Validated FXC shader cache from ios-compile-shaders.py (ToGLES only)')
+    parser.add_argument('--portal-root', type=Path, help='Read existing Portal game data directly (simulator only)')
+    parser.add_argument('--world-map', default='maps/testchmb_a_00.bsp', help='Map path for --portal-root')
     parser.add_argument('--min-version', help='Default: 16.0 for ANGLE, 15.0 otherwise')
     parser.add_argument('--simulator', metavar='UDID', help='Install, launch and verify on this simulator')
     args = parser.parse_args()
@@ -39,6 +41,12 @@ def main():
         parser.error('--shader-cache requires --togles')
     if args.shader_cache:
         args.shader_cache = args.shader_cache.resolve()
+    if args.portal_root and (not args.togles or not args.simulator or args.target != "simulator"):
+        parser.error("--portal-root requires --togles and --simulator")
+    if args.portal_root:
+        args.portal_root=args.portal_root.resolve()
+        if not (args.portal_root / "portal/gameinfo.txt").is_file():
+            parser.error("--portal-root must contain portal/gameinfo.txt")
     args.angle = args.angle or args.togles
     args.min_version = args.min_version or ('16.0' if args.angle else '15.0')
     if args.simulator and args.target != 'simulator':
@@ -47,6 +55,8 @@ def main():
     build = ROOT / ('build-ios-' + args.target)
     if args.world_loader_check:
         (build / 'world-loader-check.json').unlink(missing_ok=True)
+    if args.portal_root:
+        (build / 'portal-map-load-result.json').unlink(missing_ok=True)
     # Waf's lock file is shared by configurations; always configure the requested
     # output first so a preceding desktop/device build cannot select the wrong SDK.
     import sys
@@ -193,7 +203,12 @@ def main():
     if args.togles:
         for stage in ['vertex', 'fragment']:
             (container / ('Documents/togles-' + stage + '.glsl')).unlink(missing_ok=True)
-    run('xcrun', 'simctl', 'launch', '--terminate-running-process', args.simulator, bundle_id)
+    launch_env=os.environ.copy()
+    if args.portal_root:
+        launch_env['SIMCTL_CHILD_SOURCE_IOS_GAME_ROOT']=str(args.portal_root)
+        launch_env['SIMCTL_CHILD_SOURCE_IOS_WORLD_MAP']=args.world_map
+    subprocess.run(['xcrun','simctl','launch','--terminate-running-process',args.simulator,bundle_id],
+                   cwd=ROOT,env=launch_env,check=True)
     deadline = time.monotonic() + 30
     while not result_file.exists() and time.monotonic() < deadline:
         time.sleep(0.25)
@@ -205,6 +220,8 @@ def main():
     result = json.loads(result_file.read_text())
     print(json.dumps(result, indent=2))
     shutil.copy2(result_file, build / (result_name + '-result.json'))
+    if args.portal_root:
+        shutil.copy2(result_file, build / 'portal-map-load-result.json')
     if args.togles:
         for stage in ['vertex', 'fragment']:
             shader = container / ('Documents/togles-' + stage + '.glsl')
@@ -212,6 +229,8 @@ def main():
                 shutil.copy2(shader, build / shader.name)
     if not result['passed']:
         raise SystemExit('iOS smoke test failed')
+    if args.portal_root and not result.get('world_map_loaded'):
+        raise SystemExit('Requested Portal map did not load')
 
 
 if __name__ == '__main__':

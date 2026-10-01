@@ -54,6 +54,9 @@ static void SaveResult(BOOL passed, NSString *detail, NSDictionary *extra)
     result[@"engine_checks"] = engineDetail;
     result[@"runtime_checks"] = runtimeDetail;
     result[@"engine_checks_passed"] = @(engineChecksPassed);
+    result[@"world_map_loaded"] = @((BOOL)IsSourceWorldMapLoaded());
+    result[@"world_map_detail"] = @(SourceWorldMapDetail());
+    result[@"world_map_rendered"] = @NO;
 #endif
     NSURL *documents = [NSFileManager.defaultManager URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask].firstObject;
     NSError *error = nil;

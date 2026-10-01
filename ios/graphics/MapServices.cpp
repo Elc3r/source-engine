@@ -1,5 +1,8 @@
 #include "MapServices.h"
 #include <dlfcn.h>
+#include <stdlib.h>
+#include "filesystem.h"
+#include "tier2/tier2.h"
 #include "MapLoaderBootstrap.h"
 #include "appframework/IAppSystem.h"
 #include "datacache/idatacache.h"
@@ -15,6 +18,8 @@ struct Service { IAppSystem *system; bool connected, initialized; };
 Service services[4]={};
 CSysModule *loaderModule=NULL;
 decltype(&SourceIOSShutdownMapLoader) stopLoader=NULL;
+bool worldLoaded=false;
+char worldDetail[512]={};
 }
 void *QueryMapService(const char *name)
 {
@@ -25,6 +30,8 @@ void *QueryMapService(const char *name)
 void ShutdownMapServices()
 {
     if (stopLoader) stopLoader();
+    worldLoaded=false;
+    worldDetail[0]=0;
     stopLoader=NULL;
     if (loaderModule) Sys_UnloadModule(loaderModule);
     loaderModule=NULL;
@@ -88,3 +95,36 @@ bool InitializeMapServices(const char *directory, CreateInterfaceFn factory, cha
     if (!startLoader(factory,detail,capacity)) { ShutdownMapServices(); return false; }
     return true;
 }
+
+bool HasLoadedWorldMap() { return worldLoaded; }
+bool LoadRequestedWorldMap(char *detail, size_t capacity)
+{
+    const char *root=getenv("SOURCE_IOS_GAME_ROOT");
+    const char *map=getenv("SOURCE_IOS_WORLD_MAP");
+    if (!root && !map) return true;
+    if (!root || !map || !loaderModule || !g_pFullFileSystem) {
+        snprintf(detail,capacity,"World map: game root/map/services missing"); return false;
+    }
+    // Simulator integration reads the user's existing game data. Native device
+    // packaging and general gameinfo search-path handling are separate work.
+    char path[MAX_PATH];
+    const char *archives[]={"hl2/hl2_misc_dir.vpk","hl2/hl2_textures_dir.vpk","portal/portal_pak_dir.vpk"};
+    for (const char *archive : archives) {
+        Q_snprintf(path,sizeof(path),"%s/%s",root,archive);
+        g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    }
+    Q_snprintf(path,sizeof(path),"%s/hl2",root);
+    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    Q_snprintf(path,sizeof(path),"%s/portal",root);
+    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    auto load=reinterpret_cast<decltype(&SourceIOSLoadWorldMap)>(
+        GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSLoadWorldMap"));
+    if (!load) { snprintf(detail,capacity,"World map: loader entry point missing"); return false; }
+    worldLoaded=load(map,detail,capacity);
+    Q_strncpy(worldDetail,detail,sizeof(worldDetail));
+    return worldLoaded;
+}
+
+extern "C" int IsSourceWorldMapLoaded() { return worldLoaded ? 1 : 0; }
+
+extern "C" const char *SourceWorldMapDetail() { return worldDetail; }

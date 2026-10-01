@@ -36,6 +36,7 @@ struct MaterialPresentation {
     const GLMContextHost *base;
     int swaps;
     bool valid, solid;
+    char failure[160];
     SceneSamples scene;
 };
 MaterialPresentation *livePresentation=NULL;
@@ -58,6 +59,8 @@ bool PresentationSwap(void *data, CShowPixelsParams *params)
         GLint draw=0,read=0;
         gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);
         gGL->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);
+        if (!(width>=8 && height>=8 && !draw && !read && params->m_noBlit))
+            snprintf(check->failure,sizeof(check->failure),"FBO draw=%d read=%d, size=%ux%u, noBlit=%d",draw,read,width,height,params->m_noBlit);
         check->valid=check->valid && width>=8 && height>=8 && !draw && !read && params->m_noBlit;
         // GL bottom-up coordinates: presentation flips the engine backbuffer.
         const unsigned char colors[4][4]={{0,0,255,255},{255,255,0,255},
@@ -69,7 +72,7 @@ bool PresentationSwap(void *data, CShowPixelsParams *params)
             gGL->glReadPixels(int(sample.u*width),int((1-sample.v)*height),1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
             check->valid=check->valid && MatchesSceneSample(pixel,sample);
         }
-        else if (width>=8 && height>=8) for (int i=0;i<4;++i) {
+        else if (!HasLoadedWorldMap() && width>=8 && height>=8) for (int i=0;i<4;++i) {
             unsigned char pixel[4]={};
             gGL->glReadPixels((i%2 ? 3 : 1)*width/4,(i/2 ? 3 : 1)*height/4,
                 1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
@@ -79,6 +82,7 @@ bool PresentationSwap(void *data, CShowPixelsParams *params)
         ++check->swaps;
     }
     bool swapped=check->base->showPixels(check->base->userData,params);
+    if (!swapped) snprintf(check->failure,sizeof(check->failure),"Native host swap failed");
     check->valid=check->valid && swapped;
     return swapped;
 }
@@ -366,6 +370,7 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
 
                 }
                 if (valid) valid=InitializeMapServices(modules,ApplicationFactory,detail,capacity);
+                if (valid && retain) valid=LoadRequestedWorldMap(detail,capacity);
                 if (valid && retain) {
                     livePresentation=&presentation;
                     liveModule=module;
@@ -465,14 +470,16 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
     context->ClearColor4ub(37,91,163,255);
     context->ClearBuffers(true,true,true);
     bool valid=true;
-    if (checkedWidth!=width || checkedHeight!=height) {
+    const bool worldLoaded=HasLoadedWorldMap();
+    if (!worldLoaded && (checkedWidth!=width || checkedHeight!=height)) {
         valid=CheckNativeDepthStencil(liveMaterial,context,width,height,detail,capacity);
         if (valid) { checkedWidth=width; checkedHeight=height; ++resizeChecks; }
         context->ClearBuffers(true,true,true);
     }
     livePresentation->scene.count=0;
-    bool scene=HasCompiledUnlit() && width>=64 && height>=64;
-    if (valid && scene) valid=DrawPerspectiveScene(liveMaterial,context,width,height,sceneFrame++,livePresentation->scene,detail,capacity);
+    bool scene=!worldLoaded && HasCompiledUnlit() && width>=64 && height>=64;
+    if (worldLoaded) livePresentation->solid=true;
+    else if (valid && scene) valid=DrawPerspectiveScene(liveMaterial,context,width,height,sceneFrame++,livePresentation->scene,detail,capacity);
     else if (valid) valid=HasCompiledUnlit()
         ? DrawUnlitMaterial(liveMaterial,context,false,width,height,detail,capacity)
         : DrawMaterialFixture(liveMaterial,context,false,detail,capacity,width,height);
@@ -490,9 +497,12 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
     GLenum error=gGL->glGetError();
     if (valid && error!=GL_NO_ERROR) snprintf(detail,capacity,"Live material GL error 0x%x",error);
     if (valid && (!livePresentation->valid || livePresentation->swaps!=swaps+1)) {
-        snprintf(detail,capacity,"Live material window pixels/swap failed"); return false;
+        snprintf(detail,capacity,"Live material window pixels/swap failed: %s (%d/%d swaps)",livePresentation->failure,livePresentation->swaps,swaps+1); return false;
     }
     const char *sceneModes[]={"3D UnlitGeneric","3D ambient","3D directional","3D point","3D spot","3D two lights","3D slot 1 only","3D swapped lights","UnlitGeneric alpha blend","Lit/unlit fog + alpha","BSP geometry + lightmaps","Perspective BSP + lightmaps"};
+    if (valid && error==GL_NO_ERROR && worldLoaded) {
+        snprintf(detail,capacity,"Actual BSP loaded; world rendering pending"); return true;
+    }
     if (valid && error==GL_NO_ERROR) snprintf(detail,capacity,"%s %ux%u + depth/stencil: PASS (%d sizes)",scene ? sceneModes[SceneLightingMode(sceneFrame-1)] : "Native",targetWidth,targetHeight,resizeChecks);
     return valid && error==GL_NO_ERROR;
 }

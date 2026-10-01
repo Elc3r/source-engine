@@ -36,7 +36,8 @@ bool ShowPixels(void *data, CShowPixelsParams *params)
         unsigned char pixel[4]={};
         gGL->glReadPixels(0,0,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
         gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,read);
-        if (gGL->glGetError()!=GL_NO_ERROR) return false;
+        const GLenum error=gGL->glGetError();
+        if (error!=GL_NO_ERROR) { fprintf(stderr,"Native sync readback GL error 0x%x\n",error); return false; }
         EGLint width=0;
         return eglQuerySurface(host->display,host->surface,EGL_WIDTH,&width)==EGL_TRUE;
     }
@@ -224,7 +225,7 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
             if (windowContext!=EGL_NO_CONTEXT) eglDestroyContext(display,windowContext);
         }
         GLMgr::DelGLMgr();
-        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip + 12 RGB uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS\n2 material cycles + 8 VMT + 8 MVP + 6 swaps: PASS\n2 data/model cache + physics + studio render lifecycles: PASS\n2 actual model loader Init/Shutdown + physics bindings: PASS",uploads);
+        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip + 12 RGB uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS\n2 material cycles + 8 VMT + 8 MVP + 6 swaps: PASS\n2 data/model cache + physics + studio render lifecycles: PASS\n2 actual model loader Init/Shutdown + world memory + physics bindings: PASS",uploads);
     }
     if (!eglMakeCurrent(display,draw,read,previous)) {
         valid=false; snprintf(detail,capacity,"GLM objects: restoring host EGL context failed");
