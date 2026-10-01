@@ -1047,6 +1047,12 @@ shader API also now reports GLES border color support from the actual extension
 flags, allowing Source's existing fallback materials instead of requesting an
 unsupported border-wrap mode. The Portal map load/presentation passes with no
 GL error, including world surfaces and opaque static-prop rendering.
+The inspection adapter also runs the original translucent world-surface pass
+after opaque props, visiting visible leaves back to front as the client view
+renderer does. The simulator exercised a nonempty translucent leaf in the first
+Portal chamber with no GL error; `portal-translucent-world-result.json` preserves
+that runtime report. Translucent props, their interleaving with world surfaces,
+and framebuffer copies for refraction still require integration.
 
 The default command explicitly disables interface scoping and writes
 `build-ios-simulator/map-link.json` and `map-link.log`. The scoped command writes
@@ -1054,7 +1060,7 @@ The default command explicitly disables interface scoping and writes
 Each report identifies its mode and lists the actual missing symbols and referring
 objects. Both commands return nonzero on link failure. The support archive builds
 successfully. Loader lifecycle and the first Portal BSP load now run in the
-simulator; world drawing and physical-device runs remain untested.
+simulator; physical-device runs remain untested.
 
 ### Actual engine world-loader compilation
 

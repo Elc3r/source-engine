@@ -1,6 +1,7 @@
 #include "render_pch.h"
 #include "modelloader.h"
 #include "render.h"
+#include "gl_rsurf.h"
 
 // Preserve the actual loader and renderer interface implementations.
 extern "C" IModelLoader *SourceIOSMapLoaderLinkAnchor()
@@ -271,9 +272,19 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     g_pStudioRender->BeginFrame();
     int visibleProps=SourceIOSDrawStaticProps(info);
     g_pStudioRender->EndFrame();
+    // BuildWorldLists orders leaves front to back. Match the original client
+    // view renderer by visiting translucent world surfaces in reverse order.
+    const unsigned long translucentFlags=DRAWWORLDLISTS_DRAW_STRICTLYABOVEWATER |
+        DRAWWORLDLISTS_DRAW_STRICTLYUNDERWATER | DRAWWORLDLISTS_DRAW_INTERSECTSWATER;
+    int translucentLeaves=0;
+    for (int leaf=info.m_LeafCount-1;leaf>=0;--leaf) {
+        if (!Shader_LeafContainsTranslucentSurfaces(list,leaf,translucentFlags)) continue;
+        Shader_DrawTranslucentSurfaces(list,leaf,translucentFlags,false);
+        ++translucentLeaves;
+    }
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; translucent leaves %d; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,translucentLeaves,
         cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
     return info.m_LeafCount>0;
 }
