@@ -14,6 +14,7 @@ extern "C" IRender *SourceIOSWorldRendererLinkAnchor()
 }
 
 #include "MapLoaderBootstrap.h"
+#include "MapEntityInspection.h"
 #include "tier3/tier3.h"
 #include "filesystem_engine.h"
 #include "vphysics_interface.h"
@@ -51,15 +52,17 @@ Vector cameraOrigin;
 QAngle cameraAngles;
 unsigned cameraCollisions=0;
 int staticPropCount=0;
+int entityModelCount=0;
 }
 extern "C" void SourceIOSShutdownMapLoader()
 {
     if (worldRendererStarted) {
         materials->RemoveRestoreFunc(RestoreWorldLightmaps);
         materials->RemoveReleaseFunc(ReleaseWorldPropColors);
+        SourceIOSShutdownEntityModels();
         StaticPropMgr()->LevelShutdown();
         ShutdownStudioRender();
-        staticPropCount=0;
+        staticPropCount=entityModelCount=0;
         R_LevelShutdown();
         g_pShadowMgr->LevelShutdown();
         worldRendererStarted=false;
@@ -235,6 +238,7 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     InitStudioRender();
     SpatialPartition()->Init(loadedWorld->mins,loadedWorld->maxs);
     staticPropCount=SourceIOSInitializeStaticProps();
+    entityModelCount=SourceIOSInitializeEntityModels();
     materials->AddReleaseFunc(ReleaseWorldPropColors);
     worldRendererStarted=true;
     return true;
@@ -270,6 +274,8 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     UpdateStudioRenderConfig();
     g_pStudioRender->BeginFrame();
     int visibleProps=SourceIOSDrawStaticProps(info);
+    int pendingEntities=0;
+    int visibleEntities=SourceIOSDrawEntityModels(view.origin,pendingEntities);
     const unsigned long translucentFlags=DRAWWORLDLISTS_DRAW_STRICTLYABOVEWATER |
         DRAWWORLDLISTS_DRAW_STRICTLYUNDERWATER | DRAWWORLDLISTS_DRAW_INTERSECTSWATER;
     int translucentLeaves=0,unsupportedProps=0;
@@ -279,7 +285,7 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     g_pStudioRender->EndFrame();
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; translucent leaves %d, props %d (pending %d); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,translucentLeaves,translucentProps,unsupportedProps,
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); translucent leaves %d, props %d (pending %d); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,translucentLeaves,translucentProps,unsupportedProps,
         cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
     return info.m_LeafCount>0;
 }

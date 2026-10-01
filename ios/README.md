@@ -1005,12 +1005,26 @@ there is no client/server simulation to provide areaportal state. Opaque static
 props use the original manager's model dictionary, model loader, lighting cache,
 model-render instances and studio-render path. Two iOS-only helpers initialize
 lighting without client leaf-system registration and select props intersecting
-the visible world leaves and camera frustum. Translucent props, distance/screen
-fading, brush entities, sky, water passes, overlays and gameplay remain pending.
+the visible world leaves and camera frustum. Distance/screen fading, brush entities, sky, water passes, overlay verification
+and gameplay remain pending; translucent prop inspection is described below.
 `testchmb_a_00.bsp` has 53 static instances and 16 dictionary models, matching the
 original game lump. The status shows submitted props/total props; this is not
 a per-model pixel-correctness measurement. Props and their color-mesh cache are
 shut down before the model loader, and color data is released/restored on Reset.
+
+The inspector also reads BSP entity keyvalues for `prop_dynamic`, `prop_physics`
+and `prop_physics_override` and submits supported opaque model entities through
+original `CModelRender::DrawModelEx`, MDL cache and studio renderer. Origin,
+angles, skin, body and `DefaultAnim` come from the map; the original bone setup
+and matrix builder evaluate cycle zero of that sequence (sequence zero if
+unspecified). This is a render-only initial-pose adapter, not a game client or
+server: it does not animate over time, simulate physics, follow moving parents,
+process entity I/O, or create NPCs/portals. Frustum and original BSP PVS cull the
+model bounds. Disabled, alpha and framebuffer-copy models are deferred and
+reported; unreferencing models precedes loader shutdown. In the first Portal
+chamber the bed and toilet are visually verified, and the runtime reports no
+GL error. Clock digits remain separate brush entities and are not drawn yet.
+
 
 For the retained game session, game paths are mounted before loading material
 and shader modules. The two preceding probe cycles still use the generated
