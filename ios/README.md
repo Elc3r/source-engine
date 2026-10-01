@@ -1492,3 +1492,30 @@ concurrently in the same checkout.
 2. Expand to a single HL2 map and address shaders, visibility, mesh/page limits
    and other features only as required by actual map loading/rendering.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
+
+
+## Portal view inspection
+
+The renderer can preview one authored blue/orange pair using the original Portal
+surface and animated border materials. It transforms the camera through the pair,
+renders each linked view into its full-frame render target, clips geometry at the
+exit plane, and samples the exit side for BSP visibility. Main-view depth is
+cleared after the offscreen views, which share the depth buffer.
+
+All eight portals in the first map are initially inactive. This optional preview
+does not change their BSP state or implement game I/O:
+
+```sh
+SIMCTL_CHILD_SOURCE_IOS_PORTAL_PREVIEW='portal_red_0 portal_blue_0' \
+SIMCTL_CHILD_SOURCE_IOS_INSPECTION_VIEW='-591 -340 225 0 270 0' \
+python3 scripts/build-ios-bootstrap.py --togles \
+  --shader-cache build-ios-shaders/compiled \
+  --simulator BEF86C07-FE64-497C-A857-D21C42C19666 \
+  --portal-root /Users/vavrinakm/Games/Portal-arm64
+```
+
+The preview is one level deep. Recursive portals, crossing the portal plane,
+player/object teleportation and duplicate object rendering across portals remain
+for the client/server integration. Visibility currently uses the exit center;
+aperture corner visibility and dedicated portal frusta remain to be integrated.
+Omit the preview environment variable for the normal authored initial scene.

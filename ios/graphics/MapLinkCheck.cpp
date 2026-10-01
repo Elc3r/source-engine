@@ -17,6 +17,7 @@ extern "C" IRender *SourceIOSWorldRendererLinkAnchor()
 #include "MapEntityInspection.h"
 #include "MapSceneEffects.h"
 #include "MapParticles.h"
+#include "MapPortals.h"
 #include "Overlay.h"
 #include "tier3/tier3.h"
 #include "filesystem_engine.h"
@@ -62,6 +63,7 @@ extern "C" void SourceIOSShutdownMapLoader()
     if (worldRendererStarted) {
         materials->RemoveRestoreFunc(RestoreWorldLightmaps);
         materials->RemoveReleaseFunc(ReleaseWorldPropColors);
+        SourceIOSShutdownPortalInspection();
         SourceIOSShutdownMapParticles();
         SourceIOSShutdownEntityModels();
         SourceIOSShutdownRefractionTexture();
@@ -245,7 +247,14 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     R_DecalInit();
     materials->CacheUsedMaterials();
     g_pShadowMgr->LevelInit(host_state.worldbrush->numsurfaces);
+    if (!SourceIOSInitializePortalInspection()) {
+        snprintf(detail,capacity,"World renderer: invalid/unavailable portal preview pair");
+        SourceIOSShutdownPortalInspection();
+        g_pShadowMgr->LevelShutdown(); host_state.SetWorldModel(NULL); g_pMaterialSystemConfig=NULL;
+        return false;
+    }
     if (!SourceIOSInitializeRefractionTexture()) {
+        SourceIOSShutdownPortalInspection();
         snprintf(detail,capacity,"World renderer: refraction target unavailable");
         SourceIOSShutdownRefractionTexture();
         g_pShadowMgr->LevelShutdown();
@@ -277,29 +286,13 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     }
     return true;
 }
-extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_t capacity)
+static bool DrawInspectionScene(const CViewSetup &view,ITexture *target,const Vector *visibilityOrigin,bool drawPortals,char *detail,size_t capacity)
 {
-    if (!loadedWorld || width<1 || height<1) {
-        snprintf(detail,capacity,"World renderer: map or drawable unavailable"); return false;
-    }
-    if (!worldRendererStarted && !InitializeWorldRenderer(detail,capacity)) return false;
-    if (worldLightmapsDirty) {
-        R_RedownloadAllLightmaps();
-        modelrender->RestoreAllStaticPropColorData();
-        worldLightmapsDirty=false;
-    }
-    CViewSetup view;
-    view.x=view.y=view.m_nUnscaledX=view.m_nUnscaledY=0;
-    view.width=view.m_nUnscaledWidth=width;
-    view.height=view.m_nUnscaledHeight=height;
-    view.origin=cameraOrigin; view.angles=cameraAngles;
-    view.fov=90; view.zNear=4; view.zFar=10000;
-    view.m_bDoBloomAndToneMapping=false;
     Frustum frustum;
     ++r_framecount;
     g_EngineRenderer->SetMainView(view.origin,view.angles);
-    g_EngineRenderer->Push3DView(view,0,NULL,frustum);
-    g_EngineRenderer->ViewSetupVis(false,1,&view.origin);
+    g_EngineRenderer->Push3DView(view,target?(VIEW_CLEAR_COLOR|VIEW_CLEAR_DEPTH):VIEW_CLEAR_DEPTH,target,frustum);
+    g_EngineRenderer->ViewSetupVis(false,1,visibilityOrigin?visibilityOrigin:&view.origin);
     IWorldRenderList *list=g_EngineRenderer->CreateWorldList();
     WorldListInfo_t info={};
     g_EngineRenderer->BuildWorldLists(list,&info,-1,NULL,false,NULL);
@@ -322,15 +315,39 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     int visibleEffects=SourceIOSCollectSceneEffects(info,view.origin,forward,translucentBrushDraws);
     int activeParticles=0;
     int visibleParticleSystems=SourceIOSCollectMapParticles(info,view.origin,forward,translucentBrushDraws,activeParticles);
+    int visiblePortals=drawPortals?SourceIOSCollectPortals(info,view.origin,forward,translucentBrushDraws):0;
     int translucentProps=SourceIOSDrawTranslucentScene(list,info,translucentFlags,
         view.origin,forward,translucentLeaves,unsupportedProps,
         translucentBrushDraws.Base(),translucentBrushDraws.Count());
     g_pStudioRender->EndFrame();
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (alpha %d, refract %d, pending %d); translucent leaves %d, props %d (pending %d); effects %d/%d; particles %d (%d systems); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,translucentBrushes,refractiveBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
-        visibleEffects,SourceIOSSceneEffectCount(),activeParticles,visibleParticleSystems,cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (alpha %d, refract %d, pending %d); translucent leaves %d, props %d (pending %d); effects %d/%d; particles %d (%d systems); portals %d; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,translucentBrushes,refractiveBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
+        visibleEffects,SourceIOSSceneEffectCount(),activeParticles,visibleParticleSystems,visiblePortals,view.origin.x,view.origin.y,view.origin.z,view.angles.y,cameraCollisions);
     return info.m_LeafCount>0 && visibleParticleSystems>=0;
+}
+extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_t capacity)
+{
+    if (!loadedWorld || width<1 || height<1) {
+        snprintf(detail,capacity,"World renderer: map or drawable unavailable"); return false;
+    }
+    if (!worldRendererStarted && !InitializeWorldRenderer(detail,capacity)) return false;
+    if (worldLightmapsDirty) {
+        R_RedownloadAllLightmaps();
+        modelrender->RestoreAllStaticPropColorData();
+        worldLightmapsDirty=false;
+    }
+    CViewSetup view;
+    view.x=view.y=view.m_nUnscaledX=view.m_nUnscaledY=0;
+    view.width=view.m_nUnscaledWidth=width;
+    view.height=view.m_nUnscaledHeight=height;
+    view.origin=cameraOrigin; view.angles=cameraAngles;
+    view.fov=90; view.zNear=4; view.zFar=10000;
+    view.m_bDoBloomAndToneMapping=false;
+    if (SourceIOSRenderPortalViews(view,DrawInspectionScene)<0) {
+        snprintf(detail,capacity,"Portal preview: linked view rendering failed"); return false;
+    }
+    return DrawInspectionScene(view,NULL,NULL,true,detail,capacity);
 }
 
 // A flying inspection camera, not the client movement simulation. Sweep a small

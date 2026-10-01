@@ -348,7 +348,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
     # Strict link: unresolved host/render services are errors, never stubs or
     # dynamic-lookup imports. The app invokes only the explicit loader bootstrap.
-    add_library(EngineMapLinkCheck SHARED EXCLUDE_FROM_ALL MapLinkCheck.cpp MapEntityInspection.cpp MapSceneEffects.cpp MapParticles.cpp
+    add_library(EngineMapLinkCheck SHARED EXCLUDE_FROM_ALL MapLinkCheck.cpp MapEntityInspection.cpp MapSceneEffects.cpp MapParticles.cpp MapPortals.cpp
         ../../public/rope_physics.cpp ../../public/simple_physics.cpp ../../tier2/beamsegdraw.cpp
         ../../particles/particles.cpp ../../particles/addbuiltin_ops.cpp
         ../../particles/builtin_constraints.cpp ../../particles/builtin_initializers.cpp
