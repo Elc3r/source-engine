@@ -1571,8 +1571,9 @@ The result is in the `game_startup` field of `Documents/togles.json`.
 
 `--game-startup client` also attempts the original client `Init`. This is currently
 a diagnostic that fails: the first unavailable required interface is
-`InputSystemVersion001`. SDL input hosting and the original VGUI/mat-system
-surface services must be integrated before client initialization can finish.
+`MatSystemSurface008`. The input system is now available; the original VGUI
+and material-system surface services must be integrated before client initialization
+can finish.
 A failure remains a failed probe, never a successful gameplay result.
 
 Server DLL initialization does not call `LevelInit`, create edicts/player entities
@@ -1588,12 +1589,42 @@ motions/releases are ignored. Accumulator reads reject invalid indices.
 Background entry, termination and focus loss emit releases for all held contacts.
 Touch initialization now sets its own flag, and input-system shutdown removes the
 watcher. This prepares the existing `IN_TouchEvent` / `CUserCmd` path; it does not
-replace the inspector camera or complete client startup. The standalone iOS input
-service and original VGUI initialization still need integration.
+replace the inspector camera or complete client startup. The standalone iOS input service is now integrated; original VGUI initialization
+and dispatch into the client game loop are still pending.
 
 Validation: iOS touch translation-unit compilation and PortalCLIENT archive build
 passed. An isolated host harness executing the actual touch method bodies passed
 with AddressSanitizer and UndefinedBehaviorSanitizer for large/negative IDs,
 device separation, bounds, contact overflow, cancellation and repeated init.
-SDL registration was stubbed in that harness; simulator lifecycle and full input
-service integration have not been validated by this check.
+SDL registration was stubbed in that isolated harness. The subsequent simulator
+integration check below exercises the actual SDL registration and module lifecycle.
+
+
+### Original input-system module
+
+`--game-modules` also builds/packages `libinputsystem.dylib` from the original
+input-system sources. Game startup connects and initializes it as an app system;
+teardown shuts it down before unloading its dependencies. The iOS path receives
+touch through the shared SDL watcher. UIKit retains ownership of the SDL queue,
+so input polling does not use the desktop launcher manager or drain app events.
+Keyboard/mouse event translation is not yet implemented for this iOS path.
+While only the inspector runs, frame polling discards unused input deltas and
+keeps its watched event queue bounded. Client game-loop integration must replace
+that discard with real event dispatch.
+
+To run the actual module/SDL/engine-queue integration check in the simulator:
+
+```sh
+SIMCTL_CHILD_SOURCE_IOS_INPUT_CHECK=1 python3 scripts/build-ios-bootstrap.py \
+  --togles --game-modules --game-startup server-cycle \
+  --shader-cache build-ios-shaders/compiled \
+  --simulator BEF86C07-FE64-497C-A857-D21C42C19666 \
+  --portal-root /Users/vavrinakm/Games/Portal-arm64
+```
+
+The check fails startup on invalid 64-bit/device ID mapping, accumulator read/reset,
+invalid indices, duplicate or excess contacts, focus-loss release, shutdown callback
+removal or reinitialization. It runs before client/inspector contacts exist. The
+console and `game_startup` report `iOS input integration: PASS`; server-cycle and 120 rendered frames
+are verified separately by the usual result JSON. These are transport/lifecycle
+checks, not a claim that player movement or touch-button rendering is operational.

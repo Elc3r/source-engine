@@ -473,6 +473,7 @@ unsigned sceneFrame=0;
 // and its native context must outlive the retained material system.
 bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
 {
+    PollInspectionInput();
     if (!liveMaterial) { snprintf(detail,capacity,"No live material system"); return false; }
     uint targetWidth=0,targetHeight=0;
     applicationHost->displayedSize(applicationHost->userData,targetWidth,targetHeight);

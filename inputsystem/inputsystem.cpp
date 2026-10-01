@@ -70,6 +70,9 @@ CInputSystem::CInputSystem()
 	m_nJoystickCount = 0;
 	m_bJoystickInitialized = false;
 	m_bTouchInitialized = false;
+#ifdef USE_SDL
+	m_pLauncherMgr = NULL;
+#endif
 	m_nPollCount = 0;
 	m_PrimaryUserId = INVALID_USER_ID;
 	m_uiMouseWheel = 0;
@@ -147,6 +150,8 @@ InitReturnVal_t CInputSystem::Init()
 #endif
 
 	// Initialize the input system copy of the steam API context, for use by controller stuff (don't do this if we're a dedicated server).
+
+#ifndef NO_STEAM
 	if ( !m_bSkipControllerInitialization && SteamAPI_InitSafe() )
 	{
 		m_SteamAPIContext.Init();
@@ -162,6 +167,7 @@ InitReturnVal_t CInputSystem::Init()
 		}
 	}
 
+#endif
 	ButtonCode_InitKeyTranslationTable();
 	ButtonCode_UpdateScanCodeLayout();
 
@@ -228,7 +234,7 @@ bool CInputSystem::Connect( CreateInterfaceFn factory )
 	if ( !BaseClass::Connect( factory ) )
 		return false;
 
-#if defined( USE_SDL )
+#if defined( USE_SDL ) && !defined( IOS )
 	m_pLauncherMgr = (ILauncherMgr *)factory( SDLMGR_INTERFACE_VERSION, NULL );
 #endif
 
@@ -272,7 +278,7 @@ void CInputSystem::SleepUntilInput( int nMaxSleepTimeMS )
 
 	MsgWaitForMultipleObjects( 1, &m_hEvent, FALSE, nMaxSleepTimeMS, QS_ALLEVENTS );
 #elif defined( USE_SDL )
-	m_pLauncherMgr->WaitUntilUserInput( nMaxSleepTimeMS );
+	if ( m_pLauncherMgr ) m_pLauncherMgr->WaitUntilUserInput( nMaxSleepTimeMS );
 #else
 #warning "need a SleepUntilInput impl"
 #endif
@@ -692,6 +698,11 @@ bool MapCocoaVirtualKeyToButtonCode( int nCocoaVirtualKeyCode, ButtonCode_t *pOu
 
 void CInputSystem::PollInputState_Platform()
 {
+#ifdef IOS
+	// UIKit owns the SDL queue; touch events arrive through the SDL watcher.
+	// Never drain application/window events from the engine input module.
+	return;
+#endif
 	InputState_t &state = m_InputState[ m_bIsPolling ];
 
 	if (  m_bPumpEnabled )
@@ -1211,7 +1222,7 @@ void CInputSystem::SetCursorPosition( int x, int y )
 	ClientToScreen( (HWND)m_hAttachedHWnd, &pt );
 	SetCursorPos( pt.x, pt.y );
 #elif defined( USE_SDL )
-	m_pLauncherMgr->SetCursorPosition( x, y );
+	if ( m_pLauncherMgr ) m_pLauncherMgr->SetCursorPosition( x, y );
 #endif
 
 	InputState_t &state = m_InputState[ m_bIsPolling ];

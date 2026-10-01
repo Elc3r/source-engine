@@ -80,6 +80,11 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
     g_ClientDLL=static_cast<IBaseClientDLL *>(gameFactory(CLIENT_DLL_INTERFACE_VERSION,NULL));
     bool started=g_ClientDLL && g_ClientDLL->Init(StartupFactory,StartupFactory,&g_ClientGlobalVariables);
     clientInitialized=started;
+    // The client also checks tier-connected globals after its direct queries.
+    if (!started && lastAvailable && !applicationFactory("MatSystemSurface008",NULL)) {
+        Q_strncpy(lastInterface,"MatSystemSurface008",sizeof(lastInterface));
+        lastAvailable=false;
+    }
     if (!started) { g_ClientDLL=NULL; g_ClientFactory=NULL; }
     snprintf(detail,capacity,"Portal server DLLInit: PASS; client Init: %s%s%s",started?"PASS":"FAIL",
         !started && !lastAvailable?"; unavailable interface ":"",

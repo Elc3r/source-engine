@@ -15,3 +15,5 @@ bool InitializePortalServer(CreateInterfaceFn gameFactory,char *detail,size_t ca
 
 bool InitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity);
 bool ShutdownPortalServer();
+
+void PollInspectionInput();
