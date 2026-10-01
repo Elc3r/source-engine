@@ -14,6 +14,10 @@
 #include "tier3/tier3.h"
 #include "cdll_engine_int.h"
 #include "utlvector.h"
+#include "materialsystem/MaterialSystemUtil.h"
+#include "materialsystem/itexture.h"
+
+extern ITexture *SourceIOSCreateRefractionTarget();
 
 namespace {
 // A render-only adapter. It never registers as a networked client entity and
@@ -117,6 +121,23 @@ struct InspectionBrush {
 };
 CUtlVector<InspectionBrush> brushes;
 int pendingBrushes=0;
+CTextureReference refractionTexture;
+}
+
+bool SourceIOSInitializeRefractionTexture()
+{
+    materials->BeginRenderTargetAllocation();
+    refractionTexture.Init(SourceIOSCreateRefractionTarget());
+    materials->EndRenderTargetAllocation();
+    return refractionTexture && !refractionTexture->IsError();
+}
+
+void SourceIOSShutdownRefractionTexture()
+{
+    if (!refractionTexture) return;
+    CMatRenderContextPtr context(materials);
+    if (context->GetFrameBufferCopyTexture(0)==refractionTexture) context->SetFrameBufferCopyTexture(NULL);
+    refractionTexture.Shutdown();
 }
 
 void SourceIOSShutdownEntityModels()
@@ -175,7 +196,7 @@ int SourceIOSInitializeEntityModels()
                 alpha!=255 || mode!=0) { ++pendingBrushes; continue; }
             model_t *brush=modelloader->GetModelForName(name,IModelLoader::FMODELLOADER_CLIENT);
             if (!brush || brush->type!=mod_brush ||
-                (brush->flags&(MODELFLAG_TRANSLUCENT|MODELFLAG_FRAMEBUFFER_TEXTURE))) {
+                ((brush->flags&MODELFLAG_FRAMEBUFFER_TEXTURE) && !refractionTexture)) {
                 if (brush) modelloader->UnreferenceModel(brush,IModelLoader::FMODELLOADER_CLIENT);
                 ++pendingBrushes; continue;
             }
@@ -233,8 +254,14 @@ int SourceIOSDrawBrushEntities(const Vector &viewOrigin,int &total,int &pending)
     const byte *pvs=CM_ClusterPVS(CM_LeafCluster(CM_PointLeafnum(viewOrigin)));
     const int pvsSize=CM_ClusterPVSSize();
     int submitted=0;
+    CMatRenderContextPtr context(materials);
+    ITexture *saved=context->GetFrameBufferCopyTexture(0);
+    if (saved) saved->IncrementReferenceCount();
+    if (refractionTexture) context->SetFrameBufferCopyTexture(refractionTexture);
     FOR_EACH_VEC(brushes,i) {
         const InspectionBrush &entry=brushes[i];
+        if ((entry.model->flags&MODELFLAG_TRANSLUCENT) &&
+            !(entry.model->flags&MODELFLAG_TRANSLUCENT_TWOPASS)) continue;
         Vector mins,maxs;
         TransformAABB(entry.transform,entry.model->mins,entry.model->maxs,mins,maxs);
         if (R_CullBox(mins,maxs) || !CM_BoxVisible(mins,maxs,pvs,pvsSize)) continue;
@@ -242,6 +269,51 @@ int SourceIOSDrawBrushEntities(const Vector &viewOrigin,int &total,int &pending)
         // This snapshot cannot update timer frames or other game-driven proxies.
         R_DrawBrushModel(NULL,entry.model,entry.origin,entry.angles,DEPTH_MODE_NORMAL,true,false);
         ++submitted;
+    }
+    context->SetFrameBufferCopyTexture(saved);
+    if (saved) saved->DecrementReferenceCount();
+    return submitted;
+}
+
+
+int SourceIOSCollectTranslucentBrushes(const WorldListInfo_t &world,const Vector &origin,
+    const Vector &forward,CUtlVector<SourceIOSTranslucentDraw> &draws,int &refractive)
+{
+    refractive=0;
+    CUtlVector<int> leaves;
+    leaves.SetCount(host_state.worldbrush->numleafs);
+    int submitted=0;
+    FOR_EACH_VEC(brushes,i) {
+        InspectionBrush &entry=brushes[i];
+        if (!(entry.model->flags&MODELFLAG_TRANSLUCENT)) continue;
+        Vector mins,maxs;
+        TransformAABB(entry.transform,entry.model->mins,entry.model->maxs,mins,maxs);
+        if (R_CullBox(mins,maxs)) continue;
+        int topnode=0;
+        int count=CM_BoxLeafnums(mins,maxs,leaves.Base(),leaves.Count(),&topnode);
+        int closest=-1;
+        for (int v=0;v<world.m_LeafCount && closest<0;++v)
+            for (int p=0;p<count;++p) if (world.m_pLeafList[v]==leaves[p]) { closest=v; break; }
+        if (closest<0) continue;
+        SourceIOSTranslucentDraw draw={&entry,closest,DotProduct((mins+maxs)*0.5f-origin,forward),
+            [](void *data) {
+                InspectionBrush &brush=*static_cast<InspectionBrush *>(data);
+                CMatRenderContextPtr context(materials);
+                ITexture *saved=context->GetFrameBufferCopyTexture(0);
+                if (saved) saved->IncrementReferenceCount();
+                if (brush.model->flags&MODELFLAG_FRAMEBUFFER_TEXTURE)
+                    context->SetFrameBufferCopyTexture(refractionTexture);
+                // R_DrawBrushModel performs its original framebuffer copy before
+                // binding the Refract material.
+                R_DrawBrushModel(NULL,brush.model,brush.origin,brush.angles,DEPTH_MODE_NORMAL,false,true);
+                context->SetFrameBufferCopyTexture(saved);
+                if (saved) saved->DecrementReferenceCount();
+            }};
+        int insert=0;
+        while (insert<draws.Count() && (draws[insert].leaf>draw.leaf ||
+            (draws[insert].leaf==draw.leaf && draws[insert].depth>=draw.depth))) ++insert;
+        draws.InsertBefore(insert,draw); ++submitted;
+        if (entry.model->flags&MODELFLAG_FRAMEBUFFER_TEXTURE) ++refractive;
     }
     return submitted;
 }

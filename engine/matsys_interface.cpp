@@ -1023,6 +1023,15 @@ static ITexture *CreatePowerOfTwoFBTexture( void )
 		CREATERENDERTARGETFLAGS_HDR );
 }
 
+#if defined(IOS) && defined(TOGLES)
+// The standalone inspector needs this one original target before the complete
+// engine/client render-target lifecycle is connected.
+ITexture *SourceIOSCreateRefractionTarget()
+{
+    return CreatePowerOfTwoFBTexture();
+}
+#endif
+
 static ITexture *CreateWaterReflectionTexture( void )
 {
 	return materials->CreateNamedRenderTargetTextureEx2(

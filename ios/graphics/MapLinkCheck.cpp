@@ -60,6 +60,7 @@ extern "C" void SourceIOSShutdownMapLoader()
         materials->RemoveRestoreFunc(RestoreWorldLightmaps);
         materials->RemoveReleaseFunc(ReleaseWorldPropColors);
         SourceIOSShutdownEntityModels();
+        SourceIOSShutdownRefractionTexture();
         StaticPropMgr()->LevelShutdown();
         ShutdownStudioRender();
         staticPropCount=entityModelCount=0;
@@ -225,6 +226,13 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     R_DecalInit();
     materials->CacheUsedMaterials();
     g_pShadowMgr->LevelInit(host_state.worldbrush->numsurfaces);
+    if (!SourceIOSInitializeRefractionTexture()) {
+        snprintf(detail,capacity,"World renderer: refraction target unavailable");
+        SourceIOSShutdownRefractionTexture();
+        g_pShadowMgr->LevelShutdown();
+        host_state.SetWorldModel(NULL); g_pMaterialSystemConfig=NULL;
+        return false;
+    }
     R_LoadWorldGeometry();
     BuildGammaTable(2.2f,2.2f,0.0f,OVERBRIGHT);
     R_RedownloadAllLightmaps();
@@ -282,12 +290,16 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
         DRAWWORLDLISTS_DRAW_STRICTLYUNDERWATER | DRAWWORLDLISTS_DRAW_INTERSECTSWATER;
     int translucentLeaves=0,unsupportedProps=0;
     Vector forward; AngleVectors(view.angles,&forward);
+    CUtlVector<SourceIOSTranslucentDraw> translucentBrushDraws;
+    int refractiveBrushes=0;
+    int translucentBrushes=SourceIOSCollectTranslucentBrushes(info,view.origin,forward,translucentBrushDraws,refractiveBrushes);
     int translucentProps=SourceIOSDrawTranslucentScene(list,info,translucentFlags,
-        view.origin,forward,translucentLeaves,unsupportedProps);
+        view.origin,forward,translucentLeaves,unsupportedProps,
+        translucentBrushDraws.Base(),translucentBrushDraws.Count());
     g_pStudioRender->EndFrame();
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (pending %d); translucent leaves %d, props %d (pending %d); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (alpha %d, refract %d, pending %d); translucent leaves %d, props %d (pending %d); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,translucentBrushes,refractiveBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
         cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
     return info.m_LeafCount>0;
 }

@@ -1023,13 +1023,23 @@ process entity I/O, or create NPCs/portals. Frustum and original BSP PVS cull th
 model bounds. Disabled, alpha and framebuffer-copy models are deferred and
 reported; unreferencing models precedes loader shutdown. In the first Portal
 chamber the bed and toilet are visually verified, and the runtime reports no
-GL error. Opaque brush entities (`func_brush`, `func_door`, `func_tracktrain`)
+GL error. Brush entities (`func_brush`, `func_door`, `func_tracktrain`)
 now use the original inline BSP models and `R_DrawBrushModel`, with transformed
 bounds, frustum/PVS culling and baked lightmaps. Trigger volumes are excluded;
 StartDisabled brushes remain hidden and collision-only models have no draw.
-In the first map, 10 opaque brushes are eligible, 17 active brushes need alpha,
-translucency or framebuffer-texture integration, 12 active models have no faces,
-and four are disabled. The wall timer digits are visually verified. Brush
+All 27 active brush models with faces in the first map are now eligible;
+12 active models have no faces and four are disabled. Transparent brushes use
+original BSP box-to-leaf enumeration to choose their closest visible leaf and
+share the depth-sorted queue with transparent static props. Each leaf's world
+alpha surfaces precede those renderables, matching the original client order.
+Purely translucent brushes skip the opaque pass; mixed brushes split their
+opaque and alpha geometry. Three brush models require refraction: the inspector
+creates the original `_rt_PowerOfTwoFB` target before geometry/lightmap setup,
+binds it for the original brush renderer's framebuffer copy, and restores the
+previous texture binding afterwards. Target ownership ends before material
+shutdown. The runtime exercised visible alpha/refraction brushes without GL
+errors, but reflection colors/brightness still need a reference-image check.
+The frosted glass materials intentionally use additive blending. The wall timer digits are visually verified. Brush
 geometry remains at its BSP-authored pose; moving doors/trains and game-driven
 material proxies still require client/server state. The count is submitted
 brushes, not a per-object pixel test.
@@ -1078,8 +1088,8 @@ that runtime report. The inspector now assigns transparent static props to their
 leaf, sorts them by view depth within that leaf, and interleaves their original
 `DrawModel` transparency pass after that leaf's world surfaces. Mixed models
 submit opaque and translucent meshes separately using `STUDIO_TWOPASS`.
-Visible props requiring framebuffer-copy textures are explicitly skipped and
-reported as pending; refraction render-target setup remains missing. The first
+Visible static props requiring framebuffer-copy textures are still deferred;
+brush refraction uses the target described above. The first
 Portal chamber exercised the world pass and opaque props, but had no transparent
 props in the tested views, so alpha-model rendering still needs visual coverage.
 
@@ -1388,7 +1398,8 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Integrate refraction textures and entity rendering, then connect
+1. Verify glass/reflection appearance, expand refraction to static props and
+   inspect remaining entity visuals, then connect
    client/server startup for dynamic objects and actual areaportal state.
    PVS, opaque static props, camera navigation and BSP collision are available.
 2. Expand to a single HL2 map and address shaders, visibility, mesh/page limits
