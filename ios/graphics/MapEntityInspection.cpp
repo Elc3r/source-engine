@@ -75,6 +75,7 @@ public:
     matrix3x4_t transform;
     int skin=0,body=0,index=-1;
     char animation[128]={};
+    bool securityCamera=false;
     const Vector &GetRenderOrigin() override { return origin; }
     const QAngle &GetRenderAngles() override { return angles; }
     const matrix3x4_t &RenderableToWorldTransform() override { return transform; }
@@ -93,6 +94,13 @@ public:
         if (!out) return true;
         CStudioHdr studio(hdr,g_pMDLCache);
         float pose[MAXSTUDIOPOSEPARAM]={};
+        // CNPC_SecurityCamera::Spawn initializes these in degrees. The bone
+        // setup array stores normalized controls; zero degrees is not always 0.
+        if (securityCamera) for (int i=0;i<studio.GetNumPoseParameters() && i<MAXSTUDIOPOSEPARAM;++i) {
+            const char *name=studio.pPoseParameter(i).pszName();
+            if (!Q_strcmp(name,"aim_yaw") || !Q_strcmp(name,"aim_pitch"))
+                Studio_SetPoseParameter(&studio,i,0,pose[i]);
+        }
         Vector positions[MAXSTUDIOBONES]; Quaternion rotations[MAXSTUDIOBONES];
         IBoneSetup setup(&studio,BONE_USED_BY_ANYTHING,pose);
         setup.InitPose(positions,rotations);
@@ -209,7 +217,11 @@ int SourceIOSInitializeEntityModels()
             brushes.AddToTail(entry);
             continue;
         }
-        if (Q_strcmp(classname,"prop_dynamic") && Q_strcmp(classname,"prop_physics") &&
+        const bool securityCamera=!Q_strcmp(classname,"npc_security_camera");
+        // This NPC has no BSP model key: the original Portal Spawn method sets
+        // its model explicitly. Inspect its initial pose without starting AI.
+        if (securityCamera) Q_strncpy(name,"models/props/security_camera.mdl",sizeof(name));
+        if (!securityCamera && Q_strcmp(classname,"prop_dynamic") && Q_strcmp(classname,"prop_physics") &&
             Q_strcmp(classname,"prop_physics_override")) continue;
         if (!name[0] || name[0]=='*' || disabled) { ++skipped; continue; }
         // Explicitly defer alpha entities and alternate render modes until they
@@ -223,6 +235,7 @@ int SourceIOSInitializeEntityModels()
         InspectionModel *entry=new InspectionModel;
         entry->model=model; entry->origin=origin; entry->angles=angles;
         entry->skin=skin; entry->body=body; entry->index=entityIndex;
+        entry->securityCamera=securityCamera;
         Q_strncpy(entry->animation,animation,sizeof(entry->animation));
         AngleMatrix(angles,origin,entry->transform);
         models.AddToTail(entry);

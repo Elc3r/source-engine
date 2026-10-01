@@ -1019,7 +1019,13 @@ angles, skin, body and `DefaultAnim` come from the map; the original bone setup
 and matrix builder evaluate cycle zero of that sequence (sequence zero if
 unspecified). This is a render-only initial-pose adapter, not a game client or
 server: it does not animate over time, simulate physics, follow moving parents,
-process entity I/O, or create NPCs/portals. Frustum and original BSP PVS cull the
+process entity I/O, or create running NPCs/portals. Security camera snapshots
+use `models/props/security_camera.mdl`, as selected by the original Portal
+`CNPC_SecurityCamera::Spawn` rather than a BSP model key. Their `aim_yaw` and
+`aim_pitch` controls use the original pose-parameter conversion for zero degrees;
+map origin and angles orient the mount. All four camera models in the first map
+are eligible, but AI tracking, eye sprites and ropes are not yet running.
+Frustum and original BSP PVS cull the
 model bounds. Disabled, alpha and framebuffer-copy models are deferred and
 reported; unreferencing models precedes loader shutdown. In the first Portal
 chamber the bed and toilet are visually verified, and the runtime reports no
