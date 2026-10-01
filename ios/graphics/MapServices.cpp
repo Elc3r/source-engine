@@ -148,3 +148,10 @@ bool DrawLoadedWorldMap(IMaterialSystem *system, int width, int height, char *de
     materials=previous;
     return valid;
 }
+
+extern "C" void MoveSourceWorldCamera(float forward, float right, float yaw, float pitch, float seconds)
+{
+    auto move=loaderModule ? reinterpret_cast<decltype(&SourceIOSMoveWorldCamera)>(
+        GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSMoveWorldCamera")) : NULL;
+    if (worldLoaded && move) move(forward,right,yaw,pitch,seconds);
+}

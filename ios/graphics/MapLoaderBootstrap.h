@@ -5,3 +5,4 @@ extern "C" bool SourceIOSInitializeMapLoader(CreateInterfaceFn factory, char *de
 extern "C" void SourceIOSShutdownMapLoader();
 extern "C" bool SourceIOSLoadWorldMap(const char *name, char *detail, size_t capacity);
 extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_t capacity);
+extern "C" void SourceIOSMoveWorldCamera(float forward, float right, float yaw, float pitch, float seconds);

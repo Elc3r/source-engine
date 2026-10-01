@@ -13,6 +13,7 @@ int DrawToGLESMaterialLoop(char *detail, size_t capacity);
 void StopToGLESMaterialLoop(void);
 int IsSourceWorldMapLoaded(void);
 int IsSourceWorldMapRendered(void);
+void MoveSourceWorldCamera(float forward, float right, float yaw, float pitch, float seconds);
 const char *SourceWorldMapDetail(void);
 int CheckSurfaceSort(char *detail, size_t capacity);
 int CheckWorldState(char *detail, size_t capacity);

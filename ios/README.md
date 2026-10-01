@@ -988,8 +988,16 @@ separately reports `world_map_loaded`, geometry counts in `world_map_detail`, an
 `world_map_rendered`. The retained live loop now calls the original world
 renderer: world geometry/lightmap allocation, surface and area initialization,
 view/frustum setup, BSP traversal, render-list construction and world draws.
-The camera comes from the first `info_player_start` entity, with the normal
-64-unit eye offset. This is a brush-world bootstrap: visibility uses no PVS and
+The camera starts at the first `info_player_start` entity, with the normal
+64-unit eye offset. Drag and hold on the left half of the screen to move
+relative to the view; drag on the right half to look. With a keyboard, WASD
+moves and arrow keys look. Looking up/down and moving forward allows vertical
+inspection. This is a flying inspection camera without gravity or player
+physics. Its 8-unit-wide hull uses the original `CM_BoxTrace` against world
+BSP solids (`MASK_SOLID`), with up to three swept moves for wall sliding.
+The spawn hull must be outside solid collision; the status shows position, yaw
+and wall-hit count. Frame time is capped at 50 ms and movement at 160 units/s;
+background entry clears touch input. Dynamic entities are not collision-tested. This is a brush-world bootstrap: visibility uses no PVS and
 all areas are open; client/server simulation, static props, brush entities,
 sky, water passes, overlays and gameplay are not initialized.
 
@@ -1322,9 +1330,9 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Add camera navigation and original collision traces to inspect the loaded
-   Portal world. Then enable PVS/area visibility and static-prop rendering,
-   addressing shader combinations required by the actual scene.
+1. Enable PVS/area visibility and static-prop rendering, addressing shader
+   combinations required by the actual Portal scene. Camera navigation and
+   original world collision traces are now available for inspection.
 2. Expand to a single HL2 map and address shaders, visibility, mesh/page limits
    and other features only as required by actual map loading/rendering.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

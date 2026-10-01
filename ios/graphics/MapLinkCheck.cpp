@@ -29,6 +29,7 @@ extern "C" IRender *SourceIOSWorldRendererLinkAnchor()
 #include "r_areaportal.h"
 #include "filesystem/IQueuedLoader.h"
 #include "cmodel_private.h"
+#include "cmodel_engine.h"
 
 extern CreateInterfaceFn g_AppSystemFactory;
 extern CMemoryStack g_HunkMemoryStack;
@@ -42,6 +43,7 @@ bool worldLightmapsDirty=false;
 void RestoreWorldLightmaps(int) { worldLightmapsDirty=true; }
 Vector cameraOrigin;
 QAngle cameraAngles;
+unsigned cameraCollisions=0;
 }
 extern "C" void SourceIOSShutdownMapLoader()
 {
@@ -194,6 +196,15 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     cameraOrigin.z+=64;
     host_state.SetWorldModel(loadedWorld);
     g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
+    cameraCollisions=0;
+    Ray_t stationary; trace_t placement;
+    stationary.Init(cameraOrigin,cameraOrigin,Vector(-4,-4,-4),Vector(4,4,4));
+    CM_BoxTrace(stationary,0,MASK_SOLID,true,placement);
+    if (placement.startsolid || placement.allsolid) {
+        host_state.SetWorldModel(NULL);
+        g_pMaterialSystemConfig=NULL;
+        snprintf(detail,capacity,"Camera hull starts inside BSP collision"); return false;
+    }
     r_framecount=1;
     R_ResetLightStyles();
     r_blend=1.0f;
@@ -241,7 +252,33 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
         DRAWWORLDLISTS_DRAW_STRICTLYUNDERWATER | DRAWWORLDLISTS_DRAW_INTERSECTSWATER,0);
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Actual Portal world: %d visible leaves; camera %.0f %.0f %.0f",info.m_LeafCount,
-        cameraOrigin.x,cameraOrigin.y,cameraOrigin.z);
+    snprintf(detail,capacity,"Actual Portal world: %d visible leaves; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,
+        cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
     return info.m_LeafCount>0;
+}
+
+// A flying inspection camera, not the client movement simulation. Sweep a small
+// hull through original BSP collision and slide the remaining move on planes.
+extern "C" void SourceIOSMoveWorldCamera(float forward, float right, float yaw, float pitch, float seconds)
+{
+    if (!worldRendererStarted) return;
+    cameraAngles.y=AngleNormalize(cameraAngles.y+yaw);
+    cameraAngles.x=clamp(cameraAngles.x+pitch,-85.0f,85.0f);
+    Vector ahead,side;
+    AngleVectors(cameraAngles,&ahead,&side,NULL);
+    Vector remaining=ahead*forward+side*right;
+    float length=remaining.Length();
+    if (length>1) remaining/=length;
+    remaining*=160.0f*clamp(seconds,0.0f,0.05f);
+    for (int bump=0;bump<3 && remaining.LengthSqr()>0.0001f;++bump) {
+        Ray_t ray; trace_t trace;
+        ray.Init(cameraOrigin,cameraOrigin+remaining,Vector(-4,-4,-4),Vector(4,4,4));
+        CM_BoxTrace(ray,0,MASK_SOLID,true,trace);
+        if (trace.startsolid || trace.allsolid) break;
+        cameraOrigin=trace.endpos;
+        if (trace.fraction>=1) break;
+        ++cameraCollisions;
+        remaining*=1.0f-trace.fraction;
+        remaining-=trace.plane.normal*DotProduct(remaining,trace.plane.normal);
+    }
 }

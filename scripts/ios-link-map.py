@@ -54,7 +54,7 @@ def main():
         'interface_scope': args.interface_scope,
         'exported_anchors': ['SourceIOSMapLoaderLinkAnchor', 'SourceIOSWorldRendererLinkAnchor',
                              'SourceIOSInitializeMapLoader', 'SourceIOSShutdownMapLoader',
-                             'SourceIOSLoadWorldMap', 'SourceIOSDrawWorldMap'],
+                             'SourceIOSLoadWorldMap', 'SourceIOSDrawWorldMap', 'SourceIOSMoveWorldCamera'],
         'scope': 'Strict dylib link of actual engine sources against the iOS graphics runtime. Includes loader bootstrap entry points; this command does not execute startup or load maps.',
     }, indent=2) + '\n')
     if result.returncode and not missing:

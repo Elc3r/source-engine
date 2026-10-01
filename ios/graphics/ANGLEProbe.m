@@ -44,6 +44,14 @@ static void SaveResult(BOOL passed, NSString *detail, NSDictionary *extra)
     statusFrame.size.height = passed ? (landscape ? 85 : 140) : 240;
     label.frame = statusFrame;
 #endif
+#ifdef SOURCE_TOGLES_PROBE
+    if (IsSourceWorldMapLoaded()) {
+        label.text=[label.text stringByAppendingString:@"\nLeft drag: move • Right drag: look"];
+        CGRect controlsFrame=label.frame;
+        controlsFrame.size.height=landscape ? 125 : 185;
+        label.frame=controlsFrame;
+    }
+#endif
     NSMutableDictionary *result = [@{@"passed": @(passed), @"detail": detail,
         @"system": UIDevice.currentDevice.systemVersion, @"frames": @(frames),
         @"renderer": renderer, @"gl_version": version} mutableCopy];
@@ -204,11 +212,50 @@ static BOOL StartRenderer(void)
     return YES;
 }
 
+#ifdef SOURCE_TOGLES_PROBE
+static SDL_FingerID moveFinger, lookFinger;
+static BOOL movingTouch, lookingTouch;
+static float moveStartX,moveStartY,moveForward,moveRight,lookYaw,lookPitch;
+static Uint64 cameraTick;
+static void CameraEvent(const SDL_Event *event)
+{
+    if (!IsSourceWorldMapLoaded()) return;
+    if (event->type==SDL_FINGERDOWN) {
+        if (event->tfinger.x<0.5f && !movingTouch) {
+            movingTouch=YES; moveFinger=event->tfinger.fingerId;
+            moveStartX=event->tfinger.x; moveStartY=event->tfinger.y;
+        } else if (event->tfinger.x>=0.5f && !lookingTouch) {
+            lookingTouch=YES; lookFinger=event->tfinger.fingerId;
+        }
+    } else if (event->type==SDL_FINGERMOTION) {
+        if (movingTouch && event->tfinger.fingerId==moveFinger) {
+            moveForward=(moveStartY-event->tfinger.y)/0.12f;
+            moveRight=(event->tfinger.x-moveStartX)/0.12f;
+        } else if (lookingTouch && event->tfinger.fingerId==lookFinger) {
+            lookYaw-=event->tfinger.dx*180.0f;
+            lookPitch+=event->tfinger.dy*180.0f;
+        }
+    } else if (event->type==SDL_FINGERUP) {
+        if (movingTouch && event->tfinger.fingerId==moveFinger) {
+            movingTouch=NO; moveForward=moveRight=0;
+        }
+        if (lookingTouch && event->tfinger.fingerId==lookFinger) lookingTouch=NO;
+    }
+}
+#endif
+
 static void DrawFrame(void *unused)
 {
     @autoreleasepool {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
+#ifdef SOURCE_TOGLES_PROBE
+            CameraEvent(&event);
+            if (event.type==SDL_APP_WILLENTERBACKGROUND) {
+                movingTouch=lookingTouch=NO;
+                moveForward=moveRight=lookYaw=lookPitch=0;
+            }
+#endif
             if (event.type == SDL_APP_WILLENTERBACKGROUND) paused = YES;
             if (event.type == SDL_APP_DIDENTERFOREGROUND) paused = NO;
         }
@@ -221,6 +268,15 @@ static void DrawFrame(void *unused)
         }
         if (width <= 0 || height <= 0) return;
 #ifdef SOURCE_TOGLES_PROBE
+        Uint64 tick=SDL_GetPerformanceCounter();
+        float seconds=cameraTick ? (float)((double)(tick-cameraTick)/SDL_GetPerformanceFrequency()) : 0;
+        cameraTick=tick;
+        const Uint8 *keys=SDL_GetKeyboardState(NULL);
+        MoveSourceWorldCamera(moveForward+keys[SDL_SCANCODE_W]-keys[SDL_SCANCODE_S],
+            moveRight+keys[SDL_SCANCODE_D]-keys[SDL_SCANCODE_A],
+            lookYaw+(keys[SDL_SCANCODE_LEFT]-keys[SDL_SCANCODE_RIGHT])*90*seconds,
+            lookPitch+(keys[SDL_SCANCODE_DOWN]-keys[SDL_SCANCODE_UP])*90*seconds,seconds);
+        lookYaw=lookPitch=0;
         char detail[4096]={0};
         if (!DrawToGLESMaterialLoop(detail,sizeof(detail))) {
             renderFailed=YES;
