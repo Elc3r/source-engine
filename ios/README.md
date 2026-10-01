@@ -1546,8 +1546,35 @@ python3 scripts/build-ios-bootstrap.py --togles --game-modules \
   --portal-root /Users/vavrinakm/Games/Portal-arm64
 ```
 
-This checks dynamic loading and interface creation, followed by the existing map
-rendering checks. It does **not** call client Init or server DLLInit/LevelInit and
-does not run game ticks, create a player or activate map entities. Those startup
-calls and their engine service bindings are the next milestone. Physical-device
+With only `--game-modules`, this checks dynamic loading and interface creation,
+followed by the existing map rendering checks. Game initialization is opt-in as
+described below; game ticks, a player and active map entities are not yet present. Physical-device
 module loading is not yet runtime-tested.
+
+
+## Portal game initialization
+
+Add `--game-startup` to the command above to run the original server `DLLInit`
+after engine services, game search paths and the BSP loader are ready. The host
+uses the real server globals and the DLL's own tick interval. Sound emitter and
+scene file cache are real, separately loaded app systems; engine factory queries
+also reach the original engine's registry.
+
+Game DLLs force-load their own tier1 code, including interface and cvar registries.
+Their cvar registration and unregistration must remain independent of the renderer.
+The startup check verifies server classes and ownership of a Portal server cvar.
+The normal teardown shuts down the game before its service dependencies.
+
+`--game-startup server-cycle` verifies server initialization and shutdown,
+removal of game cvars, preservation of engine cvars, and subsequent map rendering.
+The result is in the `game_startup` field of `Documents/togles.json`.
+
+`--game-startup client` also attempts the original client `Init`. This is currently
+a diagnostic that fails: the first unavailable required interface is
+`InputSystemVersion001`. SDL input hosting and the original VGUI/mat-system
+surface services must be integrated before client initialization can finish.
+A failure remains a failed probe, never a successful gameplay result.
+
+Server DLL initialization does not call `LevelInit`, create edicts/player entities
+or advance `GameFrame`. The displayed scene is still the inspection renderer.
+Client startup and the actual map/player game loop are the next steps.

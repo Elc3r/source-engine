@@ -39,13 +39,14 @@ foreach(side IN ITEMS client server)
     string(TOUPPER "${side}" upper)
     # A force-loaded archive retains the real interface registry and entity
     # factories. Unresolved dependencies are errors; never dynamic lookup.
-    add_library(Portal${upper}Module SHARED EXCLUDE_FROM_ALL ../../tier1/interface.cpp)
+    add_library(Portal${upper}Module SHARED EXCLUDE_FROM_ALL PortalModule.cpp)
     target_compile_definitions(Portal${upper}Module PRIVATE
         $<TARGET_PROPERTY:Portal${upper},COMPILE_DEFINITIONS>)
     target_include_directories(Portal${upper}Module PRIVATE
         $<TARGET_PROPERTY:Portal${upper},INCLUDE_DIRECTORIES>)
     target_link_options(Portal${upper}Module PRIVATE
         "-Wl,-force_load,$<TARGET_FILE:Portal${upper}>"
+        "-Wl,-force_load,${ENGINE_BUILD}/tier1/libtier1.a"
         # Keep module-local allocator/template code out of Mach-O weak-symbol
         # coalescing with the renderer and the other game DLL.
         "-Wl,-exported_symbol,_CreateInterface")
@@ -58,3 +59,25 @@ foreach(side IN ITEMS client server)
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
 endforeach()
 add_custom_target(PortalGameModules DEPENDS PortalCLIENTModule PortalSERVERModule)
+
+add_library(soundemittersystem SHARED EXCLUDE_FROM_ALL
+    ../../soundemittersystem/soundemittersystembase.cpp
+    ../../game/shared/interval.cpp ../../public/SoundParametersInternal.cpp
+    ../../tier1/interface.cpp)
+add_library(scenefilecache SHARED EXCLUDE_FROM_ALL
+    ../../scenefilecache/SceneFileCache.cpp ../../tier1/interface.cpp)
+foreach(module IN ITEMS soundemittersystem scenefilecache)
+    target_compile_features(${module} PRIVATE cxx_std_11)
+    target_compile_definitions(${module} PRIVATE
+        $<TARGET_PROPERTY:PortalSupport,COMPILE_DEFINITIONS>)
+    target_include_directories(${module} PRIVATE
+        $<TARGET_PROPERTY:PortalSupport,INCLUDE_DIRECTORIES>)
+    target_link_libraries(${module} PRIVATE ToGLESRuntime
+        "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/mathlib/libmathlib.a"
+        "${ENGINE_BUILD}/tier0/libtier0.dylib")
+    target_link_options(${module} PRIVATE "-Wl,-exported_symbol,_CreateInterface")
+    set_target_properties(${module} PROPERTIES
+        BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
+endforeach()
+target_compile_definitions(soundemittersystem PRIVATE SOUNDEMITTERSYSTEM_EXPORTS=1 SOUNDEMITTERSYSTEM_DLL=1)
+add_dependencies(PortalGameModules soundemittersystem scenefilecache)

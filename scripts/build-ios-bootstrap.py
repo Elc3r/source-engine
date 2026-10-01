@@ -27,6 +27,8 @@ def main():
     mode.add_argument('--graphics', action='store_true', help='Build the independent SDL/Metal GPU probe')
     mode.add_argument('--angle', action='store_true', help='Build the SDL/ANGLE GLES texture probe (downloads pinned ANGLE)')
     mode.add_argument('--togles', action='store_true', help='Test engine shader translation and DXT decoding through ANGLE')
+    parser.add_argument('--game-startup', nargs='?', const='server', choices=['server','server-cycle','client'],
+                        help='Initialize Portal server, check its shutdown, or attempt client Init (requires game modules/data)')
     parser.add_argument('--game-modules', action='store_true', help='Build and verify actual Portal client/server factories (ToGLES only)')
     parser.add_argument('--world-loader-check', action='store_true',
                         help='Compile actual engine world-loading units and report link dependencies (ToGLES only)')
@@ -36,6 +38,8 @@ def main():
     parser.add_argument('--min-version', help='Default: 16.0 for ANGLE, 15.0 otherwise')
     parser.add_argument('--simulator', metavar='UDID', help='Install, launch and verify on this simulator')
     args = parser.parse_args()
+    if args.game_startup and (not args.game_modules or not args.portal_root):
+        parser.error("--game-startup requires --game-modules and --portal-root")
     if args.game_modules and not args.togles:
         parser.error('--game-modules requires --togles')
     if args.world_loader_check and not args.togles:
@@ -170,7 +174,7 @@ def main():
         libraries.append(sdl)
         module_names = ['libToGLESRuntime', 'libshaderapidx9', 'libmaterialsystem', 'stdshader_dx9', 'stdshader_dbg', 'libdatacache', 'libvphysics', 'libstudiorender', 'libEngineMapLinkCheck']
         if args.game_modules:
-            module_names += ['libclient', 'libserver']
+            module_names += ['libclient', 'libserver', 'libsoundemittersystem', 'libscenefilecache']
         for name in module_names:
             module = app / 'Frameworks' / (name + '.dylib')
             shutil.copy2(graphics_build / module.name, module)
@@ -214,6 +218,8 @@ def main():
     launch_env=os.environ.copy()
     if args.game_modules:
         launch_env["SIMCTL_CHILD_SOURCE_IOS_GAME_MODULE_CHECK"]="1"
+    if args.game_startup:
+        launch_env["SIMCTL_CHILD_SOURCE_IOS_GAME_STARTUP"]=args.game_startup
     if args.portal_root:
         launch_env['SIMCTL_CHILD_SOURCE_IOS_GAME_ROOT']=str(args.portal_root)
         launch_env['SIMCTL_CHILD_SOURCE_IOS_WORLD_MAP']=args.world_map

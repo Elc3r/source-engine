@@ -12,6 +12,7 @@
 #include "mathlib/vmatrix.h"
 #include "SceneChecks.h"
 #include "MapServices.h"
+extern "C" int InitializePortalGame(const char *,CreateInterfaceFn,char *,size_t);
 
 namespace {
 const GLMContextHost *applicationHost=NULL;
@@ -392,6 +393,7 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                 }
                 if (valid) valid=InitializeMapServices(modules,ApplicationFactory,detail,capacity);
                 if (valid && retain) valid=LoadRequestedWorldMap(detail,capacity);
+                if (valid && retain) valid=InitializePortalGame(modules,ApplicationFactory,detail,capacity);
                 if (valid && retain) {
                     livePresentation=&presentation;
                     liveModule=module;

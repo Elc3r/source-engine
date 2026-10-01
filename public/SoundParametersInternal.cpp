@@ -6,7 +6,14 @@
 //
 //=============================================================================//
 
+#ifdef SOUNDEMITTERSYSTEM_DLL
+#include "tier0/platform.h"
+#include "tier0/dbg.h"
+#include "tier1/strtools.h"
+#include "mathlib/mathlib.h"
+#else
 #include "cbase.h"
+#endif
 
 #if !defined(_STATIC_LINKED) || defined(SOUNDEMITTERSYSTEM_DLL)
 

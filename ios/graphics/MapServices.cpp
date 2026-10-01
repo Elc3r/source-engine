@@ -12,12 +12,14 @@
 #include "tier1/strtools.h"
 
 namespace {
-CSysModule *modules[3]={};
-CreateInterfaceFn factories[3]={};
+CSysModule *modules[5]={};
+CreateInterfaceFn factories[5]={};
 struct Service { IAppSystem *system; bool connected, initialized; };
 Service services[4]={};
 CSysModule *loaderModule=NULL;
 decltype(&SourceIOSShutdownMapLoader) stopLoader=NULL;
+IAppSystem *gameServices[2]={};
+bool gameConnected[2]={},gameInitialized[2]={};
 bool worldLoaded=false;
 char worldDetail[512]={};
 }
@@ -25,10 +27,27 @@ void *QueryMapService(const char *name)
 {
     for (CreateInterfaceFn factory : factories)
         if (factory) if (void *result=factory(name,NULL)) return result;
+    if (loaderModule) {
+        CreateInterfaceFn engine=Sys_GetFactory(loaderModule);
+        if (engine) if (void *result=engine(name,NULL)) return result;
+    }
     return NULL;
 }
 void ShutdownMapServices()
 {
+    if (loaderModule) {
+        typedef bool (*Stop)();
+        Stop stop=reinterpret_cast<Stop>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSShutdownPortalServer"));
+        if (stop) stop();
+    }
+    for (int i=1;i>=0;--i) if (gameInitialized[i]) gameServices[i]->Shutdown();
+    for (int i=1;i>=0;--i) if (gameConnected[i]) gameServices[i]->Disconnect();
+    for (int i=4;i>=3;--i) {
+        factories[i]=NULL;
+        if (modules[i]) Sys_UnloadModule(modules[i]);
+        modules[i]=NULL; gameServices[i-3]=NULL;
+        gameConnected[i-3]=gameInitialized[i-3]=false;
+    }
     if (stopLoader) stopLoader();
     worldLoaded=false;
     worldDetail[0]=0;
@@ -165,4 +184,47 @@ extern "C" void MoveSourceWorldCamera(float forward, float right, float yaw, flo
     auto move=loaderModule ? reinterpret_cast<decltype(&SourceIOSMoveWorldCamera)>(
         GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSMoveWorldCamera")) : NULL;
     if (worldLoaded && move) move(forward,right,yaw,pitch,seconds);
+}
+
+
+bool InitializeGameServices(const char *directory,CreateInterfaceFn factory,char *detail,size_t capacity)
+{
+    const char *names[]={"soundemittersystem","scenefilecache"};
+    const char *interfaces[]={"VSoundEmitter002","SceneFileCache002"};
+    for (int i=3;i<5;++i) {
+        char path[MAX_PATH]; Q_snprintf(path,sizeof(path),"%s/lib%s.dylib",directory,names[i-3]);
+        modules[i]=Sys_LoadModule(path); factories[i]=modules[i]?Sys_GetFactory(modules[i]):NULL;
+        IAppSystem *service=factories[i]?static_cast<IAppSystem *>(factories[i](interfaces[i-3],NULL)):NULL;
+        gameServices[i-3]=service;
+        if (!service || !service->Connect(factory)) {
+            snprintf(detail,capacity,"Portal game service %s Connect failed",names[i-3]); return false;
+        }
+        gameConnected[i-3]=true;
+        if (service->Init()!=INIT_OK) {
+            snprintf(detail,capacity,"Portal game service %s Init failed",names[i-3]); return false;
+        }
+        gameInitialized[i-3]=true;
+    }
+    return true;
+}
+bool InitializePortalServer(CreateInterfaceFn gameFactory,char *detail,size_t capacity)
+{
+    typedef bool (*Start)(CreateInterfaceFn,char *,size_t);
+    Start start=loaderModule?reinterpret_cast<Start>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSInitializePortalServer")):NULL;
+    if (!start) { snprintf(detail,capacity,"Portal server bootstrap entry point unavailable"); return false; }
+    return start(gameFactory,detail,capacity);
+}
+
+bool InitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity)
+{
+    typedef bool (*Start)(CreateInterfaceFn,char *,size_t);
+    Start start=loaderModule?reinterpret_cast<Start>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSInitializePortalClient")):NULL;
+    if (!start) { snprintf(detail,capacity,"Portal client bootstrap entry point unavailable"); return false; }
+    return start(gameFactory,detail,capacity);
+}
+bool ShutdownPortalServer()
+{
+    typedef bool (*Stop)();
+    Stop stop=loaderModule?reinterpret_cast<Stop>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSShutdownPortalServer")):NULL;
+    return stop && stop();
 }
