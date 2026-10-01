@@ -74,6 +74,7 @@ def main():
                 '--ios-min-version=' + args.min_version, '-o', build)
             run(sys.executable, 'waf', 'build')
             angle_options.append('-DENGINE_BUILD=' + str(build))
+            angle_options.append('-DENGINE_MAP_INTERFACE_SCOPE=OFF')
         run('cmake', '-S', ROOT / 'ios/graphics', '-B', graphics_build,
             '-DCMAKE_SYSTEM_NAME=iOS', '-DCMAKE_OSX_SYSROOT=' + sdk_path,
             '-DCMAKE_OSX_ARCHITECTURES=arm64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=' + args.min_version,
@@ -149,7 +150,10 @@ def main():
         run('xcrun', 'install_name_tool', '-change', build / 'tier0/libtier0.dylib',
             '@rpath/libtier0.dylib', app / executable)
         libraries.append(library)
-        for name in ['libToGLESRuntime', 'libshaderapidx9', 'libmaterialsystem', 'stdshader_dx9', 'stdshader_dbg', 'libdatacache', 'libvphysics', 'libstudiorender']:
+        sdl = app / 'Frameworks/libSDL2.dylib'
+        shutil.copy2(graphics_build / 'sdl2/libSDL2.dylib', sdl)
+        libraries.append(sdl)
+        for name in ['libToGLESRuntime', 'libshaderapidx9', 'libmaterialsystem', 'stdshader_dx9', 'stdshader_dbg', 'libdatacache', 'libvphysics', 'libstudiorender', 'libEngineMapLinkCheck']:
             module = app / 'Frameworks' / (name + '.dylib')
             shutil.copy2(graphics_build / module.name, module)
             run('xcrun', 'install_name_tool', '-id', '@rpath/' + module.name, module)

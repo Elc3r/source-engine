@@ -9,8 +9,15 @@ endif()
 # CMake policy defaults and promotes mixed C declarations to errors in ObjC.
 set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 set(HAVE_GCC_WERROR_DECLARATION_AFTER_STATEMENT OFF CACHE BOOL "" FORCE)
-set(SDL_SHARED OFF CACHE BOOL "" FORCE)
-set(SDL_STATIC ON CACHE BOOL "" FORCE)
+if(ENGINE_BUILD AND ANGLE_ROOT)
+    set(SDL_SHARED ON CACHE BOOL "" FORCE)
+    set(SDL_STATIC OFF CACHE BOOL "" FORCE)
+    set(IOS_SDL_TARGET SDL2)
+else()
+    set(SDL_SHARED OFF CACHE BOOL "" FORCE)
+    set(SDL_STATIC ON CACHE BOOL "" FORCE)
+    set(IOS_SDL_TARGET SDL2-static)
+endif()
 set(SDL_TEST OFF CACHE BOOL "" FORCE)
 set(VIDEO_METAL ON CACHE BOOL "" FORCE)
 if(ANGLE_ROOT)
@@ -18,11 +25,15 @@ if(ANGLE_ROOT)
     set(VIDEO_OPENGLES OFF CACHE BOOL "" FORCE)
 endif()
 add_subdirectory(../../thirdparty/SDL-src sdl2)
+if(IOS_SDL_TARGET STREQUAL "SDL2")
+    set_target_properties(SDL2 PROPERTIES OUTPUT_NAME "SDL2" DEBUG_POSTFIX ""
+        BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
+endif()
 
 add_executable(SourceGraphics GraphicsProbe.m)
 set_target_properties(SourceGraphics PROPERTIES MACOSX_BUNDLE TRUE)
 target_compile_options(SourceGraphics PRIVATE -fobjc-arc)
-target_link_libraries(SourceGraphics PRIVATE SDL2-static "-framework UIKit"
+target_link_libraries(SourceGraphics PRIVATE ${IOS_SDL_TARGET} "-framework UIKit"
     "-framework Foundation" "-framework Metal" "-framework QuartzCore")
 
 if(ANGLE_ROOT)
@@ -36,7 +47,7 @@ if(ANGLE_ROOT)
         set_target_properties(${library} PROPERTIES IMPORTED_LOCATION
             "${ANGLE_ROOT}/${library}.xcframework/${ANGLE_SLICE}/${library}.framework/${library}")
     endforeach()
-    target_link_libraries(SourceANGLE PRIVATE SDL2-static libEGL libGLESv2
+    target_link_libraries(SourceANGLE PRIVATE ${IOS_SDL_TARGET} libEGL libGLESv2
         "-framework UIKit" "-framework Foundation" "-framework Metal" "-framework QuartzCore")
 endif()
 
@@ -336,25 +347,31 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_include_directories(EngineVGUIControls PRIVATE ../../vgui2/vgui_controls
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
     # Strict link: unresolved host/render services are errors, never stubs or
-    # dynamic-lookup imports. Not packaged or loaded until integration is complete.
-    add_library(EngineMapLinkCheck SHARED EXCLUDE_FROM_ALL MapLinkCheck.cpp)
+    # dynamic-lookup imports. The app invokes only the explicit loader bootstrap.
+    add_library(EngineMapLinkCheck SHARED EXCLUDE_FROM_ALL MapLinkCheck.cpp
+        ../../tier2/tier2.cpp ../../tier2/meshutils.cpp)
     target_compile_features(EngineMapLinkCheck PRIVATE cxx_std_11)
     target_compile_definitions(EngineMapLinkCheck PRIVATE
         $<TARGET_PROPERTY:EngineWorldLoader,COMPILE_DEFINITIONS>)
     target_include_directories(EngineMapLinkCheck PRIVATE
         $<TARGET_PROPERTY:EngineWorldLoader,INCLUDE_DIRECTORIES>)
     target_link_options(EngineMapLinkCheck PRIVATE
-        "-Wl,-force_load,$<TARGET_FILE:EngineWorldLoader>")
+        "-Wl,-force_load,$<TARGET_FILE:EngineWorldLoader>"
+        "-Wl,-force_load,${ENGINE_BUILD}/tier1/libtier1.a")
+    set_target_properties(EngineMapLinkCheck PROPERTIES VISIBILITY_INLINES_HIDDEN YES
+        BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
     option(ENGINE_MAP_INTERFACE_SCOPE "Link only the loader/renderer public interfaces" OFF)
     if(ENGINE_MAP_INTERFACE_SCOPE)
         # Keep both real interfaces and their reachable code, including vtables
         # and static initializers. Undefined references remain hard errors.
         target_link_options(EngineMapLinkCheck PRIVATE "-Wl,-dead_strip"
             "-Wl,-exported_symbol,_SourceIOSMapLoaderLinkAnchor"
-            "-Wl,-exported_symbol,_SourceIOSWorldRendererLinkAnchor")
+            "-Wl,-exported_symbol,_SourceIOSWorldRendererLinkAnchor"
+            "-Wl,-exported_symbol,_SourceIOSInitializeMapLoader"
+            "-Wl,-exported_symbol,_SourceIOSShutdownMapLoader")
     endif()
     target_link_libraries(EngineMapLinkCheck PRIVATE EngineWorldLoader EngineMapSupport EngineVGUIControls EngineBZip2 libcurl
-        ToGLESRuntime SDL2-static IOSImage "${ENGINE_BUILD}/mathlib/libmathlib.a"
+        ToGLESRuntime ${IOS_SDL_TARGET} IOSImage iconv "${ENGINE_BUILD}/mathlib/libmathlib.a"
         "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib")
     add_library(EngineFilesystem OBJECT
         ../../filesystem/basefilesystem.cpp ../../filesystem/packfile.cpp
@@ -373,7 +390,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
     target_link_libraries(ToGLESRuntime PRIVATE EngineFilesystem EngineWorldServices ToGLESChecks
         "${ENGINE_BUILD}/mathlib/libmathlib.a" "${ENGINE_BUILD}/tier1/libtier1.a"
-        "${ENGINE_BUILD}/tier0/libtier0.dylib" SDL2-static libEGL libGLESv2
+        "${ENGINE_BUILD}/tier0/libtier0.dylib" ${IOS_SDL_TARGET} libEGL libGLESv2
         "-framework UIKit" "-framework Foundation" "-framework Metal" "-framework QuartzCore" iconv)
 
     function(engine_module target)
@@ -619,7 +636,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         ../../materialsystem/stdshaders/fxctmp9 ../../materialsystem/stdshaders/vshtmp9)
     set_target_properties(stdshader_dbg PROPERTIES PREFIX "")
     add_executable(SourceToGLES ANGLEProbe.m)
-    add_dependencies(SourceToGLES materialsystem shaderapidx9 stdshader_dx9 stdshader_dbg EngineMapModules)
+    add_dependencies(SourceToGLES materialsystem shaderapidx9 stdshader_dx9 stdshader_dbg EngineMapModules EngineMapLinkCheck)
     set_target_properties(SourceToGLES PROPERTIES MACOSX_BUNDLE TRUE
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path/Frameworks")
     target_compile_options(SourceToGLES PRIVATE -fobjc-arc)
@@ -628,6 +645,6 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_link_options(SourceToGLES PRIVATE -Wl,-dead_strip)
     target_link_libraries(SourceToGLES PRIVATE ToGLESRuntime
         "${ENGINE_BUILD}/mathlib/libmathlib.a" "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib"
-        SDL2-static libEGL libGLESv2 "-framework UIKit" "-framework Foundation"
+        ${IOS_SDL_TARGET} libEGL libGLESv2 "-framework UIKit" "-framework Foundation"
         "-framework Metal" "-framework QuartzCore" iconv)
 endif()

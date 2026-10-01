@@ -1,4 +1,6 @@
 #include "MapServices.h"
+#include <dlfcn.h>
+#include "MapLoaderBootstrap.h"
 #include "appframework/IAppSystem.h"
 #include "datacache/idatacache.h"
 #include "datacache/imdlcache.h"
@@ -11,6 +13,8 @@ CSysModule *modules[3]={};
 CreateInterfaceFn factories[3]={};
 struct Service { IAppSystem *system; bool connected, initialized; };
 Service services[4]={};
+CSysModule *loaderModule=NULL;
+decltype(&SourceIOSShutdownMapLoader) stopLoader=NULL;
 }
 void *QueryMapService(const char *name)
 {
@@ -20,6 +24,10 @@ void *QueryMapService(const char *name)
 }
 void ShutdownMapServices()
 {
+    if (stopLoader) stopLoader();
+    stopLoader=NULL;
+    if (loaderModule) Sys_UnloadModule(loaderModule);
+    loaderModule=NULL;
     // Keep every interface available until all dependent systems shut down.
     for (int i=3;i>=0;--i) if (services[i].initialized) services[i].system->Shutdown();
     for (int i=3;i>=0;--i) if (services[i].connected) services[i].system->Disconnect();
@@ -66,6 +74,17 @@ bool InitializeMapServices(const char *directory, CreateInterfaceFn factory, cha
         }
         services[i].initialized=true;
     }
-    snprintf(detail,capacity,"Map services: data/model cache + physics + studio render initialized: PASS");
+    char loaderPath[MAX_PATH];
+    Q_snprintf(loaderPath,sizeof(loaderPath),"%s/libEngineMapLinkCheck.dylib",directory);
+    loaderModule=Sys_LoadModule(loaderPath);
+    auto startLoader=loaderModule ? reinterpret_cast<decltype(&SourceIOSInitializeMapLoader)>(
+        GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSInitializeMapLoader")) : NULL;
+    stopLoader=loaderModule ? reinterpret_cast<decltype(&SourceIOSShutdownMapLoader)>(
+        GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSShutdownMapLoader")) : NULL;
+    if (!startLoader || !stopLoader) {
+        snprintf(detail,capacity,"Map loader module/entry points unavailable");
+        ShutdownMapServices(); return false;
+    }
+    if (!startLoader(factory,detail,capacity)) { ShutdownMapServices(); return false; }
     return true;
 }

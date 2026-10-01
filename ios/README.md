@@ -905,9 +905,10 @@ policy of omitting Steam signature checks; the signature-query function itself
 reports that verification is unavailable. No Steam stub library is linked.
 Both full-export and scoped strict links now pass with zero unresolved symbols.
 Offline lifecycle and networking behavior have not been runtime-tested.
-The application still needs real service/module initialization before map loading.
-The interface check does not cover future startup entry points until they are
-also retained. Neither check establishes a runnable map-load path.
+The application still needs further world/UI/host initialization before map loading.
+Both link modes retain the explicit loader bootstrap entry points. They do not
+cover further engine startup entry points until those are retained too. Neither
+link audit by itself establishes a runnable map-load path.
 
 The original `datacache`, `studiorender` and `vphysics` modules now also build
 and strictly link for the ARM64 simulator. Physics uses the existing Waf source
@@ -935,12 +936,31 @@ services retained. The result explicitly reports the two service lifecycles.
 This verifies module loading and Connect/Init/Shutdown/Disconnect, not physics
 simulation, studio model decoding, engine-loader startup or a real BSP load.
 
+The app now also packages the strictly linked engine module and calls the
+explicit loader bootstrap entry points in `MapLinkCheck.cpp`. These connect
+module-local tier1/tier2/tier3 bindings, require the actual filesystem, queued
+loader, caches, material/studio renderer and physics interfaces, register engine
+cvars/cache notifications, then call the original `IModelLoader::Init`. The
+check requires an empty model registry and both collision/surface interfaces.
+Shutdown calls the original loader, removes its queued-loader registration and
+cache notifications, then disconnects tiers before the supporting modules stop.
+This is a loader-specific bootstrap, not the complete `CEngineAPI::Connect`
+path: input, VGUI and client/server startup are still pending.
+
+The ToGLES configuration now uses one shared SDL dylib across app/runtime/engine.
+Loading the engine with a further static SDL copy prevented the second material
+lifecycle from restarting cleanly; with shared SDL both loader Init/Shutdown
+cycles and subsequent rendering pass on the iOS 27 simulator. The graphics-only
+and ANGLE-only configurations retain their static SDL builds. This check has
+not loaded a BSP or exercised collision/model data.
+
 The default command explicitly disables interface scoping and writes
 `build-ios-simulator/map-link.json` and `map-link.log`. The scoped command writes
 `map-interface-link.json` and `map-interface-link.log`, preserving the full report.
 Each report identifies its mode and lists the actual missing symbols and referring
 objects. Both commands return nonzero on link failure. The support archive builds
-successfully; no runtime map load or device run has been performed for this step.
+successfully; loader lifecycle now runs in the simulator, but no runtime map load
+or physical-device run has been performed for this integration.
 
 ### Actual engine world-loader compilation
 
@@ -954,8 +974,8 @@ python3 scripts/build-ios-bootstrap.py --togles --world-loader-check --shader-ca
 python3 scripts/build-ios-bootstrap.py --togles --world-loader-check --shader-cache build-ios-shaders/compiled --target device
 ```
 
-`EngineWorldLoader` is an opt-in static archive, excluded from the normal build
-and not linked into the probe application. The checker verifies ARM64, the
+`EngineWorldLoader` is a static archive linked into the engine module used by
+the ToGLES application. Its separate compile audit remains opt-in. The checker verifies ARM64, the
 target Mach-O platform, all four objects and actual loader/render entry points.
 It writes `build-ios-{simulator,device}/world-loader-check.json`, including
 source/archive hashes and external symbols grouped by their referring objects.

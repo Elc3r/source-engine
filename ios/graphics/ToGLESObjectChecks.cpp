@@ -224,7 +224,7 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
             if (windowContext!=EGL_NO_CONTEXT) eglDestroyContext(display,windowContext);
         }
         GLMgr::DelGLMgr();
-        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip + 12 RGB uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS\n2 material cycles + 8 VMT + 8 MVP + 6 swaps: PASS\n2 data/model cache + physics + studio render lifecycles: PASS",uploads);
+        if (valid) snprintf(detail,capacity,"2 GLM cycles + %d mip + 12 RGB uploads: PASS\n8 shader draws + cache + link recovery: PASS\nICvar + hosted factory + 32 presents: PASS\n2 material cycles + 8 VMT + 8 MVP + 6 swaps: PASS\n2 data/model cache + physics + studio render lifecycles: PASS\n2 actual model loader Init/Shutdown + physics bindings: PASS",uploads);
     }
     if (!eglMakeCurrent(display,draw,read,previous)) {
         valid=false; snprintf(detail,capacity,"GLM objects: restoring host EGL context failed");

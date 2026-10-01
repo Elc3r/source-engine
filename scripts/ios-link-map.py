@@ -52,8 +52,9 @@ def main():
         'unresolved_count': len(missing), 'unresolved': missing,
         'log': log_name,
         'interface_scope': args.interface_scope,
-        'exported_anchors': ['SourceIOSMapLoaderLinkAnchor', 'SourceIOSWorldRendererLinkAnchor'],
-        'scope': 'Strict dylib link of actual engine sources against the iOS graphics runtime. No startup or map execution.',
+        'exported_anchors': ['SourceIOSMapLoaderLinkAnchor', 'SourceIOSWorldRendererLinkAnchor',
+                             'SourceIOSInitializeMapLoader', 'SourceIOSShutdownMapLoader'],
+        'scope': 'Strict dylib link of actual engine sources against the iOS graphics runtime. Includes loader bootstrap entry points; this command does not execute startup or load maps.',
     }, indent=2) + '\n')
     if result.returncode and not missing:
         print(f'Map link: NOT COMPLETED; {failure_phase} failed (exit {result.returncode})')
