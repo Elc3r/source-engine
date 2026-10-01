@@ -211,6 +211,11 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     cameraOrigin.z+=64;
     host_state.SetWorldModel(loadedWorld);
     g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
+    Msg("iOS world color: HDR type %d, enabled %d, shader sRGB write %d, RT sRGB read %d\n",
+        g_pMaterialSystemHardwareConfig->GetHDRType(),
+        g_pMaterialSystemHardwareConfig->GetHDREnabled(),
+        g_pMaterialSystemHardwareConfig->FakeSRGBWrite(),
+        g_pMaterialSystemHardwareConfig->CanDoSRGBReadFromRTs());
     cameraCollisions=0;
     Ray_t stationary; trace_t placement;
     stationary.Init(cameraOrigin,cameraOrigin,Vector(-4,-4,-4),Vector(4,4,4));

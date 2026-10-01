@@ -1039,6 +1039,16 @@ binds it for the original brush renderer's framebuffer copy, and restores the
 previous texture binding afterwards. Target ownership ends before material
 shutdown. The runtime exercised visible alpha/refraction brushes without GL
 errors, but reflection colors/brightness still need a reference-image check.
+On hosted GLES without render-target sRGB reads, `Refract` now selects its
+existing `SHADER_SRGB_READ` combination to decode the shader-encoded framebuffer
+copy before tinting and re-encoding it. The macOS-only selection previously
+missed iOS. The simulator reports integer HDR, shader sRGB writes and no RT sRGB
+reads; startup logs expose these capabilities for diagnosis. Portal and the
+fixture baseline both pass after this change. This fixes a color-space error
+in refraction, not the remaining excessive brightness of additive frosted
+glass. The inspector still fixes tone-map scale at one and lacks the game's
+automatic exposure; its shader-gamma fallback also blends encoded colors.
+Both require further comparison with the supplied original-game screenshots.
 The frosted glass materials intentionally use additive blending. The wall timer digits are visually verified. Brush
 geometry remains at its BSP-authored pose; moving doors/trains and game-driven
 material proxies still require client/server state. The count is submitted
