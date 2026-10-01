@@ -80,9 +80,12 @@ IStaticPropMgrEngine* StaticPropMgr();
 
 #if defined(IOS) && defined(TOGLES)
 struct WorldListInfo_t;
+class IWorldRenderList;
 // Standalone world inspection; no client leaf-system registration or gameplay.
 int SourceIOSInitializeStaticProps();
 int SourceIOSDrawStaticProps(const WorldListInfo_t &world);
+int SourceIOSDrawTranslucentScene(IWorldRenderList *list, const WorldListInfo_t &world,
+    unsigned long flags, const Vector &origin, const Vector &forward, int &worldLeaves, int &unsupportedProps);
 #endif
 
 #endif	// STATICPROPMGR_H

@@ -1051,8 +1051,14 @@ The inspection adapter also runs the original translucent world-surface pass
 after opaque props, visiting visible leaves back to front as the client view
 renderer does. The simulator exercised a nonempty translucent leaf in the first
 Portal chamber with no GL error; `portal-translucent-world-result.json` preserves
-that runtime report. Translucent props, their interleaving with world surfaces,
-and framebuffer copies for refraction still require integration.
+that runtime report. The inspector now assigns transparent static props to their closest visible
+leaf, sorts them by view depth within that leaf, and interleaves their original
+`DrawModel` transparency pass after that leaf's world surfaces. Mixed models
+submit opaque and translucent meshes separately using `STUDIO_TWOPASS`.
+Visible props requiring framebuffer-copy textures are explicitly skipped and
+reported as pending; refraction render-target setup remains missing. The first
+Portal chamber exercised the world pass and opaque props, but had no transparent
+props in the tested views, so alpha-model rendering still needs visual coverage.
 
 The default command explicitly disables interface scoping and writes
 `build-ios-simulator/map-link.json` and `map-link.log`. The scoped command writes
@@ -1359,7 +1365,7 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Extend inspection to translucent props and entity rendering, then connect
+1. Integrate refraction textures and entity rendering, then connect
    client/server startup for dynamic objects and actual areaportal state.
    PVS, opaque static props, camera navigation and BSP collision are available.
 2. Expand to a single HL2 map and address shaders, visibility, mesh/page limits

@@ -1,7 +1,6 @@
 #include "render_pch.h"
 #include "modelloader.h"
 #include "render.h"
-#include "gl_rsurf.h"
 
 // Preserve the actual loader and renderer interface implementations.
 extern "C" IModelLoader *SourceIOSMapLoaderLinkAnchor()
@@ -271,20 +270,16 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     UpdateStudioRenderConfig();
     g_pStudioRender->BeginFrame();
     int visibleProps=SourceIOSDrawStaticProps(info);
-    g_pStudioRender->EndFrame();
-    // BuildWorldLists orders leaves front to back. Match the original client
-    // view renderer by visiting translucent world surfaces in reverse order.
     const unsigned long translucentFlags=DRAWWORLDLISTS_DRAW_STRICTLYABOVEWATER |
         DRAWWORLDLISTS_DRAW_STRICTLYUNDERWATER | DRAWWORLDLISTS_DRAW_INTERSECTSWATER;
-    int translucentLeaves=0;
-    for (int leaf=info.m_LeafCount-1;leaf>=0;--leaf) {
-        if (!Shader_LeafContainsTranslucentSurfaces(list,leaf,translucentFlags)) continue;
-        Shader_DrawTranslucentSurfaces(list,leaf,translucentFlags,false);
-        ++translucentLeaves;
-    }
+    int translucentLeaves=0,unsupportedProps=0;
+    Vector forward; AngleVectors(view.angles,&forward);
+    int translucentProps=SourceIOSDrawTranslucentScene(list,info,translucentFlags,
+        view.origin,forward,translucentLeaves,unsupportedProps);
+    g_pStudioRender->EndFrame();
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; translucent leaves %d; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,translucentLeaves,
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; translucent leaves %d, props %d (pending %d); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,translucentLeaves,translucentProps,unsupportedProps,
         cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
     return info.m_LeafCount>0;
 }

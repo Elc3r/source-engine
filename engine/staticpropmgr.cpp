@@ -33,6 +33,7 @@
 #include "render.h"
 #if defined(IOS) && defined(TOGLES)
 #include "gl_rmain.h"
+#include "gl_rsurf.h"
 #endif
 #include "cmodel_engine.h"
 #include "datacache/imdlcache.h"
@@ -394,6 +395,8 @@ public:
 #if defined(IOS) && defined(TOGLES)
     friend int SourceIOSInitializeStaticProps();
     friend int SourceIOSDrawStaticProps(const WorldListInfo_t &world);
+    friend int SourceIOSDrawTranslucentScene(IWorldRenderList *, const WorldListInfo_t &,
+        unsigned long, const Vector &, const Vector &, int &, int &);
 #endif
 private:
 	void OutputLevelStats( void );
@@ -2383,10 +2386,12 @@ int SourceIOSInitializeStaticProps()
 
 int SourceIOSDrawStaticProps(const WorldListInfo_t &world)
 {
+    if (!r_drawstaticprops.GetBool()) return 0;
     CUtlVector<IClientRenderable *> visible;
+    int twoPassCount=0;
     FOR_EACH_VEC(s_StaticPropMgr.m_StaticProps,i) {
         CStaticProp &prop=s_StaticPropMgr.m_StaticProps[i];
-        if (!prop.ShouldDraw() || prop.IsTransparent()) continue;
+        if (!prop.ShouldDraw() || (prop.IsTransparent() && !prop.IsTwoPass())) continue;
         Vector mins,maxs;
         prop.WorldSpaceSurroundingBounds(&mins,&maxs);
         if (R_CullBox(mins,maxs)) continue;
@@ -2397,9 +2402,66 @@ int SourceIOSDrawStaticProps(const WorldListInfo_t &world)
                 inVisibleLeaf=true; break;
             }
         }
-        if (inVisibleLeaf) visible.AddToTail(&prop);
+        if (inVisibleLeaf) {
+            // The fast array path draws the entire model. Mixed opaque/alpha
+            // models must instead submit only their opaque meshes here.
+            if (prop.IsTwoPass()) {
+                prop.DrawModel(STUDIO_RENDER | STUDIO_TWOPASS); ++twoPassCount;
+            }
+            else visible.AddToTail(&prop);
+        }
     }
     if (visible.Count()) s_StaticPropMgr.DrawStaticProps(visible.Base(),visible.Count(),false,false);
-    return visible.Count();
+    return visible.Count()+twoPassCount;
 }
+
+int SourceIOSDrawTranslucentScene(IWorldRenderList *list, const WorldListInfo_t &world,
+    unsigned long flags, const Vector &origin, const Vector &forward, int &worldLeaves, int &unsupportedProps)
+{
+    struct Entry { CStaticProp *prop; int leaf; float depth; };
+    CUtlVector<Entry> entries;
+    unsupportedProps=worldLeaves=0;
+    FOR_EACH_VEC(s_StaticPropMgr.m_StaticProps,i) {
+        CStaticProp &prop=s_StaticPropMgr.m_StaticProps[i];
+        if (!r_drawstaticprops.GetBool() || !prop.ShouldDraw() || !prop.IsTransparent()) continue;
+        Vector mins,maxs;
+        prop.WorldSpaceSurroundingBounds(&mins,&maxs);
+        if (R_CullBox(mins,maxs)) continue;
+        int closestLeaf=-1;
+        // Match client leaf assignment: the first visible leaf is nearest.
+        for (int v=0;v<world.m_LeafCount && closestLeaf<0;++v)
+            for (int p=0;p<prop.LeafCount();++p)
+                if (world.m_pLeafList[v]==s_StaticPropMgr.m_StaticPropLeaves[prop.FirstLeaf()+p].m_Leaf) {
+                    closestLeaf=v; break;
+                }
+        if (closestLeaf<0) continue;
+        // Screen-copy textures need the client render-target setup, which the
+        // standalone inspector does not initialize yet.
+        if (prop.UsesPowerOfTwoFrameBufferTexture() || prop.UsesFullFrameBufferTexture()) {
+            ++unsupportedProps; continue;
+        }
+        Entry entry={&prop,closestLeaf,DotProduct((mins+maxs)*0.5f-origin,forward)};
+        int insert=0;
+        while (insert<entries.Count() && (entries[insert].leaf>entry.leaf ||
+            (entries[insert].leaf==entry.leaf && entries[insert].depth>=entry.depth))) ++insert;
+        entries.InsertBefore(insert,entry);
+    }
+    const float savedBlend=r_blend;
+    float savedColor[3]; VectorCopy(r_colormod,savedColor);
+    int next=0;
+    for (int leaf=world.m_LeafCount-1;leaf>=0;--leaf) {
+        if (Shader_LeafContainsTranslucentSurfaces(list,leaf,flags)) {
+            Shader_DrawTranslucentSurfaces(list,leaf,flags,false); ++worldLeaves;
+        }
+        while (next<entries.Count() && entries[next].leaf==leaf) {
+            CStaticProp &prop=*entries[next++].prop;
+            r_blend=prop.GetFxBlend()/255.0f;
+            prop.GetColorModulation(r_colormod);
+            prop.DrawModel(STUDIO_RENDER | STUDIO_TRANSPARENCY | (prop.IsTwoPass()?STUDIO_TWOPASS:0));
+            r_blend=savedBlend; VectorCopy(savedColor,r_colormod);
+        }
+    }
+    return entries.Count();
+}
+
 #endif
