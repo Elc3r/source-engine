@@ -1578,3 +1578,22 @@ A failure remains a failed probe, never a successful gameplay result.
 Server DLL initialization does not call `LevelInit`, create edicts/player entities
 or advance `GameFrame`. The displayed scene is still the inspection renderer.
 Client startup and the actual map/player game loop are the next steps.
+
+### Shared touch input preparation
+
+The existing SDL/Android touch path is also enabled by default in the iOS Portal
+client (`touch_enable=1`). SDL touch device and finger identifiers are mapped as
+64-bit pairs into ten stable engine contact slots; excess contacts and unmatched
+motions/releases are ignored. Accumulator reads reject invalid indices.
+Background entry, termination and focus loss emit releases for all held contacts.
+Touch initialization now sets its own flag, and input-system shutdown removes the
+watcher. This prepares the existing `IN_TouchEvent` / `CUserCmd` path; it does not
+replace the inspector camera or complete client startup. The standalone iOS input
+service and original VGUI initialization still need integration.
+
+Validation: iOS touch translation-unit compilation and PortalCLIENT archive build
+passed. An isolated host harness executing the actual touch method bodies passed
+with AddressSanitizer and UndefinedBehaviorSanitizer for large/negative IDs,
+device separation, bounds, contact overflow, cancellation and repeated init.
+SDL registration was stubbed in that harness; simulator lifecycle and full input
+service integration have not been validated by this check.

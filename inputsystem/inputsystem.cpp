@@ -241,6 +241,7 @@ bool CInputSystem::Connect( CreateInterfaceFn factory )
 //-----------------------------------------------------------------------------
 void CInputSystem::Shutdown()
 {
+	ShutdownTouch();
 #if !defined( POSIX )
 	if ( m_hEvent != NULL )
 	{
