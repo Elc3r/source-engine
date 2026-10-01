@@ -32,14 +32,13 @@ float Encode(float value)
     return value<=.0031308f ? value*12.92f : 1.055f*powf(value,1.f/2.4f)-.055f;
 }
 const unsigned char colors[4][3]={{255,0,0},{0,255,0},{0,0,255},{255,255,0}};
-void BlendReference(unsigned char rgba[4], int source)
+void BlendReference(unsigned char rgba[4], int source, bool srgb)
 {
     const float alpha[4]={1,192.f/255,128.f/255,64.f/255};
     for (int channel=0;channel<3;++channel) {
         float destination=rgba[channel]/255.f;
         // Native sRGB targets blend in linear space; the legacy shader-gamma
         // fallback blends encoded values in its linear attachment.
-        bool srgb=gGL->m_bHave_GL_EXT_sRGB_write_control;
         if (srgb) destination=Decode(destination);
         float value=colors[source][channel]/255.f*alpha[source]+destination*(1-alpha[source]);
         if (srgb) value=Encode(value);
@@ -84,6 +83,10 @@ bool DrawBlendScene(IMaterialSystem *material, IMatRenderContext *context,
     gGL->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);
     gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&write);
     gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,write);
+    GLint encoding=GL_LINEAR;
+    gGL->glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
+        write ? GL_COLOR_ATTACHMENT0 : GL_BACK,GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING,&encoding);
+    const bool srgb=encoding==GL_SRGB;
     bool valid=true;
     const float locations[5]={.125f,.375f,.5f,.625f,.875f};
     for (float v : locations) for (float u : locations) {
@@ -97,8 +100,8 @@ bool DrawBlendScene(IMaterialSystem *material, IMatRenderContext *context,
         int quadrant=(v>.5f)*2+(u>.5f);
         memcpy(sample.rgba,colors[center ? 0 : quadrant],3);
         if (!center) {
-            BlendReference(sample.rgba,quadrant^(order==2 ? 2 : 1));
-            if (order) BlendReference(sample.rgba,quadrant^(order==2 ? 1 : 2));
+            BlendReference(sample.rgba,quadrant^(order==2 ? 2 : 1),srgb);
+            if (order) BlendReference(sample.rgba,quadrant^(order==2 ? 1 : 2),srgb);
         }
         unsigned char pixel[4]={}; gGL->glReadPixels(x,y,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
         if (!MatchesSceneSample(pixel,sample) && valid) {

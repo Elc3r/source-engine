@@ -49,7 +49,11 @@ bool Swap(void *data, CShowPixelsParams *params)
         gGL->glReadPixels(0,height-1,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixels+8);
         gGL->glReadPixels(width-1,height-1,1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixels+12);
         check->valid=check->valid && params->m_noBlit && !draw && !read && gGL->glGetError()==GL_NO_ERROR;
-        for (int i=0;i<4*4;++i) check->valid=check->valid && fabsf(pixels[i]-check->expected[i])<=1;
+        for (int i=0;i<4*4;++i) {
+            if (fabsf(pixels[i]-check->expected[i])>1)
+                Msg("iOS D3D presentation byte %d: %u expected %.1f\n",i,pixels[i],check->expected[i]);
+            check->valid=check->valid && fabsf(pixels[i]-check->expected[i])<=1;
+        }
         ++check->swaps;
     }
     return check->base->showPixels(check->base->userData,params);
@@ -120,35 +124,53 @@ static bool DrawDevice(IDirect3DDevice9 *device, PresentCheck &presentation, cha
         GLenum error=gGL->glGetError();
         if (error) { snprintf(detail,capacity,"D3D9 resource setup: GL 0x%x",error); break; }
         valid=true;
-        for (int pass=0;pass<8 && valid;++pass) {
-            const float tint[]={(pass==1 || pass>=3)?0.5f:1.0f,1,1,1};
+        for (int iteration=0;iteration<9 && valid;++iteration) {
+            const int pass=iteration==7 ? 8 : iteration==8 ? 7 : iteration;
+            const bool additive=pass==8;
+            const float tint[]={additive?0.125f:(pass==1 || pass>=3)?0.5f:1.0f,1,1,1};
             valid=device->SetPixelShaderConstantF(0,tint,1)==S_OK;
-            valid=valid && device->SetRenderState(D3DRS_ZENABLE,pass>=5)==S_OK;
+            valid=valid && device->SetRenderState(D3DRS_ZENABLE,pass>=5 && !additive)==S_OK;
             valid=valid && device->SetRenderState(D3DRS_ZFUNC,D3DCMP_LESS)==S_OK;
-            valid=valid && device->SetRenderState(D3DRS_SRGBWRITEENABLE,pass==3)==S_OK;
+            valid=valid && device->SetRenderState(D3DRS_SRGBWRITEENABLE,pass==3 || additive)==S_OK;
+            valid=valid && device->SetRenderState(D3DRS_ALPHABLENDENABLE,additive)==S_OK;
+            valid=valid && device->SetRenderState(D3DRS_SRCBLEND,D3DBLEND_ONE)==S_OK;
+            valid=valid && device->SetRenderState(D3DRS_DESTBLEND,D3DBLEND_ONE)==S_OK;
             valid=valid && device->SetRenderState(D3DRS_ALPHATESTENABLE,pass==2)==S_OK;
             valid=valid && device->SetRenderState(D3DRS_ALPHAFUNC,D3DCMP_GREATER)==S_OK;
             valid=valid && device->SetRenderState(D3DRS_ALPHAREF,192)==S_OK;
-            valid=valid && device->Clear(0,NULL,D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER|D3DCLEAR_STENCIL,0xff0000ff,pass==5?0.25f:1.0f,0)==S_OK;
+            valid=valid && device->Clear(0,NULL,D3DCLEAR_TARGET|D3DCLEAR_ZBUFFER|D3DCLEAR_STENCIL,additive?0xff890000:0xff0000ff,pass==5?0.25f:1.0f,0)==S_OK;
             RECT scissor={0,0,4,4};
             valid=valid && device->SetScissorRect(&scissor)==S_OK;
             valid=valid && device->SetRenderState(D3DRS_SCISSORTESTENABLE,pass==7)==S_OK;
             valid=valid && device->BeginScene()==S_OK;
             valid=valid && device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,3,0,1)==S_OK;
+            if (additive) valid=valid && device->DrawIndexedPrimitive(D3DPT_TRIANGLELIST,0,0,3,0,1)==S_OK;
             valid=valid && device->EndScene()==S_OK;
             unsigned char pixels[8*8*4]={};
             gGL->glReadPixels(0,0,8,8,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
             error=gGL->glGetError();
             valid=valid && error==GL_NO_ERROR;
             const bool rejected=pass==2 || pass==5;
-            const float encoded=gGL->m_bHave_GL_EXT_sRGB_write_control
+            GLint colorFBO=0,encoding=GL_LINEAR;
+            gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&colorFBO);
+            gGL->glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
+                colorFBO ? GL_COLOR_ATTACHMENT0 : GL_BACK,GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING,&encoding);
+            const float encoded=encoding==GL_SRGB
                 ? 1.055f*powf(0.5f,1.0f/2.4f)-0.055f : powf(0.5f,1.0f/2.2f);
-            const float expected[]={rejected?0.0f:pass==3?255*encoded:255*tint[0],0,
-                rejected?255.0f:0.0f,rejected?255.0f:170.0f};
+            // Two linear .125 contributions over encoded byte 137 (about
+            // .25 linear) must produce about .5 linear / byte 188, not white.
+            const float additiveLinear=powf((137.f/255+.055f)/1.055f,2.4f)+.25f;
+            const float additiveEncoded=1.055f*powf(additiveLinear,1.f/2.4f)-.055f;
+            const float expected[]={rejected?0.0f:additive?255*additiveEncoded:pass==3?255*encoded:255*tint[0],0,
+                rejected?255.0f:0.0f,rejected || additive?255.0f:170.0f};
             const float background[]={0,0,255,255};
             for (int i=0;i<8*8;++i) {
                 const float *color=pass==7 && (i%8>=4 || i/8>=4) ? background : expected;
-                for (int c=0;c<4;++c) valid=valid && fabsf(pixels[i*4+c]-color[c])<=1.0f;
+                for (int c=0;c<4;++c) {
+                    if (valid && fabsf(pixels[i*4+c]-color[c])>1.0f)
+                        Msg("iOS D3D pass %d sample %d channel %d: %u expected %.1f\n",pass,i,c,pixels[i*4+c],color[c]);
+                    valid=valid && fabsf(pixels[i*4+c]-color[c])<=1.0f;
+                }
             }
             // Present flips the D3D render target vertically: its lower-left
             // scissor region appears in the upper-left corner of the drawable.

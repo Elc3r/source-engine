@@ -1614,6 +1614,10 @@ class GLMContext
 		IDirect3DDevice9				*m_pDevice;
 		GLMRendererInfoFields			m_caps;
         const GLMContextHost *m_host;
+#ifdef IOS
+        GLuint m_srgbPresentProgram=0, m_srgbPresentVAO=0, m_srgbPresentSampler=0;
+        bool PresentSRGBTexture(CGLMTex *texture, uint width, uint height);
+#endif
         bool BindNativeContext(void *context);
         bool HostShowPixels(CShowPixelsParams *params);
         void HostDisplayedSize(uint &width, uint &height);

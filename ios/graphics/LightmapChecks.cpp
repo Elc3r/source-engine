@@ -36,7 +36,7 @@ unsigned char LightmapByte(float value)
     float encoded=floorf(powf(value,1.f/2.2f)*.5f*255+.5f)/255;
     float linear=encoded<=.04045f ? encoded/12.92f : powf((encoded+.055f)/1.055f,2.4f);
     linear=fminf(1,linear*powf(2,2.2f));
-    float result=gGL->m_bHave_GL_EXT_sRGB_write_control
+    float result=UsesSRGBColorTarget()
         ? (linear<=.0031308f ? linear*12.92f : 1.055f*powf(linear,1.f/2.4f)-.055f)
         : powf(linear,1.f/2.2f);
     return static_cast<unsigned char>(result*255+.5f);
@@ -50,7 +50,7 @@ float DecodeLightmap(float value)
 unsigned char EncodeLight(float linear)
 {
     linear=fminf(1,linear*powf(2,2.2f));
-    float value=gGL->m_bHave_GL_EXT_sRGB_write_control
+    float value=UsesSRGBColorTarget()
         ? (linear<=.0031308f ? 12.92f*linear : 1.055f*powf(linear,1.f/2.4f)-.055f)
         : powf(linear,1.f/2.2f);
     return static_cast<unsigned char>(value*255+.5f);

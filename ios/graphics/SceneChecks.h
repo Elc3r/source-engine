@@ -1,4 +1,5 @@
 #pragma once
+bool UsesSRGBColorTarget();
 #include <stddef.h>
 class IMaterialSystem;
 class IMatRenderContext;

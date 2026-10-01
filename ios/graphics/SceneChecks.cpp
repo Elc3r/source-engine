@@ -6,6 +6,15 @@
 #include "SceneChecks.h"
 #include <math.h>
 
+bool UsesSRGBColorTarget()
+{
+    GLint framebuffer=0,encoding=GL_LINEAR;
+    gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&framebuffer);
+    gGL->glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
+        framebuffer ? GL_COLOR_ATTACHMENT0 : GL_BACK,GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING,&encoding);
+    return encoding==GL_SRGB;
+}
+
 namespace {
 const float halfSize=.8f, cameraDistance=5, verticalScale=1.7320508f, tilt=.35f;
 void InverseRotation(const float input[3], float angle, float output[3])
@@ -110,7 +119,7 @@ bool ReferencePixel(float u, float v, float aspect, float angle, unsigned lighti
         float secondIntensity=lighting>=5 ? fmaxf(0,secondLocal[face]*(point[face]>0 ? 1 : -1)) : 0;
         for (int i=0;i<3;++i) {
             float linear=ambient[i]+color[i]*intensity+secondColor[i]*secondIntensity;
-            float encoded=gGL->m_bHave_GL_EXT_sRGB_write_control
+            float encoded=UsesSRGBColorTarget()
                 ? (linear<=.0031308f ? 12.92f*linear : 1.055f*powf(linear,1.f/2.4f)-.055f)
                 : powf(linear,1.f/2.2f);
             rgba[i]=static_cast<unsigned char>(rgba[i]*encoded+.5f);

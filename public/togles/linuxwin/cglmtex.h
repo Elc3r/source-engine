@@ -487,6 +487,7 @@ public:
 	void					Lock( GLMTexLockParams *params, char** addressOut, int* yStrideOut, int *zStrideOut );
 	void					Unlock( GLMTexLockParams *params );
 	GLuint                                  GetTexName() { return m_texName; }
+	bool IsSRGB() const { return (m_layout->m_key.m_texFlags & kGLMTexSRGB) != 0; }
 	
 protected:
 	friend class GLMContext;			// only GLMContext can make CGLMTex objects

@@ -1228,7 +1228,7 @@ static void FillHostedD3DCaps9( const GLMContextHost *host, D3DCAPS9 *caps )
 	caps->MaxVolumeExtent = limit;
 	caps->MaxUserClipPlanes = 0;
 	caps->FakeSRGBWrite = !gGL->m_bHave_GL_EXT_sRGB_write_control;
-	caps->CanDoSRGBReadFromRTs = !caps->FakeSRGBWrite;
+	caps->CanDoSRGBReadFromRTs = true; // ES3 sRGB textures decode on sampling.
 	if ( caps->MaxAnisotropy <= 1 )
 	{
 		caps->MaxAnisotropy = 1;
@@ -3687,6 +3687,19 @@ HRESULT IDirect3DDevice9::GetRenderTargetData(IDirect3DSurface9* pRenderTarget,I
 {
 	GL_BATCH_PERF_CALL_TIMER;
 	GL_PUBLIC_ENTRYPOINT_CHECKS( this );
+#ifdef IOS
+	// D3D readback copies stored bytes, not linearized colors. Match the
+	// temporary destination encoding so GLES blits do not decode the copy.
+	CGLMTex *source = pRenderTarget->m_tex, *destination = pDestSurface->m_tex;
+	if ( source->IsSRGB() != destination->IsSRGB() )
+	{
+		GLMTexLayoutKey key = destination->m_layout->m_key;
+		key.m_texFlags &= ~kGLMTexSRGB;
+		if ( source->IsSRGB() ) key.m_texFlags |= kGLMTexSRGB;
+		pDestSurface->m_tex = m_ctx->NewTex( &key, 1, "ios-readback" );
+		m_ctx->DelTex( destination );
+	}
+#endif
 	// is it just a blit ?
 
 	this->StretchRect( pRenderTarget, NULL, pDestSurface, NULL, D3DTEXF_NONE ); // is this good enough ???

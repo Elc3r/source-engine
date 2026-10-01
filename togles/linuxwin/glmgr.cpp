@@ -1989,6 +1989,17 @@ void GLMContext::Clear( bool color, unsigned long colorValue, bool depth, float 
 			clearcol.b =	((colorValue      ) & 0xFF) / 255.0f;	//B
 			clearcol.a =	((colorValue >> 24) & 0xFF) / 255.0f;	//A
 
+#ifdef IOS
+			const CGLMTex *target = m_drawingFBO ? m_drawingFBO->m_attach[kAttColor0].m_tex : NULL;
+			if ( !m_caps.m_hasGammaWrites && target && (target->m_layout->m_key.m_texFlags & kGLMTexSRGB) )
+			{
+				clearcol.r = SrgbGammaToLinear(clearcol.r);
+				clearcol.g = SrgbGammaToLinear(clearcol.g);
+				clearcol.b = SrgbGammaToLinear(clearcol.b);
+			}
+#endif
+
+
 			m_ClearColor.Write( &clearcol );	// no check, no wait
 			mask |= GL_COLOR_BUFFER_BIT;
 			
@@ -2230,6 +2241,80 @@ ConVar glm_literefresh_capslock( "glm_literefresh_capslock", "0" );
 
 extern ConVar gl_blitmode;
 
+#ifdef IOS
+// Present linear-light rendering through the host's encoded-byte window surface.
+// Sampling decodes the sRGB color target; encode exactly once for the window.
+bool GLMContext::PresentSRGBTexture(CGLMTex *texture, uint width, uint height)
+{
+    if (!m_srgbPresentProgram) {
+        const char *sources[]={
+            "#version 300 es\nprecision highp float;\nout vec2 uv;\n"
+            "void main(){ vec2 p=vec2((gl_VertexID==1)?3.0:-1.0,(gl_VertexID==2)?3.0:-1.0);"
+            "gl_Position=vec4(p,0,1);uv=vec2((p.x+1.0)*0.5,(1.0-p.y)*0.5);}",
+            "#version 300 es\nprecision highp float;\nin vec2 uv;uniform sampler2D source;out vec4 color;\n"
+            "void main(){vec4 c=texture(source,uv);vec3 v=max(c.rgb,vec3(0));"
+            "color=vec4(mix(v*12.92,1.055*pow(v,vec3(1.0/2.4))-0.055,"
+            "greaterThan(v,vec3(0.0031308))),c.a);}"};
+        GLuint shaders[2]={};
+        bool valid=true;
+        for (int i=0;i<2;++i) {
+            shaders[i]=gGL->glCreateShader(i ? GL_FRAGMENT_SHADER : GL_VERTEX_SHADER);
+            gGL->glShaderSource(shaders[i],1,&sources[i],NULL);
+            gGL->glCompileShader(shaders[i]);
+            GLint compiled=0;gGL->glGetShaderiv(shaders[i],GL_COMPILE_STATUS,&compiled);
+            valid=valid && compiled;
+        }
+        GLuint program=gGL->glCreateProgram();
+        for (int i=0;i<2;++i) gGL->glAttachShader(program,shaders[i]);
+        gGL->glLinkProgram(program);
+        GLint linked=0;gGL->glGetProgramiv(program,GL_LINK_STATUS,&linked);
+        for (int i=0;i<2;++i) gGL->glDeleteShader(shaders[i]);
+        if (!valid || !linked) { gGL->glDeleteProgram(program); return false; }
+        m_srgbPresentProgram=program;
+        gGL->glGenVertexArrays(1,&m_srgbPresentVAO);
+        gGL->glGenSamplers(1,&m_srgbPresentSampler);
+        gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+        gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+        gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+        gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+        if (gGL->m_bHave_GL_EXT_texture_sRGB_decode)
+            gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_SRGB_DECODE_EXT,GL_DECODE_EXT);
+    }
+    GLint program=0,vao=0,active=0,binding=0,sampler=0,viewport[4]={};
+    GLboolean mask[4]={};
+    gGL->glGetIntegerv(GL_CURRENT_PROGRAM,&program);
+    gGL->glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);
+    gGL->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
+    gGL->glGetIntegerv(GL_VIEWPORT,viewport);
+    gGL->glGetBooleanv(GL_COLOR_WRITEMASK,mask);
+    gGL->glActiveTexture(GL_TEXTURE0);
+    gGL->glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
+    gGL->glGetIntegerv(GL_SAMPLER_BINDING,&sampler);
+    const GLenum states[]={GL_BLEND,GL_DEPTH_TEST,GL_STENCIL_TEST,GL_CULL_FACE,GL_SCISSOR_TEST};
+    GLboolean enabled[5];
+    for (int i=0;i<5;++i) {enabled[i]=gGL->glIsEnabled(states[i]);gGL->glDisable(states[i]);}
+    BindFBOToCtx(NULL,GL_FRAMEBUFFER);
+    gGL->glViewport(0,0,width,height);
+    gGL->glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
+    gGL->glUseProgram(m_srgbPresentProgram);
+    gGL->glUniform1i(gGL->glGetUniformLocation(m_srgbPresentProgram,"source"),0);
+    gGL->glBindVertexArray(m_srgbPresentVAO);
+    gGL->glBindTexture(GL_TEXTURE_2D,texture->m_texName);
+    gGL->glBindSampler(0,m_srgbPresentSampler);
+    gGL->glDrawArrays(GL_TRIANGLES,0,3);
+    gGL->glBindSampler(0,sampler);
+    gGL->glBindTexture(GL_TEXTURE_2D,binding);
+    gGL->glActiveTexture(active);
+    gGL->glBindVertexArray(vao);
+    gGL->glUseProgram(program);
+    gGL->glViewport(viewport[0],viewport[1],viewport[2],viewport[3]);
+    gGL->glColorMask(mask[0],mask[1],mask[2],mask[3]);
+    for (int i=0;i<5;++i) if (enabled[i]) gGL->glEnable(states[i]);
+    BindFBOToCtx(m_drawingFBO,GL_FRAMEBUFFER);
+    return true;
+}
+#endif
+
 bool GLMContext::Present( CGLMTex *tex )
 {
 	GLM_FUNC;
@@ -2313,6 +2398,12 @@ bool GLMContext::Present( CGLMTex *tex )
 				// do not ask for LINEAR if blit is unscaled
 				// NULL means targeting GL_BACK.  Blit2 will break it down into two steps if needed, and will handle resolve, scale, flip.
 				bool blitScales	=	(showparams.m_width != static_cast<int>(dstWidth)) || (showparams.m_height != static_cast<int>(dstHeight));
+#ifdef IOS
+                if (m_host && !m_caps.m_hasGammaWrites && (tex->m_layout->m_key.m_texFlags & kGLMTexSRGB)) {
+                    ResolveTex(tex,true);
+                    if (!PresentSRGBTexture(tex,dstWidth,dstHeight)) return false;
+                } else
+#endif
 				Blit2(	tex, &srcRect, 0,0,
 								NULL, &dstRect, 0,0,
 								blitScales ? GL_LINEAR : GL_NEAREST );
@@ -2481,11 +2572,11 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, con
 	if (m_host) m_caps = m_host->caps;
     else GetDesiredPixelFormatAttribsAndRendererInfo( (uint**)&selAttribs, &selWords, &m_caps );
 #ifdef IOS
-	// GLES always encodes writes to sRGB attachments unless write control is
-	// available. Use linear targets and the existing shader fallback otherwise,
-	// so D3DRS_SRGBWRITEENABLE=false really produces linear output.
+	// ES3 supports sRGB attachments even without optional write control.
+	// Keep them so blending decodes the destination before combining colors.
+	// The shader suffix compensates for writes which D3D wants unencoded.
 	m_caps.m_hasGammaWrites = gGL->m_bHave_GL_EXT_sRGB_write_control;
-	m_caps.m_cantAttachSRGB = !m_caps.m_hasGammaWrites;
+	m_caps.m_cantAttachSRGB = false;
 #endif
 	uint selBytes = selWords * sizeof( uint ); selBytes;
 
@@ -2773,6 +2864,12 @@ void GLMContext::Reset()
 
 GLMContext::~GLMContext	()
 {
+#ifdef IOS
+    if (m_srgbPresentProgram) gGL->glDeleteProgram(m_srgbPresentProgram);
+    if (m_srgbPresentVAO) gGL->glDeleteVertexArrays(1,&m_srgbPresentVAO);
+    if (m_srgbPresentSampler) gGL->glDeleteSamplers(1,&m_srgbPresentSampler);
+#endif
+
 	if (m_debugFontTex)
 	{
 		DelTex( m_debugFontTex );

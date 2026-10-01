@@ -3929,11 +3929,20 @@ int D3DToGL::TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bo
 	// sRGB Write suffix
 	if ( m_bGenerateSRGBWriteSuffix )
 	{
+#ifdef IOS
+		StrcatToALUCode( "vec3 rawColor = max(gl_FragData[0].xyz, vec3(0.0));\n" );
+		StrcatToALUCode( "if (flSRGBWrite < 0.0) {\n" );
+		StrcatToALUCode( "gl_FragData[0].xyz = mix(rawColor / 12.92, pow((rawColor + 0.055) / 1.055, vec3(2.4)), greaterThan(rawColor, vec3(0.04045)));\n" );
+		StrcatToALUCode( "} else if (flSRGBWrite > 0.0) {\n" );
+#endif
 		StrcatToALUCode( "vec3 sRGBFragData;\n" );
 		StrcatToALUCode( "sRGBFragData.xyz = log( gl_FragData[0].xyz );\n" );
 		StrcatToALUCode( "sRGBFragData.xyz = sRGBFragData.xyz * vec3( 0.454545f, 0.454545f, 0.454545f );\n" );
 		StrcatToALUCode( "sRGBFragData.xyz = exp( sRGBFragData.xyz );\n" );
 		StrcatToALUCode( "gl_FragData[0].xyz = mix( gl_FragData[0].xyz, sRGBFragData, flSRGBWrite );\n" );
+#ifdef IOS
+		StrcatToALUCode( "}\n" );
+#endif
 	}
 
 	if( !nativeAlphaTest && m_iFragDataCount && !m_bVertexShader )

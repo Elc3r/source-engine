@@ -1039,16 +1039,33 @@ binds it for the original brush renderer's framebuffer copy, and restores the
 previous texture binding afterwards. Target ownership ends before material
 shutdown. The runtime exercised visible alpha/refraction brushes without GL
 errors, but reflection colors/brightness still need a reference-image check.
-On hosted GLES without render-target sRGB reads, `Refract` now selects its
-existing `SHADER_SRGB_READ` combination to decode the shader-encoded framebuffer
-copy before tinting and re-encoding it. The macOS-only selection previously
-missed iOS. The simulator reports integer HDR, shader sRGB writes and no RT sRGB
-reads; startup logs expose these capabilities for diagnosis. Portal and the
-fixture baseline both pass after this change. This fixes a color-space error
-in refraction, not the remaining excessive brightness of additive frosted
-glass. The inspector still fixes tone-map scale at one and lacks the game's
-automatic exposure; its shader-gamma fallback also blends encoded colors.
-Both require further comparison with the supplied original-game screenshots.
+Hosted GLES now keeps ES3 sRGB color targets even when optional sRGB write
+control is unavailable. Destination colors are decoded for linear-space alpha
+and additive blending, then encoded by the attachment. The translator uses a
+three-state suffix: no conversion for sRGB writes to sRGB targets, inverse sRGB
+conversion for raw D3D writes to those targets, and the existing gamma suffix
+for sRGB writes to linear targets. This avoids encoding each glass contribution
+before adding it, which previously turned overlapping cage glass white.
+`Refract` can now sample its sRGB framebuffer-copy target directly; its existing
+shader decoding combination remains available for backends without RT sRGB reads.
+
+Presentation samples the resolved sRGB target and encodes once into the host's
+linear window surface, preserving the original vertical flip. The context owns
+one cached presentation program, VAO and sampler and restores GL state after the
+draw. D3D clears preserve requested bytes; readback destinations match the source
+encoding so readback blits do not linearize stored bytes. No Portal materials,
+textures or tint values were changed. The original-game reference and an outside
+view through multiple cage walls now retain blue-gray glass and room detail.
+Automatic exposure and bloom are still absent; this is not pixel parity with
+all lighting/effects in the game.
+
+The regression reference uses actual attachment encoding instead of extension
+presence. A new D3D test adds two linear .125 red layers over encoded byte 137
+(about .25 linear); the expected result is byte 188, rather than saturated white,
+both before and after presentation. The baseline and Portal simulator checks
+pass with GL error zero. Linear blending on sRGB attachments follows the
+[OpenGL ES specification](https://registry.khronos.org/OpenGL/specs/es/3.1/es_spec_3.1.pdf),
+sections 15.1.5 and 15.1.6. Startup logs expose HDR and sRGB capabilities.
 The frosted glass materials intentionally use additive blending. The wall timer digits are visually verified. Brush
 geometry remains at its BSP-authored pose; moving doors/trains and game-driven
 material proxies still require client/server state. The count is submitted

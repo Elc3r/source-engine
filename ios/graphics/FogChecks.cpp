@@ -23,7 +23,7 @@ void FogQuad(IMatRenderContext *context, IMaterial *material,
 }
 unsigned char EncodeFog(float linear)
 {
-    float encoded=gGL->m_bHave_GL_EXT_sRGB_write_control
+    float encoded=UsesSRGBColorTarget()
         ? (linear<=.0031308f ? 12.92f*linear : 1.055f*powf(linear,1.f/2.4f)-.055f)
         : powf(linear,1.f/2.2f);
     return static_cast<unsigned char>(encoded*255+.5f);
@@ -98,7 +98,7 @@ bool DrawFogScene(IMaterialSystem *material, IMatRenderContext *context,
                 // Fog is applied to the lit source before source-over blending.
                 // The square after $nofog draws a second layer in band 4.
                 int layers=band==4 && row==1 ? 2 : 1;
-                bool srgb=gGL->m_bHave_GL_EXT_sRGB_write_control;
+                bool srgb=UsesSRGBColorTarget();
                 float encoded=powf(value,1.f/2.2f);
                 for (int layer=0;layer<layers;++layer)
                     destination=(srgb ? value : encoded)*alpha+destination*(1-alpha);
