@@ -1012,6 +1012,27 @@ original game lump. The status shows submitted props/total props; this is not
 a per-model pixel-correctness measurement. Props and their color-mesh cache are
 shut down before the model loader, and color data is released/restored on Reset.
 
+The first map's two active `portal_cleanser` particle entities now use the
+original particle library (builtin emitters, initializers, operators, constraints
+and renderers), loading `particles/cleansers.pcf` directly from the installed
+game's VPK. Control point zero uses BSP origin and orientation. Simulation runs
+with elapsed frame time capped at 50 ms, and collection bounds participate in
+frustum/PVS culling and the shared sorted translucent leaf queue. Particle query
+callbacks use original world lighting and BSP traces; model hitbox queries are
+unsupported and make the render check fail if requested. No game player,
+entity collision or dissolve behavior is created. Elevator particles and beams
+remain deferred. Collections, sheets and cached particle materials are released
+before map/material shutdown.
+
+Both fields were visually verified with animated blue streaks; each 120-frame
+simulator check passed with GL error zero and roughly 600 active particles
+across the two collections. Reproducible optional views accept eye position and
+pitch/yaw/roll in `SOURCE_IOS_INSPECTION_VIEW`, validated against BSP collision.
+For example, prefix the existing simulator build command with
+`SIMCTL_CHILD_SOURCE_IOS_INSPECTION_VIEW='-1130 -864 225 0 180 0'` for the first
+field, or `'-710 -256 640 0 0 0'` for the second. Normal launches still use the
+map's `info_player_start` plus eye height.
+
 Map overlays now receive the original `OverlayMgr()->CreateFragments()` step
 from `R_LevelInit`, after world geometry, lightmap sort IDs and surface setup.
 The loader's BSP overlay records alone contain no drawable fragments. Original

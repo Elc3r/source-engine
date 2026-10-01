@@ -16,6 +16,7 @@ extern "C" IRender *SourceIOSWorldRendererLinkAnchor()
 #include "MapLoaderBootstrap.h"
 #include "MapEntityInspection.h"
 #include "MapSceneEffects.h"
+#include "MapParticles.h"
 #include "Overlay.h"
 #include "tier3/tier3.h"
 #include "filesystem_engine.h"
@@ -61,6 +62,7 @@ extern "C" void SourceIOSShutdownMapLoader()
     if (worldRendererStarted) {
         materials->RemoveRestoreFunc(RestoreWorldLightmaps);
         materials->RemoveReleaseFunc(ReleaseWorldPropColors);
+        SourceIOSShutdownMapParticles();
         SourceIOSShutdownEntityModels();
         SourceIOSShutdownRefractionTexture();
         StaticPropMgr()->LevelShutdown();
@@ -211,6 +213,16 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     }
     if (!found) { snprintf(detail,capacity,"World renderer: no valid info_player_start camera"); return false; }
     cameraOrigin.z+=64;
+    // Optional reproducible render-check viewpoint, still checked against BSP
+    // collision below. Normal launches retain the authored player start.
+    const char *inspectionView=getenv("SOURCE_IOS_INSPECTION_VIEW");
+    if (inspectionView && sscanf(inspectionView,"%f %f %f %f %f %f",&cameraOrigin.x,
+        &cameraOrigin.y,&cameraOrigin.z,&cameraAngles.x,&cameraAngles.y,&cameraAngles.z)!=6) {
+        snprintf(detail,capacity,"Invalid SOURCE_IOS_INSPECTION_VIEW"); return false;
+    }
+    if (!cameraOrigin.IsValid() || !cameraAngles.IsValid()) {
+        snprintf(detail,capacity,"Non-finite inspection viewpoint"); return false;
+    }
     host_state.SetWorldModel(loadedWorld);
     g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
     Msg("iOS world color: HDR type %d, enabled %d, shader sRGB write %d, RT sRGB read %d\n",
@@ -260,6 +272,9 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     entityModelCount=SourceIOSInitializeEntityModels();
     materials->AddReleaseFunc(ReleaseWorldPropColors);
     worldRendererStarted=true;
+    if (!SourceIOSInitializeMapParticles()) {
+        snprintf(detail,capacity,"World renderer: original cleanser particles unavailable"); return false;
+    }
     return true;
 }
 extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_t capacity)
@@ -305,15 +320,17 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     int refractiveBrushes=0;
     int translucentBrushes=SourceIOSCollectTranslucentBrushes(info,view.origin,forward,translucentBrushDraws,refractiveBrushes);
     int visibleEffects=SourceIOSCollectSceneEffects(info,view.origin,forward,translucentBrushDraws);
+    int activeParticles=0;
+    int visibleParticleSystems=SourceIOSCollectMapParticles(info,view.origin,forward,translucentBrushDraws,activeParticles);
     int translucentProps=SourceIOSDrawTranslucentScene(list,info,translucentFlags,
         view.origin,forward,translucentLeaves,unsupportedProps,
         translucentBrushDraws.Base(),translucentBrushDraws.Count());
     g_pStudioRender->EndFrame();
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (alpha %d, refract %d, pending %d); translucent leaves %d, props %d (pending %d); effects %d/%d; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,translucentBrushes,refractiveBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
-        visibleEffects,SourceIOSSceneEffectCount(),cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
-    return info.m_LeafCount>0;
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (alpha %d, refract %d, pending %d); translucent leaves %d, props %d (pending %d); effects %d/%d; particles %d (%d systems); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,translucentBrushes,refractiveBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
+        visibleEffects,SourceIOSSceneEffectCount(),activeParticles,visibleParticleSystems,cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
+    return info.m_LeafCount>0 && visibleParticleSystems>=0;
 }
 
 // A flying inspection camera, not the client movement simulation. Sweep a small
