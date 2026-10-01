@@ -48,6 +48,10 @@ static char s_pTokenBuf[KEYVALUES_TOKEN_SIZE];
 #define INTERNALWRITE( pData, len ) InternalWrite( filesystem, f, pBuf, pData, len )
 
 
+// Parser diagnostics belong to this translation unit. Inline helpers must not
+// coalesce across modules with different parser stacks.
+namespace {
+
 // a simple class to keep track of a stack of valid parsed symbols
 const int MAX_ERROR_STACK = 64;
 class CKeyValuesErrorStack
@@ -158,6 +162,8 @@ private:
 
 	int m_stackLevel;
 };
+
+} // namespace
 
 // Uncomment this line to hit the ~CLeakTrack assert to see what's looking like it's leaking
 // #define LEAKTRACK
