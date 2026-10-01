@@ -31,6 +31,9 @@
 #include "lightcache.h"
 #include "tier0/vprof.h"
 #include "render.h"
+#if defined(IOS) && defined(TOGLES)
+#include "gl_rmain.h"
+#endif
 #include "cmodel_engine.h"
 #include "datacache/imdlcache.h"
 #include "ModelInfo.h"
@@ -388,6 +391,10 @@ public:
 	void DrawStaticProps_Fast( IClientRenderable **pProps, int count, bool bShadowDepth );
 	void DrawStaticProps_FastPipeline( IClientRenderable **pProps, int count, bool bShadowDepth );
 
+#if defined(IOS) && defined(TOGLES)
+    friend int SourceIOSInitializeStaticProps();
+    friend int SourceIOSDrawStaticProps(const WorldListInfo_t &world);
+#endif
 private:
 	void OutputLevelStats( void );
 	void PrecacheLighting();
@@ -2365,3 +2372,34 @@ void Cmd_PropCrosshair_f (void)
 
 static ConCommand prop_crosshair( "prop_crosshair", Cmd_PropCrosshair_f, "Shows name for prop looking at", FCVAR_CHEAT );
 
+
+#if defined(IOS) && defined(TOGLES)
+int SourceIOSInitializeStaticProps()
+{
+    s_StaticPropMgr.LevelInit();
+    s_StaticPropMgr.PrecacheLighting();
+    return s_StaticPropMgr.m_StaticProps.Count();
+}
+
+int SourceIOSDrawStaticProps(const WorldListInfo_t &world)
+{
+    CUtlVector<IClientRenderable *> visible;
+    FOR_EACH_VEC(s_StaticPropMgr.m_StaticProps,i) {
+        CStaticProp &prop=s_StaticPropMgr.m_StaticProps[i];
+        if (!prop.ShouldDraw() || prop.IsTransparent()) continue;
+        Vector mins,maxs;
+        prop.WorldSpaceSurroundingBounds(&mins,&maxs);
+        if (R_CullBox(mins,maxs)) continue;
+        bool inVisibleLeaf=false;
+        for (int p=0;p<prop.LeafCount() && !inVisibleLeaf;++p) {
+            unsigned short leaf=s_StaticPropMgr.m_StaticPropLeaves[prop.FirstLeaf()+p].m_Leaf;
+            for (int v=0;v<world.m_LeafCount;++v) if (world.m_pLeafList[v]==leaf) {
+                inVisibleLeaf=true; break;
+            }
+        }
+        if (inVisibleLeaf) visible.AddToTail(&prop);
+    }
+    if (visible.Count()) s_StaticPropMgr.DrawStaticProps(visible.Base(),visible.Count(),false,false);
+    return visible.Count();
+}
+#endif

@@ -27,6 +27,11 @@ extern "C" IRender *SourceIOSWorldRendererLinkAnchor()
 #include "client.h"
 #include "shadowmgr.h"
 #include "r_areaportal.h"
+#include "staticpropmgr.h"
+#include "ispatialpartitioninternal.h"
+#include "l_studio.h"
+#include "engine/ivmodelrender.h"
+#include "cdll_engine_int.h"
 #include "filesystem/IQueuedLoader.h"
 #include "cmodel_private.h"
 #include "cmodel_engine.h"
@@ -41,14 +46,20 @@ model_t *loadedWorld=NULL;
 bool worldRendererStarted=false;
 bool worldLightmapsDirty=false;
 void RestoreWorldLightmaps(int) { worldLightmapsDirty=true; }
+void ReleaseWorldPropColors() { modelrender->ReleaseAllStaticPropColorData(); }
 Vector cameraOrigin;
 QAngle cameraAngles;
 unsigned cameraCollisions=0;
+int staticPropCount=0;
 }
 extern "C" void SourceIOSShutdownMapLoader()
 {
     if (worldRendererStarted) {
         materials->RemoveRestoreFunc(RestoreWorldLightmaps);
+        materials->RemoveReleaseFunc(ReleaseWorldPropColors);
+        StaticPropMgr()->LevelShutdown();
+        ShutdownStudioRender();
+        staticPropCount=0;
         R_LevelShutdown();
         g_pShadowMgr->LevelShutdown();
         worldRendererStarted=false;
@@ -220,6 +231,11 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     // No client/server simulation is running to provide area activation yet.
     memset(cl.m_chAreaBits,0xff,sizeof(cl.m_chAreaBits));
     memset(cl.m_chAreaPortalBits,0xff,sizeof(cl.m_chAreaPortalBits));
+    R_InitStudio();
+    InitStudioRender();
+    SpatialPartition()->Init(loadedWorld->mins,loadedWorld->maxs);
+    staticPropCount=SourceIOSInitializeStaticProps();
+    materials->AddReleaseFunc(ReleaseWorldPropColors);
     worldRendererStarted=true;
     return true;
 }
@@ -231,6 +247,7 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     if (!worldRendererStarted && !InitializeWorldRenderer(detail,capacity)) return false;
     if (worldLightmapsDirty) {
         R_RedownloadAllLightmaps();
+        modelrender->RestoreAllStaticPropColorData();
         worldLightmapsDirty=false;
     }
     CViewSetup view;
@@ -244,15 +261,19 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     ++r_framecount;
     g_EngineRenderer->SetMainView(view.origin,view.angles);
     g_EngineRenderer->Push3DView(view,0,NULL,frustum);
-    g_EngineRenderer->ViewSetupVis(true,1,&view.origin);
+    g_EngineRenderer->ViewSetupVis(false,1,&view.origin);
     IWorldRenderList *list=g_EngineRenderer->CreateWorldList();
     WorldListInfo_t info={};
     g_EngineRenderer->BuildWorldLists(list,&info,-1,NULL,false,NULL);
     g_EngineRenderer->DrawWorldLists(list,DRAWWORLDLISTS_DRAW_STRICTLYABOVEWATER |
         DRAWWORLDLISTS_DRAW_STRICTLYUNDERWATER | DRAWWORLDLISTS_DRAW_INTERSECTSWATER,0);
+    UpdateStudioRenderConfig();
+    g_pStudioRender->BeginFrame();
+    int visibleProps=SourceIOSDrawStaticProps(info);
+    g_pStudioRender->EndFrame();
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Actual Portal world: %d visible leaves; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,
         cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
     return info.m_LeafCount>0;
 }

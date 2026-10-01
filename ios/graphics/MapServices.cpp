@@ -96,6 +96,29 @@ bool InitializeMapServices(const char *directory, CreateInterfaceFn factory, cha
     return true;
 }
 
+bool MountRequestedWorldData(char *detail, size_t capacity)
+{
+    const char *root=getenv("SOURCE_IOS_GAME_ROOT");
+    const char *map=getenv("SOURCE_IOS_WORLD_MAP");
+    if (!root && !map) return true;
+    if (!root || !map || !g_pFullFileSystem) {
+        snprintf(detail,capacity,"World data: game root/map/filesystem missing"); return false;
+    }
+    // Simulator integration reads the user's existing game data. Native device
+    // packaging and general gameinfo search-path handling are separate work.
+    char path[MAX_PATH];
+    const char *archives[]={"hl2/hl2_misc_dir.vpk","hl2/hl2_textures_dir.vpk","portal/portal_pak_dir.vpk"};
+    for (const char *archive : archives) {
+        Q_snprintf(path,sizeof(path),"%s/%s",root,archive);
+        g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    }
+    Q_snprintf(path,sizeof(path),"%s/hl2",root);
+    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    Q_snprintf(path,sizeof(path),"%s/portal",root);
+    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    return true;
+}
+
 bool HasLoadedWorldMap() { return worldLoaded; }
 bool LoadRequestedWorldMap(char *detail, size_t capacity)
 {
@@ -113,18 +136,6 @@ bool LoadRequestedWorldMap(char *detail, size_t capacity)
     if (!root || !map || !loaderModule || !g_pFullFileSystem) {
         snprintf(detail,capacity,"World map: game root/map/services missing"); return false;
     }
-    // Simulator integration reads the user's existing game data. Native device
-    // packaging and general gameinfo search-path handling are separate work.
-    char path[MAX_PATH];
-    const char *archives[]={"hl2/hl2_misc_dir.vpk","hl2/hl2_textures_dir.vpk","portal/portal_pak_dir.vpk"};
-    for (const char *archive : archives) {
-        Q_snprintf(path,sizeof(path),"%s/%s",root,archive);
-        g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
-    }
-    Q_snprintf(path,sizeof(path),"%s/hl2",root);
-    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
-    Q_snprintf(path,sizeof(path),"%s/portal",root);
-    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
     auto load=reinterpret_cast<decltype(&SourceIOSLoadWorldMap)>(
         GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSLoadWorldMap"));
     if (!load) { snprintf(detail,capacity,"World map: loader entry point missing"); return false; }

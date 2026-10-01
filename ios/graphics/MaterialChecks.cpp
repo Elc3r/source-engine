@@ -35,7 +35,7 @@ void *ApplicationFactory(const char *name, int *status)
 struct MaterialPresentation {
     const GLMContextHost *base;
     int swaps;
-    bool valid, solid, worldPixelsVerified;
+    bool valid, solid, worldPixelsVerified, gameSession;
     char failure[160];
     SceneSamples scene;
 };
@@ -87,7 +87,7 @@ bool PresentationSwap(void *data, CShowPixelsParams *params)
             gGL->glReadPixels(int(sample.u*width),int((1-sample.v)*height),1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
             check->valid=check->valid && MatchesSceneSample(pixel,sample);
         }
-        else if (!HasLoadedWorldMap() && width>=8 && height>=8) for (int i=0;i<4;++i) {
+        else if (!check->gameSession && !HasLoadedWorldMap() && width>=8 && height>=8) for (int i=0;i<4;++i) {
             unsigned char pixel[4]={};
             gGL->glReadPixels((i%2 ? 3 : 1)*width/4,(i/2 ? 3 : 1)*height/4,
                 1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
@@ -272,6 +272,11 @@ bool DrawStandardMaterial(IMaterialSystem *material, IMatRenderContext *context,
 
 bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *detail, size_t capacity, bool retain)
 {
+    // Probe cycles have finished and unloaded their shader caches. Mount game
+    // data before opening the retained modules so cached VCS headers and later
+    // static-combo reads always resolve to the same source file.
+    if (retain && !MountRequestedWorldData(detail,capacity)) return false;
+    const bool gameSession=retain && getenv("SOURCE_IOS_GAME_ROOT");
     char materialPath[MAX_PATH],shaderPath[MAX_PATH];
     Q_snprintf(materialPath,sizeof(materialPath),"%s/libmaterialsystem.dylib",modules);
     Q_snprintf(shaderPath,sizeof(shaderPath),"%s/libshaderapidx9.dylib",modules);
@@ -283,6 +288,7 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
     static MaterialPresentation presentation;
     static GLMContextHost hosted;
     presentation={host,0,true,false};
+    presentation.gameSession=gameSession;
     hosted=*host;
     hosted.userData=&presentation;
     hosted.makeCurrent=PresentationBind;
@@ -339,7 +345,7 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                     valid=valid && modeError==GL_NO_ERROR;
                     if (!valid) snprintf(detail,capacity,"Material SetMode failed (GL 0x%x)",modeError);
                 }
-                if (valid) {
+                if (valid && !gameSession) {
                     material->BeginFrame(0);
                     IMatRenderContext *context=material->GetRenderContext();
                     context->BeginRender();

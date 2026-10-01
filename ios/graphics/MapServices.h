@@ -4,6 +4,7 @@
 void *QueryMapService(const char *name);
 bool InitializeMapServices(const char *modules, CreateInterfaceFn factory, char *detail, size_t capacity);
 void ShutdownMapServices();
+bool MountRequestedWorldData(char *detail, size_t capacity);
 bool LoadRequestedWorldMap(char *detail, size_t capacity);
 bool HasLoadedWorldMap();
 class IMaterialSystem;

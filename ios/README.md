@@ -997,9 +997,31 @@ physics. Its 8-unit-wide hull uses the original `CM_BoxTrace` against world
 BSP solids (`MASK_SOLID`), with up to three swept moves for wall sliding.
 The spawn hull must be outside solid collision; the status shows position, yaw
 and wall-hit count. Frame time is capped at 50 ms and movement at 160 units/s;
-background entry clears touch input. Dynamic entities are not collision-tested. This is a brush-world bootstrap: visibility uses no PVS and
-all areas are open; client/server simulation, static props, brush entities,
-sky, water passes, overlays and gameplay are not initialized.
+background entry clears touch input. Camera collision still uses world brushes;
+static props and dynamic entities are not collision-tested by this camera.
+
+The inspection path now enables the original BSP PVS. Areas remain open because
+there is no client/server simulation to provide areaportal state. Opaque static
+props use the original manager's model dictionary, model loader, lighting cache,
+model-render instances and studio-render path. Two iOS-only helpers initialize
+lighting without client leaf-system registration and select props intersecting
+the visible world leaves and camera frustum. Translucent props, distance/screen
+fading, brush entities, sky, water passes, overlays and gameplay remain pending.
+`testchmb_a_00.bsp` has 53 static instances and 16 dictionary models, matching the
+original game lump. The status shows submitted props/total props; this is not
+a per-model pixel-correctness measurement. Props and their color-mesh cache are
+shut down before the model loader, and color data is released/restored on Reset.
+
+For the retained game session, game paths are mounted before loading material
+and shader modules. The two preceding probe cycles still use the generated
+probe assets, then unload their modules. Changing GAME precedence after caching
+VCS headers caused later combo reads to use a different shader file and decode
+invalid bytecode. The game session reads the installed game's VCS files
+consistently; `compiled_shaders` describes the packaged probe cache, not the
+provenance of all game shaders. No shaders or assets are copied from the game
+into the repository. The retained game session skips a third duplicate set of
+synthetic material draws; native swap/GL checks and real-world pixel evidence
+remain active.
 
 The first Portal frame is visually verified with textures and baked lighting.
 Before the native EGL swap and UIKit status overlay, a 4×4 pixel grid must
@@ -1015,15 +1037,16 @@ existing synthetic BSP probes can own it; cache/render services stay available.
 `build-ios-simulator/portal-map-load-result.json` preserves this result separately
 from the standard bootstrap report. On `testchmb_a_00.bsp` (BSP version 20), the
 loader reports 5,307 vertices, 2,694 surfaces, 1,459 nodes and 1,532 leaves.
-Vertex, face and node counts match the original file lumps. Actual loaded-map
-unload/reload and collision trace behavior have not yet been runtime-tested.
+Vertex, face and node counts match the original file lumps. Camera movement
+and world collision traces have been exercised in the simulator. Actual
+loaded-map unload/reload still needs runtime coverage.
 
 Actual VMT loading exposed diagnostic helper coalescing across tier1 copies;
 KeyValues parser stack helpers now have translation-unit-local linkage. The
 shader API also now reports GLES border color support from the actual extension
 flags, allowing Source's existing fallback materials instead of requesting an
 unsupported border-wrap mode. The Portal map load/presentation passes with no
-GL error, while rendering of its materials and world has not been tested.
+GL error, including world surfaces and opaque static-prop rendering.
 
 The default command explicitly disables interface scoping and writes
 `build-ios-simulator/map-link.json` and `map-link.log`. The scoped command writes
@@ -1330,9 +1353,9 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Enable PVS/area visibility and static-prop rendering, addressing shader
-   combinations required by the actual Portal scene. Camera navigation and
-   original world collision traces are now available for inspection.
+1. Extend inspection to translucent props and entity rendering, then connect
+   client/server startup for dynamic objects and actual areaportal state.
+   PVS, opaque static props, camera navigation and BSP collision are available.
 2. Expand to a single HL2 map and address shaders, visibility, mesh/page limits
    and other features only as required by actual map loading/rendering.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.
