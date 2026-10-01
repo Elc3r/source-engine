@@ -1028,7 +1028,7 @@ void CEngineTraceClient::SetTraceEntity( ICollideable *pCollideable, trace_t *pT
 	else
 	{
 		// For static props, point to the world, hitbox is the prop index
-		pTrace->m_pEnt = (CBaseEntity*)(entitylist->GetClientEntity(0));
+		pTrace->m_pEnt = entitylist ? (CBaseEntity*)(entitylist->GetClientEntity(0)) : NULL;
 		pTrace->hitbox = StaticPropMgr()->GetStaticPropIndex( pUnk ) + 1;
 	}
 }
@@ -1329,6 +1329,10 @@ void CEngineTraceClient::HandleEntityToCollideable( IHandleEntity *pHandleEntity
 #ifndef SWDS
 ICollideable *CEngineTraceClient::GetWorldCollideable()
 {
+	// Static lighting can trace the loaded BSP before a client world exists.
+	// TraceRay and SetTraceEntity already handle a null world collideable.
+	if (!entitylist)
+		return NULL;
 	IClientEntity *pUnk = entitylist->GetClientEntity( 0 );
 	AssertOnce( pUnk );
 	return pUnk ? pUnk->GetCollideable() : NULL;
