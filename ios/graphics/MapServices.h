@@ -6,3 +6,5 @@ bool InitializeMapServices(const char *modules, CreateInterfaceFn factory, char 
 void ShutdownMapServices();
 bool LoadRequestedWorldMap(char *detail, size_t capacity);
 bool HasLoadedWorldMap();
+class IMaterialSystem;
+bool DrawLoadedWorldMap(IMaterialSystem *system, int width, int height, char *detail, size_t capacity);

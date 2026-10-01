@@ -101,7 +101,15 @@ bool LoadRequestedWorldMap(char *detail, size_t capacity)
 {
     const char *root=getenv("SOURCE_IOS_GAME_ROOT");
     const char *map=getenv("SOURCE_IOS_WORLD_MAP");
-    if (!root && !map) return true;
+    if (!root && !map) {
+        // Synthetic world probes own the same hunk arena. The two loader
+        // lifecycle checks have finished; retain render/cache services only.
+        if (stopLoader) stopLoader();
+        stopLoader=NULL;
+        if (loaderModule) Sys_UnloadModule(loaderModule);
+        loaderModule=NULL;
+        return true;
+    }
     if (!root || !map || !loaderModule || !g_pFullFileSystem) {
         snprintf(detail,capacity,"World map: game root/map/services missing"); return false;
     }
@@ -128,3 +136,15 @@ bool LoadRequestedWorldMap(char *detail, size_t capacity)
 extern "C" int IsSourceWorldMapLoaded() { return worldLoaded ? 1 : 0; }
 
 extern "C" const char *SourceWorldMapDetail() { return worldDetail; }
+
+bool DrawLoadedWorldMap(IMaterialSystem *system, int width, int height, char *detail, size_t capacity)
+{
+    auto draw=loaderModule ? reinterpret_cast<decltype(&SourceIOSDrawWorldMap)>(
+        GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSDrawWorldMap")) : NULL;
+    if (!worldLoaded || !draw) { snprintf(detail,capacity,"World renderer entry point unavailable"); return false; }
+    IMaterialSystem *previous=materials;
+    materials=system;
+    bool valid=draw(width,height,detail,capacity);
+    materials=previous;
+    return valid;
+}

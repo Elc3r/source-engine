@@ -976,6 +976,7 @@ the synthetic world over its host state. Use:
 
 ```sh
 python3 scripts/build-ios-bootstrap.py --togles --simulator <UDID> \
+    --shader-cache build-ios-shaders/compiled \
     --portal-root /path/to/Portal-arm64 --world-map maps/testchmb_a_00.bsp
 ```
 
@@ -984,8 +985,25 @@ app. It requires a root containing `portal/gameinfo.txt`; generalized gameinfo
 mounts and physical-device asset packaging are still pending. The first Portal
 map now loads through the original collision and brush-model path. The JSON
 separately reports `world_map_loaded`, geometry counts in `world_map_detail`, and
-`world_map_rendered: false`. The current live loop only clears/presents while
-holding the real world; real world-renderer setup and drawing remain pending.
+`world_map_rendered`. The retained live loop now calls the original world
+renderer: world geometry/lightmap allocation, surface and area initialization,
+view/frustum setup, BSP traversal, render-list construction and world draws.
+The camera comes from the first `info_player_start` entity, with the normal
+64-unit eye offset. This is a brush-world bootstrap: visibility uses no PVS and
+all areas are open; client/server simulation, static props, brush entities,
+sky, water passes, overlays and gameplay are not initialized.
+
+The first Portal frame is visually verified with textures and baked lighting.
+Before the native EGL swap and UIKit status overlay, a 4×4 pixel grid must
+contain at least eight nonblack, non-clear samples and spatial brightness
+variation. This is first-frame evidence, not a reference-image or general
+material-correctness test. The helper requires both loaded and rendered flags.
+A material-system restore callback marks world lightmaps for re-upload on the
+next draw: initial native-size device Reset otherwise discarded the uploaded
+lighting and left the room black. The callback is removed before map shutdown;
+full format-changing/context-loss recovery remains pending. When no map is
+requested, the loader releases its world arena after lifecycle checks so the
+existing synthetic BSP probes can own it; cache/render services stay available.
 `build-ios-simulator/portal-map-load-result.json` preserves this result separately
 from the standard bootstrap report. On `testchmb_a_00.bsp` (BSP version 20), the
 loader reports 5,307 vertices, 2,694 surfaces, 1,459 nodes and 1,532 leaves.
@@ -1304,9 +1322,9 @@ concurrently in the same checkout.
 
 ## Next milestones
 
-1. Resolve the strict `EngineMapLinkCheck` failures and initialize the required
-   host, cache, model and physics services. Load a minimal real BSP with the
-   actual loader, then connect fixed-camera world rendering for its first frame.
+1. Add camera navigation and original collision traces to inspect the loaded
+   Portal world. Then enable PVS/area visibility and static-prop rendering,
+   addressing shader combinations required by the actual scene.
 2. Expand to a single HL2 map and address shaders, visibility, mesh/page limits
    and other features only as required by actual map loading/rendering.
 3. Validate physical-device signing, graphics, audio, touch, save/load and lifecycle.

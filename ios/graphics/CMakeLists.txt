@@ -369,7 +369,8 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
             "-Wl,-exported_symbol,_SourceIOSWorldRendererLinkAnchor"
             "-Wl,-exported_symbol,_SourceIOSInitializeMapLoader"
             "-Wl,-exported_symbol,_SourceIOSShutdownMapLoader"
-            "-Wl,-exported_symbol,_SourceIOSLoadWorldMap")
+            "-Wl,-exported_symbol,_SourceIOSLoadWorldMap"
+            "-Wl,-exported_symbol,_SourceIOSDrawWorldMap")
     endif()
     target_link_libraries(EngineMapLinkCheck PRIVATE EngineWorldLoader EngineMapSupport EngineVGUIControls EngineBZip2 libcurl
         ToGLESRuntime ${IOS_SDL_TARGET} IOSImage iconv "${ENGINE_BUILD}/mathlib/libmathlib.a"

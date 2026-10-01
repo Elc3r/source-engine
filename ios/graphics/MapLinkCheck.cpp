@@ -23,6 +23,10 @@ extern "C" IRender *SourceIOSWorldRendererLinkAnchor()
 #include "host.h"
 #include "tier1/memstack.h"
 #include "bspfile.h"
+#include "common.h"
+#include "client.h"
+#include "shadowmgr.h"
+#include "r_areaportal.h"
 #include "filesystem/IQueuedLoader.h"
 #include "cmodel_private.h"
 
@@ -33,10 +37,24 @@ bool loaderStarted=false, librariesConnected=false, memoryStarted=false;
 int savedMemoryBudget=0;
 unsigned savedCacheLimit=0;
 model_t *loadedWorld=NULL;
+bool worldRendererStarted=false;
+bool worldLightmapsDirty=false;
+void RestoreWorldLightmaps(int) { worldLightmapsDirty=true; }
+Vector cameraOrigin;
+QAngle cameraAngles;
 }
 extern "C" void SourceIOSShutdownMapLoader()
 {
+    if (worldRendererStarted) {
+        materials->RemoveRestoreFunc(RestoreWorldLightmaps);
+        R_LevelShutdown();
+        g_pShadowMgr->LevelShutdown();
+        worldRendererStarted=false;
+        worldLightmapsDirty=false;
+        g_pMaterialSystemConfig=NULL;
+    }
     if (loaderStarted) {
+        host_state.SetWorldModel(NULL);
         if (loadedWorld) modelloader->UnreferenceModel(loadedWorld,IModelLoader::FMODELLOADER_CLIENT);
         modelloader->Shutdown();
         if (loadedWorld) CM_FreeMap();
@@ -145,4 +163,85 @@ extern "C" bool SourceIOSLoadWorldMap(const char *name, char *detail, size_t cap
     else snprintf(detail,capacity,"Actual BSP loader: %s (FAIL)",name);
     if (!valid) SourceIOSShutdownMapLoader();
     return valid;
+}
+
+extern void R_ResetLightStyles();
+extern float r_blend;
+static bool InitializeWorldRenderer(char *detail, size_t capacity)
+{
+    const char *data=CM_EntityString();
+    char token[1024], key[1024], classname[128], origin[128], angles[128];
+    bool found=false;
+    while (data && !found) {
+        data=COM_ParseFile(data,token,sizeof(token));
+        if (!data || Q_strcmp(token,"{")) break;
+        classname[0]=origin[0]=angles[0]=0;
+        while (data) {
+            data=COM_ParseFile(data,key,sizeof(key));
+            if (!data || !Q_strcmp(key,"}")) break;
+            data=COM_ParseFile(data,token,sizeof(token));
+            if (!data) break;
+            if (!Q_strcmp(key,"classname")) Q_strncpy(classname,token,sizeof(classname));
+            else if (!Q_strcmp(key,"origin")) Q_strncpy(origin,token,sizeof(origin));
+            else if (!Q_strcmp(key,"angles")) Q_strncpy(angles,token,sizeof(angles));
+        }
+        if (!Q_strcmp(classname,"info_player_start")) {
+            found=sscanf(origin,"%f %f %f",&cameraOrigin.x,&cameraOrigin.y,&cameraOrigin.z)==3 &&
+                sscanf(angles,"%f %f %f",&cameraAngles.x,&cameraAngles.y,&cameraAngles.z)==3;
+        }
+    }
+    if (!found) { snprintf(detail,capacity,"World renderer: no valid info_player_start camera"); return false; }
+    cameraOrigin.z+=64;
+    host_state.SetWorldModel(loadedWorld);
+    g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
+    r_framecount=1;
+    R_ResetLightStyles();
+    r_blend=1.0f;
+    R_DecalInit();
+    materials->CacheUsedMaterials();
+    g_pShadowMgr->LevelInit(host_state.worldbrush->numsurfaces);
+    R_LoadWorldGeometry();
+    BuildGammaTable(2.2f,2.2f,0.0f,OVERBRIGHT);
+    R_RedownloadAllLightmaps();
+    R_Surface_LevelInit();
+    R_Areaportal_LevelInit();
+    materials->AddRestoreFunc(RestoreWorldLightmaps);
+    // No client/server simulation is running to provide area activation yet.
+    memset(cl.m_chAreaBits,0xff,sizeof(cl.m_chAreaBits));
+    memset(cl.m_chAreaPortalBits,0xff,sizeof(cl.m_chAreaPortalBits));
+    worldRendererStarted=true;
+    return true;
+}
+extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_t capacity)
+{
+    if (!loadedWorld || width<1 || height<1) {
+        snprintf(detail,capacity,"World renderer: map or drawable unavailable"); return false;
+    }
+    if (!worldRendererStarted && !InitializeWorldRenderer(detail,capacity)) return false;
+    if (worldLightmapsDirty) {
+        R_RedownloadAllLightmaps();
+        worldLightmapsDirty=false;
+    }
+    CViewSetup view;
+    view.x=view.y=view.m_nUnscaledX=view.m_nUnscaledY=0;
+    view.width=view.m_nUnscaledWidth=width;
+    view.height=view.m_nUnscaledHeight=height;
+    view.origin=cameraOrigin; view.angles=cameraAngles;
+    view.fov=90; view.zNear=4; view.zFar=10000;
+    view.m_bDoBloomAndToneMapping=false;
+    Frustum frustum;
+    ++r_framecount;
+    g_EngineRenderer->SetMainView(view.origin,view.angles);
+    g_EngineRenderer->Push3DView(view,0,NULL,frustum);
+    g_EngineRenderer->ViewSetupVis(true,1,&view.origin);
+    IWorldRenderList *list=g_EngineRenderer->CreateWorldList();
+    WorldListInfo_t info={};
+    g_EngineRenderer->BuildWorldLists(list,&info,-1,NULL,false,NULL);
+    g_EngineRenderer->DrawWorldLists(list,DRAWWORLDLISTS_DRAW_STRICTLYABOVEWATER |
+        DRAWWORLDLISTS_DRAW_STRICTLYUNDERWATER | DRAWWORLDLISTS_DRAW_INTERSECTSWATER,0);
+    list->Release();
+    g_EngineRenderer->PopView(frustum);
+    snprintf(detail,capacity,"Actual Portal world: %d visible leaves; camera %.0f %.0f %.0f",info.m_LeafCount,
+        cameraOrigin.x,cameraOrigin.y,cameraOrigin.z);
+    return info.m_LeafCount>0;
 }

@@ -231,6 +231,8 @@ def main():
         raise SystemExit('iOS smoke test failed')
     if args.portal_root and not result.get('world_map_loaded'):
         raise SystemExit('Requested Portal map did not load')
+    if args.portal_root and not result.get('world_map_rendered'):
+        raise SystemExit('Requested Portal map did not produce a verified world frame')
 
 
 if __name__ == '__main__':

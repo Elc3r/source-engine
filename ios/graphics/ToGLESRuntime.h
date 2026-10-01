@@ -12,6 +12,7 @@ int StartToGLESMaterialLoop(const char *modules, char *detail, size_t capacity);
 int DrawToGLESMaterialLoop(char *detail, size_t capacity);
 void StopToGLESMaterialLoop(void);
 int IsSourceWorldMapLoaded(void);
+int IsSourceWorldMapRendered(void);
 const char *SourceWorldMapDetail(void);
 int CheckSurfaceSort(char *detail, size_t capacity);
 int CheckWorldState(char *detail, size_t capacity);
