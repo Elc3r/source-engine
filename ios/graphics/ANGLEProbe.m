@@ -206,6 +206,10 @@ static BOOL StartRenderer(void)
         engineChecksPassed = CheckToGLESObjects(detail, sizeof(detail), [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"].fileSystemRepresentation);
         runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
     }
+    if (engineChecksPassed) {
+        engineChecksPassed = CheckPortalGameModules([NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"].fileSystemRepresentation, detail, sizeof(detail));
+        runtimeDetail = [runtimeDetail stringByAppendingFormat:@"\n%s", detail];
+    }
     if (engineChecksPassed) engineChecksPassed = StartToGLESMaterialLoop([NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"].fileSystemRepresentation, detail, sizeof(detail));
     if (!engineChecksPassed) { SaveResult(NO, @(detail), @{}); return NO; }
 #endif

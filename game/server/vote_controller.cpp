@@ -777,6 +777,7 @@ int CVoteController::GetWinningVoteOption( void )
 //-----------------------------------------------------------------------------
 void CVoteController::TrackVoteCaller( CBasePlayer *pPlayer )
 {
+#ifndef NO_STEAM
 	if ( !pPlayer )
 		return;
 
@@ -792,6 +793,7 @@ void CVoteController::TrackVoteCaller( CBasePlayer *pPlayer )
 	}
 
 	m_VoteCallers.Insert( steamID.ConvertToUint64(), gpGlobals->curtime + sv_vote_creation_timer.GetInt() );
+#endif
 };
 
 //-----------------------------------------------------------------------------
@@ -799,6 +801,10 @@ void CVoteController::TrackVoteCaller( CBasePlayer *pPlayer )
 //-----------------------------------------------------------------------------
 bool CVoteController::CanEntityCallVote( CBasePlayer *pPlayer, int &nCooldown )
 {
+#ifdef NO_STEAM
+	nCooldown = 0;
+	return false; // Steam identity based multiplayer voting is unavailable.
+#else
 	if ( !pPlayer )
 		return false;
 	
@@ -819,6 +825,7 @@ bool CVoteController::CanEntityCallVote( CBasePlayer *pPlayer, int &nCooldown )
 	}
 
 	return true;
+#endif
 };
 
 //-----------------------------------------------------------------------------

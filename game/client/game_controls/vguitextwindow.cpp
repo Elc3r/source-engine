@@ -102,7 +102,11 @@ CTextWindow::CTextWindow(IViewPort *pViewPort) : Frame(NULL, PANEL_INFO	)
 	SetTitleBarVisible( false );
 
 	m_pTextMessage = new TextEntry( this, "TextMessage" );
+	#ifndef NO_STEAM
 	m_pHTMLMessage = new CMOTDHTML( this,"HTMLMessage" );
+	#else
+	m_pHTMLMessage = NULL;
+	#endif
 	m_pTitleLabel  = new Label( this, "MessageTitle", "Message Title" );
 	m_pOK		   = new Button(this, "ok", "#PropertyDialog_OK");
 
@@ -167,7 +171,7 @@ void CTextWindow::ShowURL( const char *URL, bool bAllowUserToDisable )
 	#endif
 
 	ClientModeShared *mode = ( ClientModeShared * )GetClientModeNormal();
-	if ( ( bAllowUserToDisable && cl_disablehtmlmotd.GetBool() ) || !mode->IsHTMLInfoPanelAllowed() )
+	if ( !m_pHTMLMessage || ( bAllowUserToDisable && cl_disablehtmlmotd.GetBool() ) || !mode->IsHTMLInfoPanelAllowed() )
 	{
 		Warning( "Blocking HTML info panel '%s'; Using plaintext instead.\n", URL );
 
@@ -181,7 +185,7 @@ void CTextWindow::ShowURL( const char *URL, bool bAllowUserToDisable )
 				const char *data = (const char *)g_pStringTableInfoPanel->GetStringUserData( index, &length );
 				if ( data && data[0] )
 				{
-					m_pHTMLMessage->SetVisible( false );
+					if ( m_pHTMLMessage ) m_pHTMLMessage->SetVisible( false );
 					ShowText( data );
 				}
 			}
@@ -189,9 +193,11 @@ void CTextWindow::ShowURL( const char *URL, bool bAllowUserToDisable )
 		return;
 	} 
 
+	#ifndef NO_STEAM
 	m_pHTMLMessage->SetVisible( true );
 	m_pHTMLMessage->OpenURL( URL, NULL );
 	m_bShownURL = true;
+	#endif
 }
 
 void CTextWindow::ShowIndex( const char *entry )
@@ -420,14 +426,17 @@ void CTextWindow::ShowPanel( bool bShow )
 		SetVisible( false );
 		SetMouseInputEnabled( false );
 
+		#ifndef NO_STEAM
 		if ( m_bUnloadOnDismissal && m_bShownURL && m_pHTMLMessage )
 		{
 			m_pHTMLMessage->OpenURL( "about:blank", NULL );
 			m_bShownURL = false;
 		}
+		#endif
 	}
 }
 
+#ifndef NO_STEAM
 bool CTextWindow::CMOTDHTML::OnStartRequest( const char *url, const char *target, const char *pchPostData, bool bIsRedirect )
 {
 	if ( Q_strstr( url, "steam://" ) )
@@ -435,3 +444,5 @@ bool CTextWindow::CMOTDHTML::OnStartRequest( const char *url, const char *target
 
 	return BaseClass::OnStartRequest( url, target, pchPostData, bIsRedirect );
 }
+
+#endif // !NO_STEAM

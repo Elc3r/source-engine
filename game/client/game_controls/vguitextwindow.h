@@ -87,6 +87,7 @@ protected:
 
 	vgui::TextEntry	*m_pTextMessage;
 	
+	#ifndef NO_STEAM
 	class CMOTDHTML : public vgui::HTML
 	{
 	private:
@@ -97,6 +98,9 @@ protected:
 		virtual bool OnStartRequest( const char *url, const char *target, const char *pchPostData, bool bIsRedirect ) OVERRIDE;
 	};
 	CMOTDHTML		*m_pHTMLMessage;
+	#else
+	vgui::Panel *m_pHTMLMessage;
+	#endif
 	
 	vgui::Button	*m_pOK;
 	vgui::Label		*m_pTitleLabel;

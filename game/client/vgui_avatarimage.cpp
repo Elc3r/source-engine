@@ -24,7 +24,9 @@ bool CAvatarImage::m_sbInitializedAvatarCache = false;
 // Purpose:
 //-----------------------------------------------------------------------------
 CAvatarImage::CAvatarImage( void )
+#ifndef NO_STEAM
 : m_sPersonaStateChangedCallback( this, &CAvatarImage::OnPersonaStateChanged )
+#endif
 {
 	ClearAvatarSteamID();
 	m_pFriendIcon = NULL;
@@ -73,7 +75,9 @@ void CAvatarImage::ClearAvatarSteamID( void )
 	m_bFriend = false;
 	m_bLoadPending = false;
 	m_SteamID.Set( 0, k_EUniverseInvalid, k_EAccountTypeInvalid );
+	#ifndef NO_STEAM
 	m_sPersonaStateChangedCallback.Unregister();
+	#endif
 }
 
 
@@ -88,7 +92,9 @@ bool CAvatarImage::SetAvatarSteamID( CSteamID steamIDUser, EAvatarSize avatarSiz
 	m_AvatarSize = avatarSize;
 	m_bLoadPending = true;
 
+	#ifndef NO_STEAM
 	m_sPersonaStateChangedCallback.Register( this, &CAvatarImage::OnPersonaStateChanged );
+	#endif
 
 	LoadAvatarImage();
 	UpdateFriendStatus();

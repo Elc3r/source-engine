@@ -27,6 +27,7 @@ def main():
     mode.add_argument('--graphics', action='store_true', help='Build the independent SDL/Metal GPU probe')
     mode.add_argument('--angle', action='store_true', help='Build the SDL/ANGLE GLES texture probe (downloads pinned ANGLE)')
     mode.add_argument('--togles', action='store_true', help='Test engine shader translation and DXT decoding through ANGLE')
+    parser.add_argument('--game-modules', action='store_true', help='Build and verify actual Portal client/server factories (ToGLES only)')
     parser.add_argument('--world-loader-check', action='store_true',
                         help='Compile actual engine world-loading units and report link dependencies (ToGLES only)')
     parser.add_argument('--shader-cache', type=Path, help='Validated FXC shader cache from ios-compile-shaders.py (ToGLES only)')
@@ -35,6 +36,8 @@ def main():
     parser.add_argument('--min-version', help='Default: 16.0 for ANGLE, 15.0 otherwise')
     parser.add_argument('--simulator', metavar='UDID', help='Install, launch and verify on this simulator')
     args = parser.parse_args()
+    if args.game_modules and not args.togles:
+        parser.error('--game-modules requires --togles')
     if args.world_loader_check and not args.togles:
         parser.error('--world-loader-check requires --togles')
     if args.shader_cache and not args.togles:
@@ -90,6 +93,8 @@ def main():
             '-DCMAKE_OSX_ARCHITECTURES=arm64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=' + args.min_version,
             '-DCMAKE_BUILD_TYPE=Debug', *angle_options)
         run('cmake', '--build', graphics_build, '--parallel', '8', '--target', executable)
+        if args.game_modules:
+            run('cmake', '--build', graphics_build, '--parallel', '8', '--target', 'PortalGameModules')
         if args.world_loader_check:
             run('cmake', '--build', graphics_build, '--parallel', '4', '--target', 'EngineWorldLoader')
             run(sys.executable, ROOT / 'scripts/ios-world-loader-check.py',
@@ -163,7 +168,10 @@ def main():
         sdl = app / 'Frameworks/libSDL2.dylib'
         shutil.copy2(graphics_build / 'sdl2/libSDL2.dylib', sdl)
         libraries.append(sdl)
-        for name in ['libToGLESRuntime', 'libshaderapidx9', 'libmaterialsystem', 'stdshader_dx9', 'stdshader_dbg', 'libdatacache', 'libvphysics', 'libstudiorender', 'libEngineMapLinkCheck']:
+        module_names = ['libToGLESRuntime', 'libshaderapidx9', 'libmaterialsystem', 'stdshader_dx9', 'stdshader_dbg', 'libdatacache', 'libvphysics', 'libstudiorender', 'libEngineMapLinkCheck']
+        if args.game_modules:
+            module_names += ['libclient', 'libserver']
+        for name in module_names:
             module = app / 'Frameworks' / (name + '.dylib')
             shutil.copy2(graphics_build / module.name, module)
             run('xcrun', 'install_name_tool', '-id', '@rpath/' + module.name, module)
@@ -204,6 +212,8 @@ def main():
         for stage in ['vertex', 'fragment']:
             (container / ('Documents/togles-' + stage + '.glsl')).unlink(missing_ok=True)
     launch_env=os.environ.copy()
+    if args.game_modules:
+        launch_env["SIMCTL_CHILD_SOURCE_IOS_GAME_MODULE_CHECK"]="1"
     if args.portal_root:
         launch_env['SIMCTL_CHILD_SOURCE_IOS_GAME_ROOT']=str(args.portal_root)
         launch_env['SIMCTL_CHILD_SOURCE_IOS_WORLD_MAP']=args.world_map

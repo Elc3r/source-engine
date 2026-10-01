@@ -1519,3 +1519,35 @@ player/object teleportation and duplicate object rendering across portals remain
 for the client/server integration. Visibility currently uses the exit center;
 aperture corner visibility and dedicated portal frusta remain to be integrated.
 Omit the preview environment variable for the normal authored initial scene.
+
+
+## Portal client/server modules
+
+`--game-modules` builds the original Portal client and server as strict ARM64 iOS
+dylibs, packages them into the app, and checks their real factories on launch.
+Source lists and game definitions come from the existing VPC projects; support
+library source lists come from their Waf projects. No external fork is used.
+
+Each DLL owns its interface registry and exports only `CreateInterface`. Keeping
+allocator/template symbols private prevents Mach-O weak symbol coalescing from
+mixing independent DMX allocator state across DLLs. The runtime check requests
+`VClient017`, `ServerGameDLL010`, and `ServerGameClients004`, and verifies that the
+client/server registries are distinct. Its result appears in `runtime_checks`
+inside `Documents/togles.json`.
+
+The build disables Steam. Steam callback registration, Steam identity voting and
+the Steam HTML MOTD are excluded; MOTD uses its existing plaintext fallback.
+UIKit owns the application entry point.
+
+```sh
+python3 scripts/build-ios-bootstrap.py --togles --game-modules \
+  --shader-cache build-ios-shaders/compiled \
+  --simulator BEF86C07-FE64-497C-A857-D21C42C19666 \
+  --portal-root /Users/vavrinakm/Games/Portal-arm64
+```
+
+This checks dynamic loading and interface creation, followed by the existing map
+rendering checks. It does **not** call client Init or server DLLInit/LevelInit and
+does not run game ticks, create a player or activate map entities. Those startup
+calls and their engine service bindings are the next milestone. Physical-device
+module loading is not yet runtime-tested.

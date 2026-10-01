@@ -62,7 +62,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         NO_HOOK_MALLOC NO_MEMOVERRIDE_NEW_DELETE TIER1_STATIC_LIB=1)
     target_include_directories(ToGLESChecks PRIVATE ../../public ../../public/tier0
         ../../common ../../togles/linuxwin "${ANGLE_ROOT}/include")
-    add_library(ToGLESRuntime SHARED ToGLESRuntime.cpp MapServices.cpp EngineServices.cpp WorldMemoryChecks.cpp ../../engine/zone.cpp FilesystemChecks.cpp MaterialChecks.cpp SceneChecks.cpp BlendChecks.cpp FogChecks.cpp LightmapChecks.cpp BspGeometry.cpp ../ToGLESBackend.cpp
+    add_library(ToGLESRuntime SHARED ToGLESRuntime.cpp GameModuleChecks.cpp MapServices.cpp EngineServices.cpp WorldMemoryChecks.cpp ../../engine/zone.cpp FilesystemChecks.cpp MaterialChecks.cpp SceneChecks.cpp BlendChecks.cpp FogChecks.cpp LightmapChecks.cpp BspGeometry.cpp ../ToGLESBackend.cpp
         ../../togles/linuxwin/glentrypoints.cpp ../../togles/linuxwin/cglmbuffer.cpp
         ../../togles/linuxwin/texture_upload.cpp ToGLESObjectChecks.cpp ToGLESShaderChecks.cpp ToGLESD3DChecks.cpp
         ../../togles/linuxwin/dxabstract.cpp
@@ -658,4 +658,8 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
         "${ENGINE_BUILD}/mathlib/libmathlib.a" "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib"
         ${IOS_SDL_TARGET} libEGL libGLESv2 "-framework UIKit" "-framework Foundation"
         "-framework Metal" "-framework QuartzCore" iconv)
+endif()
+
+if(ENGINE_BUILD AND ANGLE_ROOT)
+    include(PortalGame.cmake)
 endif()
