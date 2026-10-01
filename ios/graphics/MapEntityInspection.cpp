@@ -4,6 +4,8 @@
 #include "common.h"
 #include "cmodel_engine.h"
 #include "gl_rmain.h"
+#include "gl_rsurf.h"
+#include "host.h"
 #include "iclientrenderable.h"
 #include "datacache/imdlcache.h"
 #include "engine/ivmodelrender.h"
@@ -107,6 +109,14 @@ public:
 };
 CUtlVector<InspectionModel *> models;
 int skipped=0;
+struct InspectionBrush {
+    model_t *model;
+    Vector origin;
+    QAngle angles;
+    matrix3x4_t transform;
+};
+CUtlVector<InspectionBrush> brushes;
+int pendingBrushes=0;
 }
 
 void SourceIOSShutdownEntityModels()
@@ -116,6 +126,13 @@ void SourceIOSShutdownEntityModels()
         delete models[i];
     }
     models.RemoveAll(); skipped=0;
+    // Release original brush render batches while the world/inline models still
+    // exist. The normal client keeps the module loaded until the next level;
+    // this inspector can unload it, so it must not leave those allocations live.
+    if (brushes.Count()) R_BrushBatchInit();
+    FOR_EACH_VEC(brushes,i)
+        modelloader->UnreferenceModel(brushes[i].model,IModelLoader::FMODELLOADER_CLIENT);
+    brushes.RemoveAll(); pendingBrushes=0;
 }
 
 int SourceIOSInitializeEntityModels()
@@ -147,6 +164,30 @@ int SourceIOSInitializeEntityModels()
             else if (!Q_strcmp(key,"rendermode")) mode=atoi(token);
         }
         ++entityIndex;
+        if (!Q_strcmp(classname,"func_brush") || !Q_strcmp(classname,"func_door") ||
+            !Q_strcmp(classname,"func_tracktrain")) {
+            // Trigger volumes and other invisible inline models are deliberately
+            // excluded. Disabled brush entities stay hidden at this snapshot.
+            if (disabled) continue;
+            char *end=NULL;
+            long inlineIndex=name[0]=='*'?strtol(name+1,&end,10):0;
+            if (inlineIndex<1 || !end || *end || inlineIndex>=host_state.worldbrush->numsubmodels ||
+                alpha!=255 || mode!=0) { ++pendingBrushes; continue; }
+            model_t *brush=modelloader->GetModelForName(name,IModelLoader::FMODELLOADER_CLIENT);
+            if (!brush || brush->type!=mod_brush ||
+                (brush->flags&(MODELFLAG_TRANSLUCENT|MODELFLAG_FRAMEBUFFER_TEXTURE))) {
+                if (brush) modelloader->UnreferenceModel(brush,IModelLoader::FMODELLOADER_CLIENT);
+                ++pendingBrushes; continue;
+            }
+            // Some doors/trains are collision-only and have no drawable faces.
+            if (!brush->brush.nummodelsurfaces) {
+                modelloader->UnreferenceModel(brush,IModelLoader::FMODELLOADER_CLIENT); continue;
+            }
+            InspectionBrush entry={brush,origin,angles,{}};
+            AngleMatrix(angles,origin,entry.transform);
+            brushes.AddToTail(entry);
+            continue;
+        }
         if (Q_strcmp(classname,"prop_dynamic") && Q_strcmp(classname,"prop_physics") &&
             Q_strcmp(classname,"prop_physics_override")) continue;
         if (!name[0] || name[0]=='*' || disabled) { ++skipped; continue; }
@@ -183,4 +224,24 @@ int SourceIOSDrawEntityModels(const Vector &viewOrigin,int &pending)
     }
     context->MatrixMode(MATERIAL_MODEL); context->PopMatrix();
     return drawn;
+}
+
+
+int SourceIOSDrawBrushEntities(const Vector &viewOrigin,int &total,int &pending)
+{
+    total=brushes.Count(); pending=pendingBrushes;
+    const byte *pvs=CM_ClusterPVS(CM_LeafCluster(CM_PointLeafnum(viewOrigin)));
+    const int pvsSize=CM_ClusterPVSSize();
+    int submitted=0;
+    FOR_EACH_VEC(brushes,i) {
+        const InspectionBrush &entry=brushes[i];
+        Vector mins,maxs;
+        TransformAABB(entry.transform,entry.model->mins,entry.model->maxs,mins,maxs);
+        if (R_CullBox(mins,maxs) || !CM_BoxVisible(mins,maxs,pvs,pvsSize)) continue;
+        // NULL is the original renderer's supported path without entity proxies.
+        // This snapshot cannot update timer frames or other game-driven proxies.
+        R_DrawBrushModel(NULL,entry.model,entry.origin,entry.angles,DEPTH_MODE_NORMAL,true,false);
+        ++submitted;
+    }
+    return submitted;
 }

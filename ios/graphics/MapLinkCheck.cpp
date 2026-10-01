@@ -271,6 +271,8 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     g_EngineRenderer->BuildWorldLists(list,&info,-1,NULL,false,NULL);
     g_EngineRenderer->DrawWorldLists(list,DRAWWORLDLISTS_DRAW_STRICTLYABOVEWATER |
         DRAWWORLDLISTS_DRAW_STRICTLYUNDERWATER | DRAWWORLDLISTS_DRAW_INTERSECTSWATER,0);
+    int totalBrushes=0,pendingBrushes=0;
+    int visibleBrushes=SourceIOSDrawBrushEntities(view.origin,totalBrushes,pendingBrushes);
     UpdateStudioRenderConfig();
     g_pStudioRender->BeginFrame();
     int visibleProps=SourceIOSDrawStaticProps(info);
@@ -285,7 +287,7 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     g_pStudioRender->EndFrame();
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); translucent leaves %d, props %d (pending %d); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,translucentLeaves,translucentProps,unsupportedProps,
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (pending %d); translucent leaves %d, props %d (pending %d); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
         cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
     return info.m_LeafCount>0;
 }

@@ -1005,7 +1005,7 @@ there is no client/server simulation to provide areaportal state. Opaque static
 props use the original manager's model dictionary, model loader, lighting cache,
 model-render instances and studio-render path. Two iOS-only helpers initialize
 lighting without client leaf-system registration and select props intersecting
-the visible world leaves and camera frustum. Distance/screen fading, brush entities, sky, water passes, overlay verification
+the visible world leaves and camera frustum. Distance/screen fading, sky, water passes, overlay verification
 and gameplay remain pending; translucent prop inspection is described below.
 `testchmb_a_00.bsp` has 53 static instances and 16 dictionary models, matching the
 original game lump. The status shows submitted props/total props; this is not
@@ -1023,7 +1023,16 @@ process entity I/O, or create NPCs/portals. Frustum and original BSP PVS cull th
 model bounds. Disabled, alpha and framebuffer-copy models are deferred and
 reported; unreferencing models precedes loader shutdown. In the first Portal
 chamber the bed and toilet are visually verified, and the runtime reports no
-GL error. Clock digits remain separate brush entities and are not drawn yet.
+GL error. Opaque brush entities (`func_brush`, `func_door`, `func_tracktrain`)
+now use the original inline BSP models and `R_DrawBrushModel`, with transformed
+bounds, frustum/PVS culling and baked lightmaps. Trigger volumes are excluded;
+StartDisabled brushes remain hidden and collision-only models have no draw.
+In the first map, 10 opaque brushes are eligible, 17 active brushes need alpha,
+translucency or framebuffer-texture integration, 12 active models have no faces,
+and four are disabled. The wall timer digits are visually verified. Brush
+geometry remains at its BSP-authored pose; moving doors/trains and game-driven
+material proxies still require client/server state. The count is submitted
+brushes, not a per-object pixel test.
 
 
 For the retained game session, game paths are mounted before loading material
