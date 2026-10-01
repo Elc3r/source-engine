@@ -1005,12 +1005,29 @@ there is no client/server simulation to provide areaportal state. Opaque static
 props use the original manager's model dictionary, model loader, lighting cache,
 model-render instances and studio-render path. Two iOS-only helpers initialize
 lighting without client leaf-system registration and select props intersecting
-the visible world leaves and camera frustum. Distance/screen fading, sky, water passes, overlay verification
+the visible world leaves and camera frustum. Distance/screen fading, sky, water passes
 and gameplay remain pending; translucent prop inspection is described below.
 `testchmb_a_00.bsp` has 53 static instances and 16 dictionary models, matching the
 original game lump. The status shows submitted props/total props; this is not
 a per-model pixel-correctness measurement. Props and their color-mesh cache are
 shut down before the model loader, and color data is released/restored on Reset.
+
+Map overlays now receive the original `OverlayMgr()->CreateFragments()` step
+from `R_LevelInit`, after world geometry, lightmap sort IDs and surface setup.
+The loader's BSP overlay records alone contain no drawable fragments. Original
+world rendering now draws the clipped overlays with their baked lightmaps and
+materials; the first chamber's blue indicator path, X state panel and exit
+arrow/running-person signs were visually verified in the simulator. The
+120-frame check passed with GL error zero.
+
+Display-state audit: `env_texturetoggle` changes entity texture frame indices
+only when an input arrives; their initial index is zero. Original
+`material_modify_control` starts in `MATERIAL_MODIFY_MODE_NONE`, so its mere
+presence does not override `$frame`. The clock therefore retains the VMT's
+initial frames (seconds 0, centiseconds/milliseconds 9), and numbered sign
+models retain their BSP skin 1. Countdown/lighting changes in a running Portal
+intro require the actual game I/O and animation loop; the inspector does not
+substitute reference screenshot numbers or a standalone timer.
 
 The inspector also reads BSP entity keyvalues for `prop_dynamic`, `prop_physics`
 and `prop_physics_override` and submits supported opaque model entities through

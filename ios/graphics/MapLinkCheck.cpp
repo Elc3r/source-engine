@@ -16,6 +16,7 @@ extern "C" IRender *SourceIOSWorldRendererLinkAnchor()
 #include "MapLoaderBootstrap.h"
 #include "MapEntityInspection.h"
 #include "MapSceneEffects.h"
+#include "Overlay.h"
 #include "tier3/tier3.h"
 #include "filesystem_engine.h"
 #include "vphysics_interface.h"
@@ -244,6 +245,10 @@ static bool InitializeWorldRenderer(char *detail, size_t capacity)
     R_RedownloadAllLightmaps();
     R_Surface_LevelInit();
     R_Areaportal_LevelInit();
+    // R_LevelInit normally builds the clipped overlay meshes after surfaces
+    // and lightmap sort IDs exist. Loading the BSP overlay lump alone does not
+    // create drawable fragments (signs and indicator paths in Portal).
+    OverlayMgr()->CreateFragments();
     materials->AddRestoreFunc(RestoreWorldLightmaps);
     // No client/server simulation is running to provide area activation yet.
     memset(cl.m_chAreaBits,0xff,sizeof(cl.m_chAreaBits));
