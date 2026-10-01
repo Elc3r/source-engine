@@ -1024,7 +1024,23 @@ use `models/props/security_camera.mdl`, as selected by the original Portal
 `CNPC_SecurityCamera::Spawn` rather than a BSP model key. Their `aim_yaw` and
 `aim_pitch` controls use the original pose-parameter conversion for zero degrees;
 map origin and angles orient the mount. All four camera models in the first map
-are eligible, but AI tracking, eye sprites and ropes are not yet running.
+are eligible; AI tracking still awaits the game loop.
+The scene inspector also resolves map rope `NextKey` links and creates camera
+cables from the original MDL `Wire1_A/B` and `Wire2_A/B` attachments. Original
+`CRopePhysics` settles their initial shape; `CBeamSegDraw` renders the authored
+cable material, width, texture scale and subdivision. Camera cables target the
+original nine-unit hang, and the red eye uses the `light` attachment, `glow1`
+sprite, 0.3 scale and 128 alpha. Enabled `point_spotlight` entities supply their
+color and dimensions, the original `light_glow03` halo and additive
+`glow_test02` beam; the inspector evaluates the lampbeam view-angle fade.
+The first map creates 29 effect records (15 map ropes, eight camera cables,
+four camera eyes, one lamp halo and one lamp beam). They share the sorted
+world-leaf alpha queue with glass; glow visibility traces use BSP brush collision.
+The lamp through glass and camera eye/cables were visually verified, with the
+120-frame simulator check passing and GL error zero. This is still a snapshot:
+no rope wind, moving parent updates, model occlusion traces, pixel-visibility
+queries or gameplay-driven effect changes are simulated.
+
 Frustum and original BSP PVS cull the
 model bounds. Disabled, alpha and framebuffer-copy models are deferred and
 reported; unreferencing models precedes loader shutdown. In the first Portal

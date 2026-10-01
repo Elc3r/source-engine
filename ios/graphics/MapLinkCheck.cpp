@@ -15,6 +15,7 @@ extern "C" IRender *SourceIOSWorldRendererLinkAnchor()
 
 #include "MapLoaderBootstrap.h"
 #include "MapEntityInspection.h"
+#include "MapSceneEffects.h"
 #include "tier3/tier3.h"
 #include "filesystem_engine.h"
 #include "vphysics_interface.h"
@@ -298,14 +299,15 @@ extern "C" bool SourceIOSDrawWorldMap(int width, int height, char *detail, size_
     CUtlVector<SourceIOSTranslucentDraw> translucentBrushDraws;
     int refractiveBrushes=0;
     int translucentBrushes=SourceIOSCollectTranslucentBrushes(info,view.origin,forward,translucentBrushDraws,refractiveBrushes);
+    int visibleEffects=SourceIOSCollectSceneEffects(info,view.origin,forward,translucentBrushDraws);
     int translucentProps=SourceIOSDrawTranslucentScene(list,info,translucentFlags,
         view.origin,forward,translucentLeaves,unsupportedProps,
         translucentBrushDraws.Base(),translucentBrushDraws.Count());
     g_pStudioRender->EndFrame();
     list->Release();
     g_EngineRenderer->PopView(frustum);
-    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (alpha %d, refract %d, pending %d); translucent leaves %d, props %d (pending %d); camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,translucentBrushes,refractiveBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
-        cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
+    snprintf(detail,capacity,"Portal PVS: %d leaves; props %d/%d; entity poses %d/%d (pending %d); brushes %d/%d (alpha %d, refract %d, pending %d); translucent leaves %d, props %d (pending %d); effects %d/%d; camera %.0f %.0f %.0f; yaw %.0f; wall hits %u",info.m_LeafCount,visibleProps,staticPropCount,visibleEntities,entityModelCount,pendingEntities,visibleBrushes,totalBrushes,translucentBrushes,refractiveBrushes,pendingBrushes,translucentLeaves,translucentProps,unsupportedProps,
+        visibleEffects,SourceIOSSceneEffectCount(),cameraOrigin.x,cameraOrigin.y,cameraOrigin.z,cameraAngles.y,cameraCollisions);
     return info.m_LeafCount>0;
 }
 

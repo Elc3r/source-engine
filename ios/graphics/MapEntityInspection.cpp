@@ -1,5 +1,6 @@
 #include "render_pch.h"
 #include "MapEntityInspection.h"
+#include "MapSceneEffects.h"
 #include "modelloader.h"
 #include "common.h"
 #include "cmodel_engine.h"
@@ -150,6 +151,7 @@ void SourceIOSShutdownRefractionTexture()
 
 void SourceIOSShutdownEntityModels()
 {
+    SourceIOSShutdownSceneEffects();
     FOR_EACH_VEC(models,i) {
         modelloader->UnreferenceModel(models[i]->model,IModelLoader::FMODELLOADER_CLIENT);
         delete models[i];
@@ -167,6 +169,7 @@ void SourceIOSShutdownEntityModels()
 int SourceIOSInitializeEntityModels()
 {
     SourceIOSShutdownEntityModels();
+    SourceIOSInitializeSceneEffects();
     const char *data=CM_EntityString();
     char token[1024],key[1024];
     int entityIndex=-1;
@@ -239,6 +242,22 @@ int SourceIOSInitializeEntityModels()
         Q_strncpy(entry->animation,animation,sizeof(entry->animation));
         AngleMatrix(angles,origin,entry->transform);
         models.AddToTail(entry);
+        if (securityCamera) {
+            studiohdr_t *hdr=g_pMDLCache->GetStudioHdr(model->studio);
+            CStudioHdr studio(hdr,g_pMDLCache);
+            matrix3x4_t bones[MAXSTUDIOBONES];
+            const char *names[5]={"light","Wire1_A","Wire1_B","Wire2_A","Wire2_B"};
+            Vector positions[5]; int found=0;
+            if (entry->SetupBones(bones,MAXSTUDIOBONES,BONE_USED_BY_ANYTHING,0)) {
+                for (int n=0;n<5;++n) for (int a=0;a<studio.GetNumAttachments();++a)
+                    if (!Q_strcmp(studio.pAttachment(a).pszName(),names[n])) {
+                        matrix3x4_t attachment;
+                        ConcatTransforms(bones[studio.GetAttachmentBone(a)],studio.pAttachment(a).local,attachment);
+                        MatrixGetColumn(attachment,3,positions[n]); ++found; break;
+                    }
+                if (found==5) SourceIOSAddCameraEffects(positions[0],positions+1);
+            }
+        }
     }
     return models.Count();
 }
