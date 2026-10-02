@@ -134,3 +134,31 @@ target_sources(vguimatsurface PRIVATE VGUIChecks.cpp)
 target_link_options(vguimatsurface PRIVATE "-Wl,-exported_symbol,_SourceIOSCheckVGUI")
 target_compile_definitions(vguimatsurface PRIVATE VGUIMATSURFACE_DLL_EXPORT=1 GAMEUI_EXPORTS=1)
 add_dependencies(PortalGameModules vgui2 vguimatsurface)
+
+# Build the repository JPEG codec without desktop utilities or tests.
+set(BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(BUILD_EXECUTABLES OFF CACHE BOOL "" FORCE)
+set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(../../thirdparty/libjpeg jpeg EXCLUDE_FROM_ALL)
+set_target_properties(jpeg PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+
+# Original GameUI supplies the engine menu, console and client panel hierarchy.
+add_library(GameUI SHARED EXCLUDE_FROM_ALL ${IOS_GAMEUI_SOURCES} ../../tier1/interface.cpp)
+target_compile_features(GameUI PRIVATE cxx_std_11)
+target_compile_options(GameUI PRIVATE -fsigned-char)
+target_compile_definitions(GameUI PRIVATE
+    $<TARGET_PROPERTY:PortalSupport,COMPILE_DEFINITIONS>
+    GAMEUI_EXPORTS=1 VERSION_SAFE_STEAM_API_INTERFACES=1
+    DX_TO_GL_ABSTRACTION=1 TOGLES=1)
+target_include_directories(GameUI PRIVATE
+    $<TARGET_PROPERTY:PortalSupport,INCLUDE_DIRECTORIES>
+    ../../gameui ../../common/GameUI ../../thirdparty
+    ../../thirdparty/libjpeg "${CMAKE_CURRENT_BINARY_DIR}/jpeg")
+target_link_libraries(GameUI PRIVATE jpeg PortalSupport EngineVGUIControls IOSImage
+    ToGLESRuntime ${IOS_SDL_TARGET}
+    "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/mathlib/libmathlib.a"
+    "${ENGINE_BUILD}/tier0/libtier0.dylib")
+target_link_options(GameUI PRIVATE "-Wl,-exported_symbol,_CreateInterface")
+set_target_properties(GameUI PROPERTIES
+    BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
+add_dependencies(PortalGameModules GameUI)

@@ -846,6 +846,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	m_pGameLogo = NULL;
 	m_hMainMenuOverridePanel = NULL;
 
+	#ifndef NO_STEAM
 	if ( SteamClient() )
 	{
 		HSteamPipe steamPipe = SteamClient()->CreateSteamPipe();
@@ -858,6 +859,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 		SteamClient()->BReleaseSteamPipe( steamPipe );
 	}
 
+	#endif
 	CreateGameMenu();
 	CreateGameLogo();
 
@@ -2350,6 +2352,8 @@ void CBasePanel::RunMenuCommand(const char *command)
 				fprintf( fp, "%s\n", szSteamURL );
 			}
 			fclose( fp );
+#elif defined( IOS )
+			// UIKit owns application lifetime; desktop Steam relaunch is unavailable.
 #elif defined( _X360 )
 #else
 #error

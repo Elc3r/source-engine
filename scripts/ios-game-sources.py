@@ -43,6 +43,7 @@ def main():
         lines.extend('  "'+str((directory / name).resolve())+'"' for name in ast.literal_eval(source))
         lines.append(')')
     for module, variable, extra in (
+        ('gameui', 'IOS_GAMEUI_SOURCES', []),
         ('vgui2/src', 'IOS_VGUI_SOURCES', ['system_posix.cpp']),
         ('vguimatsurface', 'IOS_MATSURFACE_SOURCES', []),
         ('vgui2/vgui_surfacelib', 'IOS_SURFACELIB_SOURCES', ['linuxfont.cpp'])):

@@ -1,12 +1,14 @@
 #include "tier1/interface.h"
 #include "cdll_int.h"
 #include "eiface.h"
+#include "GameUI/IGameUI.h"
+#include "GameUI/IGameConsole.h"
 #include "MapServices.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-namespace { CSysModule *modules[2]={NULL,NULL}; }
+namespace { CSysModule *modules[3]={NULL,NULL,NULL}; }
 
 extern "C" int CheckPortalGameModules(const char *directory,char *detail,size_t capacity)
 {
@@ -15,9 +17,9 @@ extern "C" int CheckPortalGameModules(const char *directory,char *detail,size_t 
     }
     // Keep the libraries loaded: this checks their real factory registries,
     // without starting DLLInit/Init or claiming that gameplay has started.
-    const char *names[2]={"client","server"};
-    const char *interfaces[2]={CLIENT_DLL_INTERFACE_VERSION,INTERFACEVERSION_SERVERGAMEDLL};
-    for (int i=0;i<2;++i) {
+    const char *names[3]={"client","server","GameUI"};
+    const char *interfaces[3]={CLIENT_DLL_INTERFACE_VERSION,INTERFACEVERSION_SERVERGAMEDLL,GAMEUI_INTERFACE_VERSION};
+    for (int i=0;i<3;++i) {
         char path[4096]; snprintf(path,sizeof(path),"%s/lib%s.dylib",directory,names[i]);
         if (!modules[i]) modules[i]=Sys_LoadModule(path);
         CreateInterfaceFn factory=modules[i]?Sys_GetFactory(modules[i]):NULL;
@@ -26,6 +28,12 @@ extern "C" int CheckPortalGameModules(const char *directory,char *detail,size_t 
             snprintf(detail,capacity,"Portal game modules: %s factory/interface %s unavailable",names[i],interfaces[i]);
             return 0;
         }
+    }
+    CreateInterfaceFn gameUI=Sys_GetFactory(modules[2]);
+    if (!gameUI(GAMECONSOLE_INTERFACE_VERSION,NULL) ||
+        gameUI(CLIENT_DLL_INTERFACE_VERSION,NULL) ||
+        gameUI(INTERFACEVERSION_SERVERGAMEDLL,NULL)) {
+        snprintf(detail,capacity,"Portal game modules: GameUI console/registry check failed"); return 0;
     }
     CreateInterfaceFn client=Sys_GetFactory(modules[0]);
     CreateInterfaceFn server=Sys_GetFactory(modules[1]);
@@ -36,7 +44,7 @@ extern "C" int CheckPortalGameModules(const char *directory,char *detail,size_t 
     if (!server(INTERFACEVERSION_SERVERGAMECLIENTS,NULL)) {
         snprintf(detail,capacity,"Portal game modules: server client interface unavailable"); return 0;
     }
-    snprintf(detail,capacity,"Portal game modules: client/server loaded; %s, %s, %s PASS (gameplay not initialized)",
+    snprintf(detail,capacity,"Portal game modules: client/server/GameUI + console loaded; %s, %s, %s PASS (gameplay not initialized)",
         interfaces[0],interfaces[1],INTERFACEVERSION_SERVERGAMECLIENTS);
     return 1;
 }
