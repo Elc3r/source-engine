@@ -89,6 +89,9 @@ void CTouchPanel::OnScreenSizeChanged(int iOldWide, int iOldTall)
 	w = ScreenWidth();
 	h = ScreenHeight();
 	gTouch.screen_w = ScreenWidth(); gTouch.screen_h = h;
+#if defined(IOS)
+	gTouch.UpdateIOSLayout();
+#endif
 
 	SetBounds( 0, 0, w, h );
 }
@@ -101,6 +104,9 @@ void CTouchPanel::ApplySchemeSettings(vgui::IScheme *pScheme)
 	w = ScreenWidth();
 	h = ScreenHeight();
 	gTouch.screen_w = ScreenWidth(); gTouch.screen_h = h;
+#if defined(IOS)
+	gTouch.UpdateIOSLayout();
+#endif
 
 	SetBounds( 0, 0, w, h );
 }
@@ -285,6 +291,11 @@ void CTouchControls::GetTouchAccumulators( float *side, float *forward, float *y
 	*side = this->side;
 	*pitch = this->pitch;
 	*yaw = this->yaw;
+#if defined(IOS)
+	float sampleTime = gpGlobals->frametime > 0 ? gpGlobals->frametime : 1.f / 60.f;
+	*yaw += lookStickX * sampleTime * .7f;
+	*pitch += lookStickY * sampleTime * .7f;
+#endif
 	this->yaw = 0.f;
 	this->pitch = 0.f;
 }
@@ -359,6 +370,7 @@ void CTouchControls::Init()
 #if defined(IOS)
 	fallbackFont = 0;
 	fallbackFontSize = 0;
+	look_start_x = look_start_y = lookStickX = lookStickY = 0;
 #endif
 	configchanged = false;
 	config_loaded = false;
@@ -427,6 +439,9 @@ void CTouchControls::Init()
 	m_flHideTouch = 0.f;
 
 	initialized = true;
+#if defined(IOS)
+	UpdateIOSLayout();
+#endif
 }
 
 void CTouchControls::LevelInit()
@@ -629,6 +644,43 @@ void CTouchControls::IN_Look()
 {
 }
 
+#if defined(IOS)
+void CTouchControls::UpdateIOSLayout()
+{
+	if (!initialized || screen_w <= 0 || screen_h <= 0) return;
+	// Release held commands before changing hit regions on rotation.
+	for (int finger = 0; finger < 10; ++finger) {
+		touch_event_t event = {}; event.type = IE_FingerUp; event.fingerid = finger;
+		FingerPress(&event);
+	}
+	forward = side = yaw = pitch = lookStickX = lookStickY = 0;
+	float unit = min(screen_w, screen_h), radius = unit * .14f;
+	float margin = unit * (screen_w > screen_h ? .15f : .08f), button = unit * .13f, gap = unit * .035f;
+	float bottom = screen_h - margin - radius;
+	for (auto it = btns.begin(); it != btns.end(); ++it) {
+		CTouchButton *btn = *it;
+		float x, y, w = button, h = button;
+		if (btn->type == touch_move || btn->type == touch_look) {
+			x = btn->type == touch_move ? margin : screen_w - margin - 2 * radius;
+			y = bottom - radius; w = h = radius * 2;
+		} else if (!Q_strcmp(btn->command, "gameui_activate")) {
+			x = margin; y = screen_w > screen_h ? margin : unit * .18f;
+		} else if (!Q_strcmp(btn->command, "+jump") || !Q_strcmp(btn->command, "+use") ||
+		           !Q_strcmp(btn->command, "+attack") || !Q_strcmp(btn->command, "+attack2") ||
+		           !Q_strcmp(btn->command, "+duck")) {
+			bool left = !Q_strcmp(btn->command, "+use") || !Q_strcmp(btn->command, "+attack2");
+			int row = !Q_strcmp(btn->command, "+jump") || !Q_strcmp(btn->command, "+use") ? 0 :
+			          !Q_strcmp(btn->command, "+duck") ? 2 : 1;
+			x = screen_w - margin - button - (left ? button + gap : 0);
+			y = bottom - radius - gap - button - row * (button + gap);
+		} else { btn->flags |= TOUCH_FL_HIDE; continue; }
+		btn->flags &= ~TOUCH_FL_HIDE;
+		btn->x1 = x / screen_w; btn->x2 = (x + w) / screen_w;
+		btn->y1 = y / screen_h; btn->y2 = (y + h) / screen_h;
+	}
+}
+#endif
+
 void CTouchControls::Frame()
 {
 	if (!initialized)
@@ -702,6 +754,21 @@ void CTouchControls::Paint()
 	// icons, and draw missing ones as readable controls through VGUI itself.
 	// Surface drawing also respects the panel's clipping and translation.
 	vgui::ISurface *surface = vgui::surface();
+	int radius = min(screen_w, screen_h) * .14f;
+	for (it = btns.begin(); it != btns.end(); ++it) {
+		CTouchButton *btn = *it;
+		if (btn->type != touch_move && btn->type != touch_look) continue;
+		int cx = (btn->x1 + btn->x2) * screen_w / 2, cy = (btn->y1 + btn->y2) * screen_h / 2;
+		surface->DrawSetTexture(0);
+		surface->DrawSetColor(190, 225, 235, 140);
+		surface->DrawOutlinedCircle(cx, cy, radius, 48);
+		float dx = btn->type == touch_move ? -side : lookStickX;
+		float dy = btn->type == touch_move ? -forward : lookStickY;
+		float length = sqrtf(dx * dx + dy * dy);
+		if (length > 1) { dx /= length; dy /= length; }
+		int kx = cx + dx * radius * .65f, ky = cy + dy * radius * .65f;
+		surface->DrawOutlinedCircle(kx, ky, radius / 3, 32);
+	}
 	int fontSize = max(12, int(screen_w / 40));
 	if (!fallbackFont) fallbackFont = surface->CreateFont();
 	if (fallbackFontSize != fontSize) {
@@ -1088,15 +1155,27 @@ void CTouchControls::FingerMotion(touch_event_t *ev) // finger in my ass
 		{
 			if( btn->type == touch_move )
 			{
+#if defined(IOS)
+				float radius = min(screen_w, screen_h) * .14f;
+				f = (move_start_y - y) * screen_h / radius;
+				s = (move_start_x - x) * screen_w / radius;
+#else
 				f = ( move_start_y - y ) / touch_forwardzone.GetFloat();
 				s = ( move_start_x - x ) / touch_sidezone.GetFloat();
+#endif
 				forward = bound( -1, f, 1 );
 				side = bound( -1, s, 1 );
 			}
 			else if( btn->type == touch_look )
 			{
+#if defined(IOS)
+				float radius = min(screen_w, screen_h) * .14f;
+				lookStickX = clamp((x - look_start_x) * screen_w / radius, -1.f, 1.f);
+				lookStickY = clamp((y - look_start_y) * screen_h / radius, -1.f, 1.f);
+#else
 				yaw += ev->dx;
 				pitch += ev->dy;
+#endif
 			}
 		}
 	}
@@ -1126,6 +1205,10 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 					{
 						move_start_x = x;
 						move_start_y = y;
+#if defined(IOS)
+						move_start_x = (btn->x1 + btn->x2) / 2;
+						move_start_y = (btn->y1 + btn->y2) / 2;
+#endif
 						move_finger = ev->fingerid;
 					}
 					else
@@ -1133,8 +1216,13 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 				}
 				else if( btn->type == touch_look )
 				{
-					if( look_finger == -1 )
+					if( look_finger == -1 ) {
 						look_finger = ev->fingerid;
+#if defined(IOS)
+						look_start_x = (btn->x1 + btn->x2) / 2;
+						look_start_y = (btn->y1 + btn->y2) / 2;
+#endif
+					}
 					else
 						btn->finger = look_finger;
 				}
@@ -1161,8 +1249,12 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 					forward = side = 0;
 					move_finger = -1;
 				}
-				else if( btn->type == touch_look )
+				else if( btn->type == touch_look ) {
 					look_finger = -1;
+#if defined(IOS)
+					lookStickX = lookStickY = 0;
+#endif
+				}
 				else if( btn->command[0] == '+' )
 				{
 					char cmd[256];

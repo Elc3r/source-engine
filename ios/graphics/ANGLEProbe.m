@@ -46,10 +46,15 @@ static void SaveResult(BOOL passed, NSString *detail, NSDictionary *extra)
 #endif
 #ifdef SOURCE_TOGLES_PROBE
     if (IsSourceWorldMapLoaded()) {
-        label.text=[label.text stringByAppendingString:@"\nLeft drag: move • Right drag: look"];
-        CGRect controlsFrame=label.frame;
-        controlsFrame.size.height=landscape ? 125 : 185;
-        label.frame=controlsFrame;
+        BOOL live = getenv("SOURCE_IOS_GAME_STARTUP") &&
+            strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "play") == 0;
+        if (live && passed) {
+            label.text = [NSString stringWithFormat:@"Portal • LIVE\nFrames: %u", frames];
+            label.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
+            CGFloat width = MIN(180, label.superview.bounds.size.width - 200);
+            label.frame = CGRectMake((label.superview.bounds.size.width-width)/2,
+                                     landscape ? 10 : 60, width, 36);
+        }
     }
 #endif
     NSMutableDictionary *result = [@{@"passed": @(passed), @"detail": detail,
@@ -363,6 +368,13 @@ static void StopGraphics(void)
 
 static void StartGraphics(UIWindowScene *scene)
 {
+#ifdef SOURCE_TOGLES_PROBE
+    NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:
+        [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"ios-launch.plist"]];
+    for (NSString *key in settings) {
+        if (!getenv(key.UTF8String)) setenv(key.UTF8String, [settings[key] UTF8String], 1);
+    }
+#endif
     SDL_SetMainReady();
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "Portrait LandscapeLeft LandscapeRight");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {

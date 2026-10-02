@@ -519,6 +519,14 @@ int CVideoMode_Common::FindVideoMode( int nDesiredWidth, int nDesiredHeight, boo
 //-----------------------------------------------------------------------------
 void CVideoMode_Common::ResetCurrentModeForNewResolution( int nWidth, int nHeight, bool bWindowed )
 {
+#if defined(IOS)
+    m_bWindowed = true;
+    m_nModeWidth = m_nUIWidth = m_nStereoWidth = m_nRenderWidth = nWidth;
+    m_nModeHeight = m_nUIHeight = m_nStereoHeight = m_nRenderHeight = nHeight;
+    DefaultVideoMode().width = nWidth;
+    DefaultVideoMode().height = nHeight;
+    return;
+#endif
     // Fill in vid structure for the mode
     int nGameMode = FindVideoMode( nWidth, nHeight, bWindowed );
     vmode_t *pMode = GetMode( nGameMode );
@@ -2270,6 +2278,9 @@ static void VideoMode_AdjustForModeChange( void )
 {
     ( ( CVideoMode_MaterialSystem * )videomode )->AdjustForModeChange();
 }
+#if defined(IOS)
+extern "C" void SourceIOSUpdateVideoMode() { VideoMode_AdjustForModeChange(); }
+#endif
 
 
 //-----------------------------------------------------------------------------
@@ -2495,7 +2506,9 @@ void CVideoMode_MaterialSystem::AdjustForModeChange( void )
     CMatRenderContextPtr pRenderContext( materials );
 
     ResetCurrentModeForNewResolution( nNewWidth, nNewHeight, bWindowed );
+#if !defined(IOS)
     AdjustWindow( GetModeWidth(), GetModeHeight(), GetModeBPP(), IsWindowedMode() );
+#endif
     MarkClientViewRectDirty();
     pRenderContext->Viewport( 0, 0, GetModeStereoWidth(), GetModeStereoHeight() );
 

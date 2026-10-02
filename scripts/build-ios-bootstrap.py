@@ -111,6 +111,14 @@ def main():
     if app.exists():
         shutil.rmtree(app)
     app.mkdir(parents=True)
+    if args.togles and args.game_modules and args.portal_root:
+        # Simulator launch settings also apply when opened from SpringBoard.
+        # Only paths/settings are packaged, never the game's assets.
+        with (app / 'ios-launch.plist').open('wb') as stream:
+            plistlib.dump({'SOURCE_IOS_GAME_MODULE_CHECK': '1',
+                          'SOURCE_IOS_GAME_STARTUP': 'play',
+                          'SOURCE_IOS_GAME_ROOT': str(args.portal_root),
+                          'SOURCE_IOS_WORLD_MAP': args.world_map}, stream)
     libraries = []
     if args.graphics or args.angle:
         shutil.copy2(graphics_build / (executable + '.app') / executable, app / executable)

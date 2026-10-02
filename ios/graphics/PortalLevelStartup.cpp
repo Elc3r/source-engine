@@ -3,6 +3,7 @@
 #include "cl_pred.h"
 #include "vgui_baseui_interface.h"
 #include "render.h"
+#include "ivideomode.h"
 #include "cdll_int.h"
 #include "cdll_engine_int.h"
 #include "eiface.h"
@@ -33,10 +34,17 @@
 extern CGlobalVars g_ServerGlobalVariables;
 extern void SV_InitSendTables(ServerClass *classes);
 extern void SV_TermSendTables(ServerClass *classes);
+extern "C" void SourceIOSUpdateVideoMode();
+extern void ReleaseMaterialSystemObjects();
+extern void RestoreMaterialSystemObjects(int changeFlags);
 namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false; int savedMark=0; bool playing=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0;
 }
 
 extern "C" void SourceIOSShutdownPortalLevel() {
+    if (renderStarted) {
+        materials->RemoveReleaseFunc(ReleaseMaterialSystemObjects);
+        materials->RemoveRestoreFunc(RestoreMaterialSystemObjects);
+    }
     if (playing) host_initialized=false;
     playing=false; playerReader=NULL; tickRemainder=0;
     if (serverStarted) Host_AllowQueuedMaterialSystem(false);
@@ -103,6 +111,8 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
         Msg("iOS Portal localhost connection: begin\n");
         g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
         InitStudioRender(); renderStarted=true;
+        materials->AddReleaseFunc(ReleaseMaterialSystemObjects);
+        materials->AddRestoreFunc(RestoreMaterialSystemObjects);
         R_InitStudio();
         SCR_Init();
         NET_Init(false); networkStarted=true;
@@ -204,6 +214,8 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
 }
 extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t capacity) {
     if (!playing || !g_ClientDLL || width<1 || height<1) return false;
+    if (videomode->GetModeWidth()!=width || videomode->GetModeHeight()!=height)
+        SourceIOSUpdateVideoMode();
     EngineVGui()->Simulate();
     ClientDLL_FrameStageNotify(FRAME_RENDER_START);
     g_EngineRenderer->FrameBegin();

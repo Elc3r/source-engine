@@ -1776,3 +1776,25 @@ The fixture temporarily hides the real menu panel and samples active commands
 without creating a fake player or level. It restores menu visibility and view
 angles afterwards. It does not advance server/player simulation, render touch
 buttons or replace the inspector camera. Those require the real map/player loop.
+
+### Home Screen launch and iOS controls
+
+A ToGLES simulator build configured with `--game-modules --portal-root <path>`
+packages `ios-launch.plist` with that external game path, map and `play` mode.
+Opening SourceToGLES from the Home Screen therefore starts the live Portal
+client/server rather than the graphics cube. Explicit launch environment variables
+still override these defaults for inspection and regression modes. The bundle
+contains configuration only; game assets remain in the supplied external folder.
+
+iOS uses two fixed visible analog sticks: left for movement, right for continuous
+camera rotation while displaced. Use, jump, primary/secondary fire and crouch sit
+above the right stick; menu sits at the left. The layout uses the shorter screen
+dimension and is recomputed in portrait and landscape. Rotation releases active
+touches, updates the engine video mode and HUD, and uses the engine's original
+material release/restore callbacks to rebuild world meshes and lightmaps after
+the drawable changes size. The live status overlay is compact; full diagnostics
+remain in Documents/togles.json.
+
+The simulator input regression locates the actual joystick/control bounds and
+checks simultaneous move/look, native command serialization, all five action
+press/release pairs and cancellation while the menu is visible.

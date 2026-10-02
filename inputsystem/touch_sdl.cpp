@@ -28,7 +28,11 @@ int TouchSDLWatcher( void *userInfo, SDL_Event *event )
 		pInputSystem->CancelTouch();
 		break;
 	case SDL_WINDOWEVENT:
-		if ( event->window.event == SDL_WINDOWEVENT_FOCUS_LOST )
+		if ( event->window.event == SDL_WINDOWEVENT_FOCUS_LOST
+#if defined(IOS)
+		     || event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED
+#endif
+		   )
 			pInputSystem->CancelTouch();
 		break;
 	case SDL_FINGERDOWN:
