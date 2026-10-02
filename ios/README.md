@@ -1882,3 +1882,16 @@ three mip levels remain checked across two GLM lifecycles. The helper restores
 program, VAO, texture, framebuffer, viewport, filtering and raster state.
 Simulator tests and live Portal startup pass. Physical confirmation is pending
 with the v3 IPA; game data and its container layout are unchanged.
+
+### First physical-device confirmation
+
+The user's v3 LiveContainer run on Apple A17 Pro, iOS 27.0.1 (24A446), confirms
+original Portal server/client gameplay and map rendering on hardware. The
+submitted togles.json reports passed=true, engine_checks_passed=true,
+world_map_loaded=true, world_map_rendered=true and GL error 0, at 2556x1179.
+It records 13,560 presented frames, server tick 14,438 and matching command
+15,943 counters; five suspends and six resumes are recorded with the live game
+still running. All reported graphics / resource startup checks passed, including
+signed base-vertex drawing and the corrected 36 sampled DXT mip checks.
+These frame counters do not measure FPS, and this report does not independently
+verify every control, autosave, menu operation, audio or portal rendering.
