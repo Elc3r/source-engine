@@ -1601,8 +1601,33 @@ collision data valid across the transition. Engine logs use the app sandbox.
 Validation: the level cycle, native VGUI/input checks, and 120 subsequent rendered
 frames pass in the iOS 27 simulator. No player is connected and `GameFrame` is not
 advanced by this probe. The displayed scene remains the inspection renderer.
-Connecting the local client/player and advancing the original game loop are the
-next steps.
+`--game-startup player-cycle` extends this check with a real `localhost`
+connection. The native network channel performs challenge, resource and entity
+signon through `SIGNONSTATE_FULL`; the server creates a non-bot player through
+its original client lifecycle. The host now calls `ClientDLL_Init` /
+`ClientDLL_Shutdown`, including prediction, entity-list bindings and receive
+tables, and initializes engine game events before game DLLs register listeners.
+The server-client interface version is recorded as version 4.
+
+After connecting, the probe executes eight original `CL_Move` / `SV_Frame` /
+`CL_ReadPackets` ticks. A read-only server export checks the real player's last
+command and simulation time base; the last processed command must match the
+client's last outgoing command. In the verified run, command 12/12 is processed
+and player tick base advances from 0 to 80. The original server handles command
+clock correction; eight host ticks need not equal the player's initial time base
+adjustment. No user-command fields or player state are synthesized.
+
+The UIKit probe serializes material rendering before simulation and teardown:
+`CL_FullyConnected` enables the desktop material queue, while this host owns its
+GLES context on one thread. Teardown drains that queue before freeing level
+resources. Original GAME writes (including saves) now select the application
+sandbox first, while game assets stay in their existing directories/VPKs.
+
+Validation: player signon, eight server/client ticks, input/codec and VGUI checks,
+level teardown, and 120 subsequent inspection frames pass in the iOS 27 simulator.
+This is a bounded startup test: it disconnects the player before inspection
+rendering. Continuous gameplay, prediction/render updates and a view from the
+real player's camera remain to be integrated.
 
 ### Shared touch input preparation
 

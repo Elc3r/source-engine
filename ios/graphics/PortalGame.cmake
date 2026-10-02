@@ -61,6 +61,8 @@ endforeach()
 target_sources(PortalCLIENTModule PRIVATE PortalClientInputProbe.cpp)
 target_link_options(PortalCLIENTModule PRIVATE "-Wl,-exported_symbol,_SourceIOSReadPortalCommand"
     "-Wl,-exported_symbol,_SourceIOSFindPortalControl")
+target_sources(PortalSERVERModule PRIVATE PortalServerInputProbe.cpp)
+target_link_options(PortalSERVERModule PRIVATE "-Wl,-exported_symbol,_SourceIOSReadPortalPlayer")
 add_custom_target(PortalGameModules DEPENDS PortalCLIENTModule PortalSERVERModule)
 
 add_library(soundemittersystem SHARED EXCLUDE_FROM_ALL

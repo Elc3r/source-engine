@@ -1,4 +1,7 @@
 #include "render_pch.h"
+#include "PortalPlayerProbe.h"
+#include "cdll_int.h"
+#include "cdll_engine_int.h"
 #include "eiface.h"
 #include "sv_plugin.h"
 #include "server.h"
@@ -13,13 +16,25 @@
 #include "sv_main.h"
 #include "shadowmgr.h"
 #include "staticpropmgr.h"
+#include "client.h"
+#include "cl_main.h"
+#include "net.h"
+#include "sys.h"
+#include "iclient.h"
+#include "tier0/platform.h"
+#include "screen.h"
+#include "l_studio.h"
+#include "r_local.h"
+#include "materialsystem/materialsystem_config.h"
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern void SV_InitSendTables(ServerClass *classes);
 extern void SV_TermSendTables(ServerClass *classes);
-namespace { bool serverStarted=false,gameStarted=false,levelStarted=false; int savedMark=0; }
+namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false; int savedMark=0; }
 
 extern "C" void SourceIOSShutdownPortalLevel() {
+    if (serverStarted) Host_AllowQueuedMaterialSystem(false);
+    if (networkStarted) cl.Disconnect("iOS player cycle complete",false);
     if (levelStarted) {
         Msg("iOS Portal LevelShutdown: begin\n");
         g_pServerPluginHandler->LevelShutdown();
@@ -39,9 +54,11 @@ extern "C" void SourceIOSShutdownPortalLevel() {
         Hunk_FreeToLowMark(savedMark);
         serverStarted=false;
     }
+    if (networkStarted) { NET_Shutdown(); networkStarted=false; }
+    if (renderStarted) { SCR_EndLoadingPlaque(); SCR_Shutdown(); ShutdownStudioRender(); g_pMaterialSystemConfig=NULL; renderStarted=false; }
 }
 
-extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity) {
+extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPortalPlayer readPlayer) {
     const char *map=getenv("SOURCE_IOS_WORLD_MAP");
     if (!serverGameDLL || !serverGameClients || !map || Q_strncmp(map,"maps/",5) ||
         Q_strstr(map,"..") || !V_GetFileExtension(map) || Q_stricmp(V_GetFileExtension(map),"bsp")) {
@@ -75,6 +92,64 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity) {
     passed=passed && sv.IsActive() && entities>1 && sv.edicts && !sv.edicts[0].IsFree();
     snprintf(detail,capacity,"Portal GameInit/SpawnServer/LevelInit/ServerActivate: %s; %d live edicts (player not connected)",passed?"PASS":"FAIL",entities);
     Msg("%s\n",detail);
+    const char *mode=getenv("SOURCE_IOS_GAME_STARTUP");
+    if (passed && mode && !strcmp(mode,"player-cycle")) {
+        Msg("iOS Portal localhost connection: begin\n");
+        g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
+        InitStudioRender(); renderStarted=true;
+        R_InitStudio();
+        SCR_Init();
+        NET_Init(false); networkStarted=true;
+        CL_Init();
+        cl.Connect("localhost","ios-probe");
+        double start=Plat_FloatTime();
+        int state=-1;
+        while (!cl.IsActive() && Plat_FloatTime()-start<12.0) {
+            double now=Plat_FloatTime();
+            NET_RunFrame(now);
+            host_frametime=host_state.interval_per_tick;
+            g_ServerGlobalVariables.realtime=now;
+            cl.RunFrame();
+            cl.CheckUpdatingSteamResources();
+            CL_Move(0,true);
+            SV_Frame(true);
+            CL_ReadPackets(true);
+            if (state!=cl.m_nSignonState) {
+                state=cl.m_nSignonState;
+                Msg("iOS Portal localhost signon: %d; server clients %d\n",state,sv.GetClientCount());
+            }
+            Sys_Sleep(1);
+        }
+        passed=cl.IsActive() && sv.GetClientCount()==1 && sv.GetClient(0)->IsActive() &&
+            !sv.GetClient(0)->IsFakeClient() && !sv.edicts[1].IsFree() && sv.edicts[1].GetUnknown();
+        IOSPortalPlayer before={},after={};
+        int ticks=0;
+        if (passed) {
+            // UIKit owns the GLES context; keep this bounded probe on its thread.
+            Host_AllowQueuedMaterialSystem(false);
+            SCR_EndLoadingPlaque();
+            passed=readPlayer && readPlayer(1,&before);
+            int firstTick=sv.m_nTickCount;
+            for (int i=0;passed && i<8;++i) {
+                NET_RunFrame(Plat_FloatTime());
+                host_frametime=host_state.interval_per_tick;
+                g_ServerGlobalVariables.realtime=Plat_FloatTime();
+                ClientDLL_FrameStageNotify(FRAME_START);
+                g_ClientDLL->IN_SetSampleTime(host_state.interval_per_tick);
+                CL_Move(0,true);
+                SV_Frame(true);
+                CL_ReadPackets(true);
+                cl.RunFrame();
+                passed=cl.IsActive() && readPlayer(1,&after);
+            }
+            ticks=sv.m_nTickCount-firstTick;
+            passed=passed && ticks==8 && after.tickBase>before.tickBase &&
+                after.command>before.command && after.command==cl.lastoutgoingcommand;
+        }
+        snprintf(detail,capacity,"Portal localhost player + usercmd simulation: %s; signon %d; %d ticks; server command %d/%d; tickbase %d -> %d",
+            passed?"PASS":"FAIL",cl.m_nSignonState,ticks,after.command,cl.lastoutgoingcommand,before.tickBase,after.tickBase);
+        Msg("%s\n",detail);
+    }
     SourceIOSShutdownPortalLevel();
     return passed;
 }

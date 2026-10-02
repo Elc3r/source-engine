@@ -213,6 +213,8 @@ bool InitializeGameServices(const char *directory,CreateInterfaceFn factory,char
     if (!writePath) { snprintf(detail,capacity,"Portal writable sandbox path unavailable"); return false; }
     g_pFullFileSystem->AddSearchPath(writePath,"DEFAULT_WRITE_PATH",PATH_ADD_TO_HEAD);
     g_pFullFileSystem->AddSearchPath(writePath,"MOD",PATH_ADD_TO_HEAD);
+    // Original server saves and game-generated files also use GAME writes.
+    g_pFullFileSystem->AddSearchPath(writePath,"GAME",PATH_ADD_TO_HEAD);
     char configPath[MAX_PATH]; Q_snprintf(configPath,sizeof(configPath),"%sconfig",writePath);
     g_pFullFileSystem->AddSearchPath(configPath,"CONFIG",PATH_ADD_TO_HEAD);
     SDL_free(writePath);
@@ -295,10 +297,10 @@ bool CheckPortalClientInput(IOSReadPortalCommand readCommand,IOSFindPortalContro
     return check(readCommand,findControl,detail,capacity);
 }
 
-bool CheckPortalLevel(char *detail,size_t capacity) {
-    typedef bool (*Check)(char *,size_t);
+bool CheckPortalLevel(char *detail,size_t capacity,IOSReadPortalPlayer readPlayer) {
+    typedef bool (*Check)(char *,size_t,IOSReadPortalPlayer);
     Check check=loaderModule?reinterpret_cast<Check>(GetProcAddress(
         reinterpret_cast<void *>(loaderModule),"SourceIOSCheckPortalLevel")):NULL;
     if (!check) { snprintf(detail,capacity,"Portal level entry point unavailable"); return false; }
-    return check(detail,capacity);
+    return check(detail,capacity,readPlayer);
 }

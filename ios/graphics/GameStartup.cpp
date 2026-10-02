@@ -18,12 +18,13 @@
 #include "igame.h"
 #include "inputsystem/iinputsystem.h"
 #include "cmd.h"
+#include "GameEventManager.h"
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
 extern "C" void SourceIOSShutdownPortalLevel();
 namespace {
-bool initialized=false,clientInitialized=false,uiInitialized=false;
+bool initialized=false,clientInitialized=false,uiInitialized=false,eventsInitialized=false;
 ConVar *engineCheats=NULL;
 CreateInterfaceFn applicationFactory=NULL;
 char lastInterface[128]={};
@@ -44,12 +45,15 @@ extern "C" bool SourceIOSInitializePortalServer(CreateInterfaceFn gameFactory,ch
     g_iServerGameDLLVersion=INTERFACEVERSION_SERVERGAMEDLL_INT;
     serverGameDLL=static_cast<IServerGameDLL *>(gameFactory(INTERFACEVERSION_SERVERGAMEDLL,NULL));
     serverGameClients=static_cast<IServerGameClients *>(gameFactory(INTERFACEVERSION_SERVERGAMECLIENTS,NULL));
+    g_iServerGameClientsVersion=serverGameClients?4:0;
     if (!serverGameDLL || !serverGameClients) { snprintf(detail,capacity,"Portal server: game interface unavailable"); return false; }
     g_ServerGlobalVariables.maxClients=1;
     g_ServerGlobalVariables.interval_per_tick=serverGameDLL->GetTickInterval();
     engineCheats=g_pCVar->FindVar("sv_cheats");
     const char *root=getenv("SOURCE_IOS_GAME_ROOT");
     if (root) Q_snprintf(com_gamedir,sizeof(com_gamedir),"%s/portal",root);
+    eventsInitialized=g_GameEventManager.Init();
+    if (!eventsInitialized) { snprintf(detail,capacity,"Portal server: game events unavailable"); return false; }
     initialized=serverGameDLL->DLLInit(StartupFactory,StartupFactory,StartupFactory,&g_ServerGlobalVariables);
     snprintf(detail,capacity,"Portal server DLLInit: %s%s%s",initialized?"PASS":"FAIL",
         !initialized && !lastAvailable?"; unavailable interface ":"",
@@ -72,7 +76,7 @@ extern "C" bool SourceIOSShutdownPortalServer() {
     SourceIOSShutdownPortalLevel();
     if (clientInitialized && g_ClientDLL) {
         Msg("iOS Portal client Shutdown: begin\n");
-        g_ClientDLL->Shutdown();
+        ClientDLL_Shutdown();
         valid=!g_pCVar->FindVar("cl_drawhud");
         Msg("iOS Portal client Shutdown + client cvar cleanup: %s\n",valid?"PASS":"FAIL");
     }
@@ -89,8 +93,10 @@ extern "C" bool SourceIOSShutdownPortalServer() {
         valid=valid && !g_pCVar->FindVar("sv_portal_placement_never_fail") &&
             engineCheats && g_pCVar->FindVar("sv_cheats")==engineCheats;
     }
+    if (eventsInitialized) g_GameEventManager.Shutdown();
+    eventsInitialized=false;
     initialized=false; serverGameDLL=NULL; serverGameClients=NULL;
-    g_ServerFactory=NULL; g_iServerGameDLLVersion=0;
+    g_ServerFactory=NULL; g_iServerGameDLLVersion=0; g_iServerGameClientsVersion=0;
     applicationFactory=NULL; return valid;
 }
 
@@ -132,7 +138,8 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
     lastInterface[0]=0;
     g_ClientFactory=gameFactory;
     g_ClientDLL=static_cast<IBaseClientDLL *>(gameFactory(CLIENT_DLL_INTERFACE_VERSION,NULL));
-    bool started=g_ClientDLL && g_ClientDLL->Init(StartupFactory,StartupFactory,&g_ClientGlobalVariables);
+    bool started=g_ClientDLL!=NULL;
+    if (started) ClientDLL_Init();
     clientInitialized=started;
     if (started) {
         g_ClientDLL->PostInit();
