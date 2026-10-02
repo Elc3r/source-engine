@@ -1909,4 +1909,11 @@ Simulator verification shows linked views through both blue and orange portals,
 including Chell and a portal inside the linked view, using the original stencil
 renderer. Graphics/startup checks and the client Init/PostInit/Shutdown lifecycle
 check pass. The v4 ARM64 IPA includes these fixes; its ZIP CRC and portable launch
-settings were checked. Physical-device confirmation of v4 is pending.
+settings were checked.
+
+On 2026-10-02 the user confirmed v4 testing on real hardware: portal rendering,
+clocks, doors and connection indicator states now work. This is a user-reported
+visual/gameplay confirmation, additional to the simulator checks above. The
+shared frame timing and game material proxy integration fixed several visible
+systems together. Transition to the next map after the third elevator remains
+unresolved; completing the first map does not yet establish a full game run.
