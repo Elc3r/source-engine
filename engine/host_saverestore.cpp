@@ -105,7 +105,13 @@ static bool g_ConsoleInput = false;
 
 static char g_szMapLoadOverride[32];
 
+#if defined(IOS)
+// Imported game installations can contain desktop transition sidecars.
+// Restore only this app’s writable saves, never fall back to game assets.
+#define MOD_DIR "DEFAULT_WRITE_PATH"
+#else
 #define MOD_DIR ( IsX360() ? "DEFAULT_WRITE_PATH" : "MOD" )
+#endif
 
 //-----------------------------------------------------------------------------
 

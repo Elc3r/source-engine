@@ -2070,3 +2070,28 @@ Clock ticks and portal-opening one-shots still need uninterrupted playback
 verification. An additional simulator save/load check disconnected, and another
 startup paused by LLDB timed out at signon 4; neither is a passing regression
 check. The earlier hardware save/load confirmation predates these audio changes.
+
+### Transition save isolation (v11)
+
+On iOS the original save/restore host now uses DEFAULT_WRITE_PATH instead of
+MOD for save containers and transition sidecars. A supplied desktop installation
+can contain its own saves; those must not be fallback restore data for an iOS
+game session. Game assets retain their normal MOD/GAME paths.
+
+The v10 simulator reproduced a live, audible second map with a blue-only view
+after the native elevator ChangeLevel input. The restored player was outside
+the map at (442.53125, -696.03125, -75.78125); moving to the expected elevator
+position restored the view. Isolating save data yielded the correct transition.
+The old simulator save directory also contained legacy uppercase sidecars and
+was retained as save-before-v11-test for the clean regression run. With v11,
+asset search paths left mounted, and fresh writable saves, the same native
+trigger reaches testchmb_a_01, signon FULL, player (920, 64, -252), visible
+elevator rendering and approximately 60 FPS. This is a simulator result; the
+reported physical-device regression still needs confirmation with v11.
+
+Simulator/device builds and v11 IPA ZIP/signature verification pass.
+
+A fresh save in the second map also reloads with signon FULL, the same player
+position, visible rendering and 17 active audio channels. Earlier simulator
+.sav containers remain preserved in the backup and are copied back into the
+save list without restoring old temporary sidecars.
