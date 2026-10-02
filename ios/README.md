@@ -1637,12 +1637,18 @@ server player position and last command movement. Portal client render targets
 are allocated through its original render-target interface. Desktop Steam UI
 modules and debug panels are excluded from this UIKit lifecycle.
 
-This mode is an integration build, not a completed game port: touch-button
-textures/layout and visual parity still need work. Its PASS label verifies the
+This mode is an integration build, not a completed game port: control ergonomics
+and visual parity still need work. Its PASS label verifies the
 render/presentation loop; it does not imply that every gameplay feature works.
 Simulator validation: more than 3,000 native client frames, real UIKit gestures
 changing yaw, and a server-observed forward command of 450 (command 2043/2043)
 moving the real player from (-544, -368.8, 160) to (-622, -293.5, 164).
+
+The iOS HUD uses the Metal drawable's physical dimensions, matching the native
+client viewport. Touch controls draw through VGUI; when desktop game data lacks
+the Android touch-icon pack, readable labels replace error textures. Existing
+valid icon materials are still used. The continuous host also runs original
+HUD input and update hooks so inactive HUD elements remain hidden.
 
 ### Shared touch input preparation
 

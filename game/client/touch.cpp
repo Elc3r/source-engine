@@ -356,6 +356,10 @@ void CTouchControls::Init()
 	screen_w = w; screen_h = h;
 
 	touchTextureID = 0;
+#if defined(IOS)
+	fallbackFont = 0;
+	fallbackFontSize = 0;
+#endif
 	configchanged = false;
 	config_loaded = false;
 	btns.EnsureCapacity( 64 );
@@ -693,6 +697,64 @@ void CTouchControls::Paint()
 		}
 	}
 
+#if defined(IOS)
+	// Desktop game data need not contain Android's touch icon pack. Keep valid
+	// icons, and draw missing ones as readable controls through VGUI itself.
+	// Surface drawing also respects the panel's clipping and translation.
+	vgui::ISurface *surface = vgui::surface();
+	int fontSize = max(12, int(screen_w / 40));
+	if (!fallbackFont) fallbackFont = surface->CreateFont();
+	if (fallbackFontSize != fontSize) {
+		surface->SetFontGlyphSet(fallbackFont, "Helvetica", fontSize, 600, 0, 0, vgui::ISurface::FONTFLAG_ANTIALIAS);
+		fallbackFontSize = fontSize;
+	}
+	for (it = btns.begin(); it != btns.end(); ++it) {
+		CTouchButton *btn = *it;
+		if (!btn->texture || (btn->flags & TOUCH_FL_HIDE)) continue;
+		CTouchTexture *t = btn->texture;
+		if (!t->textureID) {
+			t->textureID = surface->CreateNewTextureID();
+			surface->DrawSetTextureFile(t->textureID, t->szName, true, false);
+		}
+		int x1 = btn->x1 * screen_w, y1 = btn->y1 * screen_h;
+		int x2 = btn->x2 * screen_w, y2 = btn->y2 * screen_h;
+		int alpha = btn->color.a > MIN_ALPHA_IN_CUTSCENE ? max(MIN_ALPHA_IN_CUTSCENE, btn->color.a - m_AlphaDiff) : btn->color.a;
+		IMaterial *material = g_pMatSystemSurface->DrawGetTextureMaterial(t->textureID);
+		if (material && !material->IsErrorMaterial()) {
+			surface->DrawSetColor(btn->color.r, btn->color.g, btn->color.b, alpha);
+			surface->DrawSetTexture(t->textureID);
+			surface->DrawTexturedRect(x1, y1, x2, y2);
+			continue;
+		}
+		surface->DrawSetColor(12, 22, 28, alpha * 2 / 3);
+		surface->DrawFilledRect(x1, y1, x2, y2);
+		surface->DrawSetColor(190, 225, 235, alpha);
+		surface->DrawOutlinedRect(x1, y1, x2, y2);
+		const char *caption = btn->name;
+		if (!Q_strcmp(btn->command, "+attack")) caption = "FIRE";
+		else if (!Q_strcmp(btn->command, "+attack2")) caption = "ALT";
+		else if (!Q_strcmp(btn->command, ";+duck")) caption = "DUCK";
+		else if (!Q_strcmp(btn->command, "+speed")) caption = "RUN";
+		else if (!Q_strcmp(btn->command, "load quick")) caption = "LOAD";
+		else if (!Q_strcmp(btn->command, "save quick")) caption = "SAVE";
+		else if (!Q_strcmp(btn->command, "impulse 100")) caption = "LIGHT";
+		else if (!Q_strcmp(btn->command, "invprev")) caption = "PREV";
+		else if (!Q_strcmp(btn->command, "invnext")) caption = "NEXT";
+		wchar_t text[32] = {};
+		for (int i = 0; caption[i] && i < 31; ++i) text[i] = towupper((unsigned char)caption[i]);
+		int textWidth, textHeight;
+		surface->GetTextSize(fallbackFont, text, textWidth, textHeight);
+		int textLength = wcslen(text);
+		while (textLength > 1 && textWidth > x2 - x1 - 4) {
+			text[--textLength] = 0;
+			surface->GetTextSize(fallbackFont, text, textWidth, textHeight);
+		}
+		surface->DrawSetTextFont(fallbackFont);
+		surface->DrawSetTextColor(225, 245, 250, alpha);
+		surface->DrawSetTextPos((x1 + x2 - textWidth) / 2, (y1 + y2 - textHeight) / 2);
+		surface->DrawPrintText(text, wcslen(text));
+	}
+#else
 	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	int meshCount = 0;
 
@@ -784,8 +846,7 @@ void CTouchControls::Paint()
 
 	meshBuilder.End();
 	m_pMesh->Draw();
-
-
+#endif
 	if( m_flHideTouch < gpGlobals->curtime )
 	{
 		if( m_bCutScene && m_AlphaDiff < 255-MIN_ALPHA_IN_CUTSCENE )

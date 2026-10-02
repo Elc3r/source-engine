@@ -7,6 +7,9 @@
 #if defined( USE_SDL )
 #undef PROTECTED_THINGS_ENABLE
 #include "SDL.h"
+#if defined(IOS)
+#include "SDL_metal.h"
+#endif
 #include "SDL_syswm.h"
 #endif
 
@@ -2293,7 +2296,7 @@ bool CVideoMode_MaterialSystem::Init( )
     // drawable dimensions without desktop enumeration or a second window.
     SDL_Window *window = SDL_GetKeyboardFocus();
     if (!window) return false;
-    SDL_GL_GetDrawableSize(window, &m_nModeWidth, &m_nModeHeight);
+    SDL_Metal_GetDrawableSize(window, &m_nModeWidth, &m_nModeHeight);
     if (m_nModeWidth <= 0 || m_nModeHeight <= 0) return false;
     m_nStereoWidth = m_nUIWidth = m_nRenderWidth = m_nModeWidth;
     m_nStereoHeight = m_nUIHeight = m_nRenderHeight = m_nModeHeight;

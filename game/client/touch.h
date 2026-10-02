@@ -217,6 +217,10 @@ private:
 	float m_flPreviousYaw, m_flPreviousPitch;
 
 	int touchTextureID;
+#if defined(IOS)
+	vgui::HFont fallbackFont;
+	int fallbackFontSize;
+#endif
 	IMesh* m_pMesh;
 	CMeshBuilder meshBuilder;
 

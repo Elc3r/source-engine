@@ -186,6 +186,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
         NET_RunFrame(now);
         cl.SetFrameTime(host_state.interval_per_tick);
         g_ClientDLL->IN_SetSampleTime(host_state.interval_per_tick);
+        ClientDLL_ProcessInput();
         CL_Move(0,true);
         SV_Frame(true);
         CL_ReadPackets(true);
@@ -194,6 +195,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     }
     g_ClientGlobalVariables.interpolation_amount=tickRemainder/host_state.interval_per_tick;
     CL_RunPrediction(PREDICTION_NORMAL);
+    ClientDLL_Update();
     IOSPortalPlayer player={};
     if (!playerReader || !playerReader(1,&player)) { snprintf(detail,capacity,"Portal live player unavailable"); return false; }
     snprintf(detail,capacity,"Portal LIVE: server tick %d; command %d/%d; player %.1f %.1f %.1f; yaw %.1f; move %.0f/%.0f; flags %x",
