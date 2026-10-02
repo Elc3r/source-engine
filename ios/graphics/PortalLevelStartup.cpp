@@ -11,6 +11,7 @@
 #include "server.h"
 #include "sys_dll.h"
 #include "host.h"
+#include "host_state.h"
 #include "host_saverestore.h"
 #include "modelloader.h"
 #include "cmodel_engine.h"
@@ -39,7 +40,7 @@ extern void SV_TermSendTables(ServerClass *classes);
 extern "C" void SourceIOSUpdateVideoMode();
 extern void ReleaseMaterialSystemObjects();
 extern void RestoreMaterialSystemObjects(int changeFlags);
-namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false,saveStarted=false; int savedMark=0; bool playing=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0;
+namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false,saveStarted=false; int savedMark=0; bool playing=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0,reconnectStarted=0;
 }
 
 extern "C" void SourceIOSShutdownPortalLevel() {
@@ -49,7 +50,7 @@ extern "C" void SourceIOSShutdownPortalLevel() {
     }
     if (saveStarted) { saverestore->Shutdown(); saveStarted=false; }
     if (playing) host_initialized=false;
-    playing=false; playerReader=NULL; tickRemainder=0;
+    playing=false; playerReader=NULL; tickRemainder=0; reconnectStarted=0;
     if (serverStarted) Host_AllowQueuedMaterialSystem(false);
     if (networkStarted) cl.Disconnect("iOS player cycle complete",false);
     if (levelStarted) {
@@ -58,6 +59,7 @@ extern "C" void SourceIOSShutdownPortalLevel() {
         levelStarted=false;
     }
     if (gameStarted) { serverGameDLL->GameShutdown(); gameStarted=false; }
+    HostState_Init();
     if (serverStarted) {
         // Match Host_ShutdownServer: release world ownership before sv.Shutdown
         // clears host_state.worldmodel, and before rewinding its hunk storage.
@@ -85,6 +87,7 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
     if (!serverGameEnts) { snprintf(detail,capacity,"Portal level: ServerGameEnts001 unavailable"); return false; }
     char name[MAX_PATH]; Q_FileBase(map,name,sizeof(name));
     savedMark=Hunk_LowMark();
+    Host_SetHunkLevel(savedMark);
     Msg("iOS Portal server infrastructure: begin\n");
     saverestore->Init(); saveStarted=true;
     sv.Init(false); serverStarted=true;
@@ -95,6 +98,7 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
     Msg("iOS Portal GameInit: begin\n");
     gameStarted=serverGameDLL->GameInit();
     if (!gameStarted) { snprintf(detail,capacity,"Portal GameInit: FAIL"); SourceIOSShutdownPortalLevel(); return false; }
+    HostState_AdoptInitializedGame();
     Msg("iOS Portal SpawnServer %s: begin\n",name);
     if (!sv.SpawnServer(name,map,NULL)) {
         snprintf(detail,capacity,"Portal SpawnServer: FAIL"); SourceIOSShutdownPortalLevel(); return false;
@@ -187,7 +191,7 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
 
 extern "C" bool SourceIOSIsPortalGameLive() { return playing; }
 extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
-    if (!playing || !cl.IsActive() || !sv.IsActive()) { snprintf(detail,capacity,"Portal live connection lost"); return false; }
+    if (!playing) { snprintf(detail,capacity,"Portal game not running"); return false; }
     double now=Plat_FloatTime(),elapsed=now-lastFrame;
     lastFrame=now;
     // Loading/background stalls must not generate an unbounded catch-up burst.
@@ -199,6 +203,34 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     host_frametime=elapsed>=0 && elapsed<.25 ? float(elapsed) : 0.0f;
     ++host_framecount;
     _Host_SetGlobalTime();
+    // load/changelevel first disconnect the client; process the original host
+    // state machine before treating that temporary disconnect as a failure.
+    HostState_FrameTransitions(host_frametime);
+    Cbuf_Execute();
+    if (!cl.IsActive()) {
+        if (!reconnectStarted) reconnectStarted=now;
+        if (now-reconnectStarted>30.0) {
+            snprintf(detail,capacity,"Portal reconnect timed out; signon %d",cl.m_nSignonState); return false;
+        }
+        NET_RunFrame(now);
+        host_frametime=host_state.interval_per_tick;
+        cl.RunFrame();
+        cl.CheckUpdatingSteamResources();
+        CL_Move(0,true);
+        SV_Frame(true);
+        CL_ReadPackets(true);
+        Host_AllowQueuedMaterialSystem(false);
+        tickRemainder=0; lastFrame=Plat_FloatTime();
+        snprintf(detail,capacity,"Portal loading; signon %d",cl.m_nSignonState);
+        return true;
+    }
+    if (reconnectStarted) {
+        reconnectStarted=0; tickRemainder=0; lastFrame=Plat_FloatTime();
+        Host_AllowQueuedMaterialSystem(false);
+        SCR_EndLoadingPlaque();
+        EngineVGui()->HideGameUI();
+    }
+    if (!sv.IsActive()) { snprintf(detail,capacity,"Portal server unavailable"); return false; }
     ClientDLL_FrameStageNotify(FRAME_START);
     while (tickRemainder>=host_state.interval_per_tick) {
         host_frametime=host_state.interval_per_tick;
@@ -224,6 +256,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
 }
 extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t capacity) {
     if (!playing || !g_ClientDLL || width<1 || height<1) return false;
+    if (!cl.IsActive()) { EngineVGui()->Simulate(); return true; }
     if (videomode->GetModeWidth()!=width || videomode->GetModeHeight()!=height)
         SourceIOSUpdateVideoMode();
     EngineVGui()->Simulate();

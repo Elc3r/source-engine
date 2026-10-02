@@ -103,6 +103,8 @@ extern bool			g_bLowViolence;
 // Returns true if host is not single stepping/pausing through code/
 // FIXME:  Remove from final, retail version of code.
 bool Host_ShouldRun( void );
+// Alternate hosts must establish the persistent allocation boundary before map loads.
+void Host_SetHunkLevel( int mark );
 void Host_FreeToLowMark( bool server );
 void Host_FreeStateAndWorld( bool server );
 void Host_Disconnect( bool bShowMainMenu, const char *pszReason = "" );

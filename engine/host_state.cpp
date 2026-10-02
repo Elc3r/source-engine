@@ -69,7 +69,7 @@ class CHostState
 public:
 				CHostState() = default;
 	void		Init();
-	void		FrameUpdate( float time );
+	void		FrameUpdate( float time, bool runHostFrame = true );
 	void		SetNextState( HOSTSTATES nextState );
 
 	void		RunGameInit();
@@ -81,7 +81,7 @@ public:
 	void		State_LoadGame();
 	void		State_ChangeLevelMP();
 	void		State_ChangeLevelSP();
-	void		State_Run( float time );
+	void		State_Run( float time, bool runHostFrame = true );
 	void		State_GameShutdown();
 	void		State_Shutdown();
 	void		State_Restart();
@@ -122,6 +122,18 @@ void HostState_Init()
 void HostState_Frame( float time )
 {
 	g_HostState.FrameUpdate( time );
+}
+
+// UIKit supplies simulation/rendering itself, but still needs native game transitions.
+void HostState_FrameTransitions( float time )
+{
+	g_HostState.FrameUpdate( time, false );
+}
+
+void HostState_AdoptInitializedGame()
+{
+	g_HostState.Init();
+	g_HostState.m_activeGame = true;
 }
 
 void HostState_RunGameInit()
@@ -471,7 +483,7 @@ static bool IsClientConnected()
 	return false;
 }
 
-void CHostState::State_Run( float frameTime )
+void CHostState::State_Run( float frameTime, bool runHostFrame )
 {
 	static bool s_bFirstRunFrame = true;
 
@@ -502,7 +514,8 @@ void CHostState::State_Run( float frameTime )
 		Plat_BeginWatchdogTimer( nTimerWaitSeconds );
 	}
 
-	Host_RunFrame( frameTime );
+	if ( runHostFrame )
+		Host_RunFrame( frameTime );
 
 	if ( sv.IsDedicated() )
 	{
@@ -603,7 +616,7 @@ void CHostState::State_Restart( void )
 //-----------------------------------------------------------------------------
 // this is the state machine's main processing loop
 //-----------------------------------------------------------------------------
-void CHostState::FrameUpdate( float time )
+void CHostState::FrameUpdate( float time, bool runHostFrame )
 {
 	CCS_Tick( time );
 
@@ -645,7 +658,7 @@ void CHostState::FrameUpdate( float time )
 			State_ChangeLevelSP();
 			break;
 		case HS_RUN:
-			State_Run( time );
+			State_Run( time, runHostFrame );
 			break;
 		case HS_GAME_SHUTDOWN:
 			State_GameShutdown();

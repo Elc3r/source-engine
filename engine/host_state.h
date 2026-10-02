@@ -16,6 +16,9 @@
 void	HostState_Init();
 void	HostState_RunGameInit();
 void	HostState_Frame( float time );
+// For hosts that own their frame loop and have already initialized the game DLL.
+void	HostState_FrameTransitions( float time );
+void	HostState_AdoptInitializedGame();
 void	HostState_NewGame( char const *pMapName, bool remember_location, bool background );
 void	HostState_LoadGame( char const *pSaveFileName, bool remember_location );
 void	HostState_ChangeLevelSP( char const *pNewLevel, char const *pLandmarkName );

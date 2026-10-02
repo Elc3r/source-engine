@@ -1917,3 +1917,26 @@ visual/gameplay confirmation, additional to the simulator checks above. The
 shared frame timing and game material proxy integration fixed several visible
 systems together. Transition to the next map after the third elevator remains
 unresolved; completing the first map does not yet establish a full game run.
+
+### Loading saved games
+
+The UIKit gameplay loop now processes the original host state machine's game
+transitions without running the desktop simulation/render loop a second time.
+Bootstrap adopts its already initialized game and establishes the host hunk
+boundary before spawning the world. Previously `load` disconnected the client
+and queued HS_LOAD_GAME, but no host state frame consumed that request; the
+bootstrap immediately stopped with "Portal live connection lost".
+
+During loading, the loop services localhost signon and resumes native rendering
+once the client is active. It resets simulation catch-up time, ends the loading
+plaque and hides GameUI on reconnection. Queued material rendering stays disabled
+because UIKit owns the GLES context, including the frame where signon completes.
+The reconnect wait is bounded at 30 seconds.
+
+Simulator checks passed: loading an existing autosave, creating a manual save,
+moving to a different room and loading that manual save through the original
+Load Game dialog. Player position and view returned to the saved values
+(-454.5, -766.1, 128; yaw -135.1), localhost signon reached FULL, server and
+user-command counters continued and rendering resumed with GL error 0.
+The v5 IPA includes this fix; physical-device verification remains pending.
+Next-map transitions share this host state integration but are not yet verified.

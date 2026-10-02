@@ -579,6 +579,11 @@ unsigned int host_jitterhistorypos = 0;
 int			host_framecount;
 static int	host_hunklevel;
 
+void Host_SetHunkLevel( int mark )
+{
+	host_hunklevel = mark;
+}
+
 CGameClient	*host_client;			// current client
 
 jmp_buf 	host_abortserver;
