@@ -132,6 +132,9 @@ extern "C" bool SourceIOSInitializeMapLoader(CreateInterfaceFn factory, char *de
     savedCacheLimit=cacheLimits.nMaxBytes;
     savedMemoryBudget=host_parms.memsize;
     host_parms.memsize=256*1024*1024;
+    // Host_Init normally initializes the shared token parser before sound
+    // scripts/DSP presets or game modules parse engine-format files.
+    COM_Init();
     Memory_Init();
     memoryStarted=true;
     ConVar_Register();

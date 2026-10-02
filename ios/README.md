@@ -2039,11 +2039,34 @@ contains only the project's generated probe assets, not Portal game data.
 
 Earlier diagnostic runs saw startup/memory failures and a null desktop mouse
 launcher after enabling desktop app focus. The final sound-focus bridge avoids
-that desktop activation path. Memory failures from earlier diagnostic runs
-have not been independently isolated; continued hardware testing is required.
+that desktop activation path. The earlier DSP memory corruption was subsequently isolated and fixed in v10
+by initializing COM_Parse before reading DSP presets (see below).
 
 The audio run's additional save/load check did not pass: the simulator reported
 save/ios_audio_check.sav invalid, with failed sidecar removals in its existing
 write root. This does not validate save/load with audio enabled and needs a
 clean-write-root retest or hardware confirmation. The prior v8 hardware
 save/load confirmation is unchanged.
+
+### Portal sound scripts and host clocks (v10)
+
+Portal archives and loose files now precede the complete HL2 search-path group.
+Previously the loose HL2 game_sounds_manifest.txt shadowed Portal’s archived
+manifest, leaving Portal.room1_Radio and Portal.open_blue undefined. The UIKit
+host also publishes sound-service frame time and advances host_time for sound
+envelopes, crossfades and ducking.
+
+The partial host now calls COM_Init before Memory_Init and game/audio startup.
+Without the shared parser’s break sets, the original DSP file was counted as
+22 presets instead of 134; parsing then corrupted memory beyond the allocation.
+LLDB confirms 134 presets after initialization.
+
+Simulator verification in the normal map startup found active radio, portal
+ambient channels and vo/aperture_ai/00_part1_entry-3.wav from native choreography.
+A 64 KiB mixer ring snapshot contained 32,763 nonzero S16 samples (peak 10,941).
+This confirms generated PCM, not physical-device audible output. Simulator and
+device builds pass, and the v10 IPA passes signature and ZIP integrity checks.
+Clock ticks and portal-opening one-shots still need uninterrupted playback
+verification. An additional simulator save/load check disconnected, and another
+startup paused by LLDB timed out at signon 4; neither is a passing regression
+check. The earlier hardware save/load confirmation predates these audio changes.

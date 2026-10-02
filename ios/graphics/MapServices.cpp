@@ -138,13 +138,16 @@ bool MountRequestedWorldData(char *detail, size_t capacity)
     // packaging and general gameinfo search-path handling are separate work.
     char path[MAX_PATH];
     const char *archives[]={"hl2/hl2_misc_dir.vpk","hl2/hl2_textures_dir.vpk",
-        "hl2/hl2_sound_misc_dir.vpk","hl2/hl2_sound_vo_english_dir.vpk",
-        "portal/portal_pak_dir.vpk"};
+        "hl2/hl2_sound_misc_dir.vpk","hl2/hl2_sound_vo_english_dir.vpk"};
     for (const char *archive : archives) {
         Q_snprintf(path,sizeof(path),"%s/%s",root,archive);
         g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
     }
     Q_snprintf(path,sizeof(path),"%s/hl2",root);
+    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    // Complete the base-game group before adding Portal overrides. A loose
+    // HL2 manifest must not shadow the Portal manifest inside its VPK.
+    Q_snprintf(path,sizeof(path),"%s/portal/portal_pak_dir.vpk",root);
     g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
     Q_snprintf(path,sizeof(path),"%s/portal",root);
     g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);

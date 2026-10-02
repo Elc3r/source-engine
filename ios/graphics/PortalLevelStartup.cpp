@@ -35,6 +35,7 @@
 #include "icliententitylist.h"
 #include "engine/audio/sound.h"
 #include "engine/audio/snd_device.h"
+#include "engine/audio/soundservice.h"
 
 extern IClientEntityList *entitylist;
 extern IAudioDevice *g_AudioDevice;
@@ -230,6 +231,10 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     // absoluteframetime at zero keeps linked portals permanently opaque.
     realtime=now;
     host_frametime=elapsed>=0 && elapsed<.25 ? float(elapsed) : 0.0f;
+    // Sound envelopes, channel crossfades and ducking use the sound-service
+    // frame delta, which the desktop host normally publishes in Host_FilterTime.
+    if (g_pSoundServices) g_pSoundServices->SetSoundFrametime(host_frametime,host_frametime);
+    host_time+=host_frametime;
     ++host_framecount;
     _Host_SetGlobalTime();
     // load/changelevel first disconnect the client; process the original host
