@@ -21,6 +21,7 @@
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
+extern "C" void SourceIOSShutdownPortalLevel();
 namespace {
 bool initialized=false,clientInitialized=false,uiInitialized=false;
 ConVar *engineCheats=NULL;
@@ -68,6 +69,7 @@ extern "C" bool SourceIOSInitializePortalServer(CreateInterfaceFn gameFactory,ch
 }
 extern "C" bool SourceIOSShutdownPortalServer() {
     bool valid=true;
+    SourceIOSShutdownPortalLevel();
     if (clientInitialized && g_ClientDLL) {
         Msg("iOS Portal client Shutdown: begin\n");
         g_ClientDLL->Shutdown();

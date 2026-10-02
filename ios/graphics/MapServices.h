@@ -19,3 +19,5 @@ bool ShutdownPortalServer();
 #include "PortalInputProbe.h"
 bool CheckPortalClientInput(IOSReadPortalCommand readCommand,IOSFindPortalControl findControl,char *detail,size_t capacity);
 void PollInspectionInput();
+
+bool CheckPortalLevel(char *detail,size_t capacity);

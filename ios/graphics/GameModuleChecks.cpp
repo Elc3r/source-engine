@@ -67,7 +67,7 @@ extern "C" int InitializePortalGame(const char *directory,CreateInterfaceFn appl
         passed=ShutdownPortalServer();
         snprintf(startupDetail,sizeof(startupDetail),"Portal server DLLInit/DLLShutdown + game cvar cleanup + engine cvar preservation: %s",passed?"PASS":"FAIL");
     }
-    if (passed && (!strcmp(mode,"client") || !strcmp(mode,"client-cycle"))) {
+    if (passed && (!strcmp(mode,"client") || !strcmp(mode,"client-cycle") || !strcmp(mode,"level-cycle"))) {
         snprintf(path,sizeof(path),"%s/libclient.dylib",directory);
         if (!modules[0]) modules[0]=Sys_LoadModule(path);
         passed=InitializePortalClient(modules[0]?Sys_GetFactory(modules[0]):NULL,startupDetail,sizeof(startupDetail));
@@ -79,6 +79,9 @@ extern "C" int InitializePortalGame(const char *directory,CreateInterfaceFn appl
         IOSFindPortalControl findControl=reinterpret_cast<IOSFindPortalControl>(GetProcAddress(
             reinterpret_cast<void *>(modules[0]),"SourceIOSFindPortalControl"));
         passed=CheckPortalClientInput(readCommand,findControl,startupDetail,sizeof(startupDetail));
+    }
+    if (passed && !strcmp(mode,"level-cycle")) {
+        passed=CheckPortalLevel(startupDetail,sizeof(startupDetail));
     }
     if (passed && !strcmp(mode,"client-cycle")) {
         passed=ShutdownPortalServer();

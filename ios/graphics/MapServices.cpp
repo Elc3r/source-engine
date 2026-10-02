@@ -294,3 +294,11 @@ bool CheckPortalClientInput(IOSReadPortalCommand readCommand,IOSFindPortalContro
     if (!check) { snprintf(detail,capacity,"Portal client input check entry point unavailable"); return false; }
     return check(readCommand,findControl,detail,capacity);
 }
+
+bool CheckPortalLevel(char *detail,size_t capacity) {
+    typedef bool (*Check)(char *,size_t);
+    Check check=loaderModule?reinterpret_cast<Check>(GetProcAddress(
+        reinterpret_cast<void *>(loaderModule),"SourceIOSCheckPortalLevel")):NULL;
+    if (!check) { snprintf(detail,capacity,"Portal level entry point unavailable"); return false; }
+    return check(detail,capacity);
+}

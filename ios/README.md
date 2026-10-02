@@ -1548,7 +1548,7 @@ python3 scripts/build-ios-bootstrap.py --togles --game-modules \
 
 With only `--game-modules`, this checks dynamic loading and interface creation,
 followed by the existing map rendering checks. Game initialization is opt-in as
-described below; game ticks, a player and active map entities are not yet present. Physical-device
+described below; a connected player and game ticks are not yet present. Physical-device
 module loading is not yet runtime-tested.
 
 
@@ -1589,9 +1589,20 @@ before panel destruction so a later renderer resize cannot access dead panels.
 
 A failure remains a failed probe, never a successful gameplay result.
 
-Server DLL initialization does not call `LevelInit`, create edicts/player entities
-or advance `GameFrame`. The displayed scene is still the inspection renderer.
-The actual map/player game loop and input dispatch are the next steps.
+`--game-startup level-cycle` additionally initializes the original server's player
+limits and send tables, then runs `GameInit`, `SpawnServer`, `LevelInit` and
+`ServerActivate` on the requested BSP. On `testchmb_a_00`, the original game
+creates 316 live edicts, including the world and map entities. The probe then runs
+`LevelShutdown` / `GameShutdown`, releases static props and world references
+before shutting down the server, and rewinds the level hunk. Only afterward does
+the inspection renderer load the map again. This ordering keeps model and
+collision data valid across the transition. Engine logs use the app sandbox.
+
+Validation: the level cycle, native VGUI/input checks, and 120 subsequent rendered
+frames pass in the iOS 27 simulator. No player is connected and `GameFrame` is not
+advanced by this probe. The displayed scene remains the inspection renderer.
+Connecting the local client/player and advancing the original game loop are the
+next steps.
 
 ### Shared touch input preparation
 

@@ -27,8 +27,8 @@ def main():
     mode.add_argument('--graphics', action='store_true', help='Build the independent SDL/Metal GPU probe')
     mode.add_argument('--angle', action='store_true', help='Build the SDL/ANGLE GLES texture probe (downloads pinned ANGLE)')
     mode.add_argument('--togles', action='store_true', help='Test engine shader translation and DXT decoding through ANGLE')
-    parser.add_argument('--game-startup', nargs='?', const='server', choices=['server','server-cycle','client','client-cycle'],
-                        help='Initialize Portal server, check its shutdown, or check client Init/PostInit and shutdown (requires game modules/data)')
+    parser.add_argument('--game-startup', nargs='?', const='server', choices=['server','server-cycle','client','client-cycle','level-cycle'],
+                        help='Check Portal server/client initialization, shutdown, or original server map lifecycle (requires game modules/data)')
     parser.add_argument('--game-modules', action='store_true', help='Build and verify actual Portal client/server factories (ToGLES only)')
     parser.add_argument('--world-loader-check', action='store_true',
                         help='Compile actual engine world-loading units and report link dependencies (ToGLES only)')
