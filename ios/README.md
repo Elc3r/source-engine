@@ -1940,3 +1940,24 @@ Load Game dialog. Player position and view returned to the saved values
 user-command counters continued and rendering resumed with GL error 0.
 The v5 IPA includes this fix; physical-device verification remains pending.
 Next-map transitions share this host state integration but are not yet verified.
+
+
+### Case-sensitive save storage
+
+The v5 hardware report (A17 Pro/iOS 27.0.1) failed with reconnect timeout and
+signon 0. A case-sensitive APFS test volume reproduced the failure: relative
+loose-file reads normalize names to lowercase, while writes preserved uppercase
+`.HL1/.HL2/.HL3` save sidecars. DirectoryCopy could omit sidecar payloads, and
+restoration could not open extracted sidecars. The ordinary Mac filesystem
+masked the mismatch; existing Mac-side save files could also satisfy GAME reads.
+
+iOS now normalizes relative write/rename/remove names to the same lowercase
+logical names as reads, preserving the absolute container prefix. A regression
+probe verifies mixed-case write/read, enumerated names, rename and removal.
+On the case-sensitive test volume, a fresh manual save produced lowercase
+sidecars and loaded successfully twice with the Mac save paths excluded. After moving
+the player, loading restored (-544, -368.8, 160; yaw -170), signon FULL and live
+rendering with GL error 0. Previously generated saves may lack sidecar payloads;
+they cannot be reconstructed from the broken archive, so hardware verification
+must include creating and loading a fresh save. The new filesystem regression
+probe and full simulator gameplay startup passed. The v6 IPA needs hardware testing.

@@ -108,6 +108,22 @@ int CheckToGLESFilesystem(const char *assets, const char *writable, char *detail
     valid=valid && !filesystem->FileExists("checks/renamed.bin","GAME")
         && !filesystem->FileExists("missing.bin","GAME");
     snprintf(detail,capacity,"Engine filesystem: sandbox write/seek/search failed");
+    if (!valid) return 0;
+    // Match Source save sidecars: reads normalize names, and writes must too.
+    valid=filesystem->WriteFile("checks/case.HL1","GAMEWRITE",written);
+    CUtlBuffer caseRead;
+    valid=valid && filesystem->ReadFile("checks/case.hl1","GAMEWRITE",caseRead)
+        && caseRead.TellPut()==sizeof(payload) && !memcmp(caseRead.Base(),payload,sizeof(payload));
+    name=filesystem->FindFirstEx("checks/case.*","GAMEWRITE",&find);
+    valid=valid && name && !Q_strcmp(name,"case.hl1");
+    if (name) filesystem->FindClose(find);
+    valid=valid && filesystem->RenameFile("checks/case.HL1","checks/renamed.HL2","GAMEWRITE");
+    name=filesystem->FindFirstEx("checks/renamed.hl?","GAMEWRITE",&find);
+    valid=valid && name && !Q_strcmp(name,"renamed.hl2");
+    if (name) filesystem->FindClose(find);
+    filesystem->RemoveFile("checks/renamed.HL2","GAMEWRITE");
+    valid=valid && !filesystem->FileExists("checks/renamed.hl2","GAMEWRITE");
+    snprintf(detail,capacity,"Engine filesystem: mixed-case save write/read/rename/remove failed");
     if (valid) {
         valid=AsyncCheck(false) && AsyncCheck(true) && AsyncCheck(false,true);
         snprintf(detail,capacity,"Engine filesystem: worker read/missing-file callback failed");
