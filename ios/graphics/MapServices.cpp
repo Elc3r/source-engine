@@ -49,7 +49,9 @@ void ShutdownMapServices()
         Stop stop=reinterpret_cast<Stop>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSShutdownPortalServer"));
         if (stop) stop();
     }
-    for (int i=4;i>=0;--i) if (gameInitialized[i]) gameServices[i]->Shutdown();
+    // VGUI schemes own surface textures; release them before the surface.
+    const int shutdownOrder[]={3,4,2,1,0};
+    for (int i : shutdownOrder) if (gameInitialized[i]) gameServices[i]->Shutdown();
     for (int i=4;i>=0;--i) if (gameConnected[i]) gameServices[i]->Disconnect();
     for (int i=7;i>=3;--i) {
         factories[i]=NULL;
@@ -276,7 +278,19 @@ void PollInspectionInput()
     if (!gameInitialized[2]) return;
     IInputSystem *input=static_cast<IInputSystem *>(gameServices[2]);
     input->PollInputState();
-    // Until the client/game loop owns input, discard inspector-only deltas.
+    typedef bool (*Dispatch)();
+    Dispatch dispatch=loaderModule?reinterpret_cast<Dispatch>(GetProcAddress(
+        reinterpret_cast<void *>(loaderModule),"SourceIOSDispatchPortalInput")):NULL;
+    if (dispatch && dispatch()) return;
+    // Without an initialized client, discard inspector-only deltas.
     // Polling prevents the watched event queue growing during long sessions.
     for (int slot=0;slot<10;++slot) { float dx,dy; input->GetTouchAccumulators(slot,dx,dy); }
+}
+
+bool CheckPortalClientInput(IOSReadPortalCommand readCommand,IOSFindPortalControl findControl,char *detail,size_t capacity) {
+    typedef bool (*Check)(IOSReadPortalCommand,IOSFindPortalControl,char *,size_t);
+    Check check=loaderModule?reinterpret_cast<Check>(GetProcAddress(
+        reinterpret_cast<void *>(loaderModule),"SourceIOSCheckPortalClientInput")):NULL;
+    if (!check) { snprintf(detail,capacity,"Portal client input check entry point unavailable"); return false; }
+    return check(readCommand,findControl,detail,capacity);
 }

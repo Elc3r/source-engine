@@ -311,6 +311,16 @@ IScheme *CSchemeManager::GetIScheme( HScheme scheme )
 //-----------------------------------------------------------------------------
 void CSchemeManager::Shutdown( bool full )
 {
+#if defined(IOS)
+    // Cached images own surface texture IDs. Release them while the surface
+    // module is still alive, rather than from this module's static destructor.
+    if (full) {
+        for (int i=0;i<m_Bitmaps.MaxElement();++i)
+            if (m_Bitmaps.IsValidIndex(i)) delete m_Bitmaps[i].pBitmap;
+        m_Bitmaps.RemoveAll();
+    }
+#endif
+
 	// Full shutdown kills the null scheme
 	for( int i = full ? 0 : 1; i < m_Schemes.Count(); i++ )
 	{

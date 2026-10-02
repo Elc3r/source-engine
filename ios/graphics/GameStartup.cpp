@@ -15,6 +15,9 @@
 #include "ivideomode.h"
 #include "vgui/IPanel.h"
 #include "vgui/ISurface.h"
+#include "igame.h"
+#include "inputsystem/iinputsystem.h"
+#include "cmd.h"
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
@@ -95,6 +98,8 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
     if (!uiInitialized) {
         // Map loading connected tier 3 before the optional UI services existed.
         // Refresh those bindings now that the full real service group is loaded.
+        g_pInputSystem=static_cast<IInputSystem *>(applicationFactory(INPUTSYSTEM_INTERFACE_VERSION,NULL));
+        if (!g_pInputSystem) { snprintf(detail,capacity,"Portal client: input system unavailable"); return false; }
         DisconnectTier3Libraries();
         ConnectTier3Libraries(&applicationFactory,1);
         VideoMode_Create();
@@ -143,4 +148,11 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
         !started && !lastAvailable?"; unavailable interface ":"",
         !started && !lastAvailable?lastInterface:"");
     Msg("%s\n",detail); return started;
+}
+
+extern "C" bool SourceIOSDispatchPortalInput() {
+    if (!clientInitialized || !g_ClientDLL) return false;
+    game->DispatchAllStoredGameMessages();
+    Cbuf_Execute();
+    return true;
 }

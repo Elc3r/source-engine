@@ -58,6 +58,9 @@ foreach(side IN ITEMS client server)
     set_target_properties(Portal${upper}Module PROPERTIES OUTPUT_NAME "${side}"
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
 endforeach()
+target_sources(PortalCLIENTModule PRIVATE PortalClientInputProbe.cpp)
+target_link_options(PortalCLIENTModule PRIVATE "-Wl,-exported_symbol,_SourceIOSReadPortalCommand"
+    "-Wl,-exported_symbol,_SourceIOSFindPortalControl")
 add_custom_target(PortalGameModules DEPENDS PortalCLIENTModule PortalSERVERModule)
 
 add_library(soundemittersystem SHARED EXCLUDE_FROM_ALL

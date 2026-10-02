@@ -806,10 +806,17 @@ void CTouchControls::AddButton( const char *name, const char *texturefile, const
 	Q_strncpy( btn->texturefile, texturefile, sizeof(btn->texturefile) );
 	Q_strncpy( btn->command, command, sizeof(btn->command) );
 
+    if( Q_strcmp(command, "_look") == 0 )
+        type = touch_look;
+    else if( Q_strcmp(command, "_move") == 0 )
+        type = touch_move;
+
 	if( round )
 		IN_CheckCoords(&x1, &y1, &x2, &y2);
 
-	if( round == round_aspect )
+    // Invisible move/look regions use normalized screen bounds. Preserving
+    // an icon aspect ratio would shrink those regions on a portrait display.
+	if( round == round_aspect && type == touch_command )
 		y2 = y1 + ( x2 - x1 ) * (((float)screen_w)/screen_h) * aspect;
 
 	btn->x1 = x1;
@@ -819,11 +826,6 @@ void CTouchControls::AddButton( const char *name, const char *texturefile, const
 	btn->flags = flags;
 
 	//IN_CheckCoords(&btn->x1, &btn->y1, &btn->x2, &btn->y2);
-
-	if( Q_strcmp(command, "_look") == 0 )
-		type = touch_look;
-	else if( Q_strcmp(command, "_move") == 0 )
-		type = touch_move;
 
 	btn->color = color;
 	btn->type = type;

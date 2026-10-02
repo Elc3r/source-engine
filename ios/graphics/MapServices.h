@@ -16,4 +16,6 @@ bool InitializePortalServer(CreateInterfaceFn gameFactory,char *detail,size_t ca
 bool InitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity);
 bool ShutdownPortalServer();
 
+#include "PortalInputProbe.h"
+bool CheckPortalClientInput(IOSReadPortalCommand readCommand,IOSFindPortalControl findControl,char *detail,size_t capacity);
 void PollInspectionInput();

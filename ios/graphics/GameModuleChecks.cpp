@@ -5,6 +5,7 @@
 #include "GameUI/IGameConsole.h"
 #include "MapServices.h"
 #include <stdio.h>
+#include <dlfcn.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -71,9 +72,17 @@ extern "C" int InitializePortalGame(const char *directory,CreateInterfaceFn appl
         if (!modules[0]) modules[0]=Sys_LoadModule(path);
         passed=InitializePortalClient(modules[0]?Sys_GetFactory(modules[0]):NULL,startupDetail,sizeof(startupDetail));
     }
+    if (passed && getenv("SOURCE_IOS_CLIENT_INPUT_CHECK") &&
+        (!strcmp(mode,"client") || !strcmp(mode,"client-cycle"))) {
+        IOSReadPortalCommand readCommand=reinterpret_cast<IOSReadPortalCommand>(GetProcAddress(
+            reinterpret_cast<void *>(modules[0]),"SourceIOSReadPortalCommand"));
+        IOSFindPortalControl findControl=reinterpret_cast<IOSFindPortalControl>(GetProcAddress(
+            reinterpret_cast<void *>(modules[0]),"SourceIOSFindPortalControl"));
+        passed=CheckPortalClientInput(readCommand,findControl,startupDetail,sizeof(startupDetail));
+    }
     if (passed && !strcmp(mode,"client-cycle")) {
         passed=ShutdownPortalServer();
-        snprintf(startupDetail,sizeof(startupDetail),"Portal client Init/PostInit/Shutdown + engine VGUI/GameUI lifecycle + server lifecycle + cvar cleanup: %s",passed?"PASS":"FAIL");
+        snprintf(startupDetail,sizeof(startupDetail),"Portal client Init/PostInit/Shutdown + engine VGUI/GameUI lifecycle + server lifecycle + cvar cleanup%s: %s",getenv("SOURCE_IOS_CLIENT_INPUT_CHECK")?" + client input/codec":"",passed?"PASS":"FAIL");
     }
     if (getenv("SOURCE_IOS_VGUI_CHECK")) {
         size_t used=strlen(startupDetail);

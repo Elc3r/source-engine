@@ -1603,7 +1603,8 @@ Background entry, termination and focus loss emit releases for all held contacts
 Touch initialization now sets its own flag, and input-system shutdown removes the
 watcher. This prepares the existing `IN_TouchEvent` / `CUserCmd` path; it does not
 replace the inspector camera. Input, VGUI, engine roots and client startup are now
-integrated; dispatch into the client game loop remains pending.
+integrated. The host forwards input through the original engine dispatcher when
+the client is initialized. The actual player game loop remains pending.
 
 Validation: iOS touch translation-unit compilation and PortalCLIENT archive build
 passed. An isolated host harness executing the actual touch method bodies passed
@@ -1681,3 +1682,40 @@ map afterward verifies that the fixture restored the render target and viewport.
 This does not yet display player HUD/touch buttons. The next dependency is the
 actual input dispatch and map/player game frames. Engine roots, GameUI and client
 Init/PostInit are available through the startup modes above.
+
+
+### Portal touch to CUserCmd integration
+
+The initialized client now receives watched touch events through the original
+`CGame::DispatchAllStoredGameMessages` dispatcher. The host executes the original
+command buffer so `+use`, `+jump`, `+attack`, `+attack2` and `+duck` reach client
+input state. Without a client, the inspector continues to drain unused deltas.
+
+`SOURCE_IOS_CLIENT_INPUT_CHECK=1` enables an opt-in startup fixture after client
+Init/PostInit. It injects SDL events with large and negative finger IDs, dispatches
+through the engine, calls the real client's CreateMove, and reads the original
+command ring through a read-only module probe. Every command also round-trips
+through the original user-command codec with a matching checksum. Checks cover
+simultaneous movement/look, press/release of five actions, focus cancellation
+while the menu is visible, ignored motion after cancellation and menu gating.
+Control coordinates come from the loaded profile, rather than fixed icon bounds.
+
+```sh
+SIMCTL_CHILD_SOURCE_IOS_CLIENT_INPUT_CHECK=1 \
+SIMCTL_CHILD_SOURCE_IOS_INPUT_CHECK=1 SIMCTL_CHILD_SOURCE_IOS_VGUI_CHECK=1 \
+python3 scripts/build-ios-bootstrap.py --togles --game-modules \
+  --game-startup client-cycle --shader-cache build-ios-shaders/compiled \
+  --simulator <UDID> --portal-root /path/to/Portal-arm64
+```
+
+The UIKit video mode provides screen dimensions even while the startup probe uses
+an 8x8 backbuffer. Move/look regions preserve normalized screen bounds in portrait
+orientation; icon aspect ratios apply only to visible command buttons. HUD input
+starts with neutral FOV sensitivity before the first player's rendered view. Menu
+visibility blocks new presses/motion but always permits held-contact releases.
+VGUI releases cached scheme images before the material surface shuts down.
+
+The fixture temporarily hides the real menu panel and samples active commands
+without creating a fake player or level. It restores menu visibility and view
+angles afterwards. It does not advance server/player simulation, render touch
+buttons or replace the inspector camera. Those require the real map/player loop.

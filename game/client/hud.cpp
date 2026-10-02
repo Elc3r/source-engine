@@ -393,6 +393,9 @@ CHud::CHud()
 //-----------------------------------------------------------------------------
 void CHud::Init( void )
 {
+    // Input can be sampled before the first player view establishes its FOV.
+    // A neutral multiplier keeps touch look usable until that view updates it.
+    m_flFOVSensitivityAdjust = 1.0f;
 	HOOK_HUD_MESSAGE( gHUD, ResetHUD );
 	
 #ifdef CSTRIKE_DLL

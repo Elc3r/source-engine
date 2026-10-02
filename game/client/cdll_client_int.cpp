@@ -2640,8 +2640,15 @@ CSteamID GetSteamIDForPlayerIndex( int iPlayerIndex )
  
 void CHLClient::IN_TouchEvent( int type, int fingerId, int x, int y )
 {
-	if( enginevgui->IsGameUIVisible() )
-		return;
+	if( enginevgui->IsGameUIVisible() && type != IE_FingerUp )
+    {
+        // A menu can open while contacts are held. Always deliver releases;
+        // discard hidden-menu look deltas so they cannot leak into gameplay.
+        if (type == IE_FingerMotion) {
+            float dx,dy; inputsystem->GetTouchAccumulators(fingerId,dx,dy);
+        }
+        return;
+    }
 
 	touch_event_t ev;
 

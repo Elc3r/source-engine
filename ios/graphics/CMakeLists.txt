@@ -349,7 +349,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     # Strict link: unresolved host/render services are errors, never stubs or
     # dynamic-lookup imports. The app uses explicit loader and game startup hooks.
     add_library(EngineMapLinkCheck SHARED EXCLUDE_FROM_ALL
-        GameStartup.cpp ../../engine/randomstream.cpp ../../engine/voiceserver_impl.cpp
+        GameStartup.cpp PortalInputChecks.cpp ../../engine/randomstream.cpp ../../engine/voiceserver_impl.cpp
         ../../engine/sv_uploadgamestats.cpp
         MapLinkCheck.cpp MapEntityInspection.cpp MapSceneEffects.cpp MapParticles.cpp MapPortals.cpp
         ../../public/rope_physics.cpp ../../public/simple_physics.cpp ../../tier2/beamsegdraw.cpp
