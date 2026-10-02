@@ -160,6 +160,15 @@ void CGameMenuItem::ApplySchemeSettings(IScheme *pScheme)
 	{
 		SetFont( pScheme->GetFont( "MenuLarge", IsProportional() ) );
 	}
+#if defined(IOS)
+    // Native drawable pixels are denser than the desktop menu assumes.
+    int screenWide,screenTall; engine->GetScreenSize(screenWide,screenTall);
+    if (!m_iosMenuFont) m_iosMenuFont=surface()->CreateFont();
+    if (surface()->SetFontGlyphSet(m_iosMenuFont,"Helvetica",
+            MAX(24,int(MIN(screenWide,screenTall)*.045f)),500,0,0,
+            ISurface::FONTFLAG_ANTIALIAS))
+        SetFont(m_iosMenuFont);
+#endif
 	SetTextInset(0, 0);
 	SetArmedSound("UI/buttonrollover.wav");
 	SetDepressedSound("UI/buttonclick.wav");
@@ -343,6 +352,10 @@ public:
 		if( IsProportional() )
 			height = scheme()->GetProportionalScaledValue( height );
 
+#if defined(IOS)
+        int screenWide,screenTall; engine->GetScreenSize(screenWide,screenTall);
+        height=MAX(height,int(MIN(screenWide,screenTall)*.10f));
+#endif
 		// make fully transparent
 		SetMenuItemHeight(height);
 		SetBgColor(Color(0, 0, 0, 0));

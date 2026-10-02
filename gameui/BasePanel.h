@@ -153,6 +153,9 @@ public:
 
 private:
 	bool		m_bRightAligned;
+#if defined(IOS)
+    vgui::HFont m_iosMenuFont = 0;
+#endif
 };
 
 //-----------------------------------------------------------------------------

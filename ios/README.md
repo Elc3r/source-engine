@@ -1798,3 +1798,28 @@ remain in Documents/togles.json.
 The simulator input regression locates the actual joystick/control bounds and
 checks simultaneous move/look, native command serialization, all five action
 press/release pairs and cancellation while the menu is visible.
+
+### Autosave and pause menu
+
+The live host initializes the original save/restore service before spawning the
+server, advances its deferred commands after rendered frames, and finishes
+asynchronous saves before teardown. Map autosave triggers use the native save
+worker and write to the existing MOD/GAME sandbox paths. The approach to the
+first floor button previously crashed in DispatchAsyncSave because this service
+(and therefore its worker) had never been initialized.
+
+iOS accepts the Apple font branches of original KeyValues resources (`$OSX`);
+other platforms keep their existing condition behavior. Client startup checks
+that the initialized UI's MenuLarge font has real glyph metrics, rather than
+accepting an empty font handle. Pause menu labels and row heights use the native
+UI size and shorter screen dimension, including during the initial 8x8 graphics
+fixture. Gameplay contacts never become VGUI clicks when the menu opens; VGUI
+accepts a fresh contact that starts in the visible menu. SDL touch-to-mouse
+emulation is disabled because the engine already converts finger events for VGUI.
+
+Verified on the iOS 27 simulator with a normal home-screen launch: the player
+settled on the first floor button at (-512, -928, 143.2), autosave wrote a JSAV
+file in the application sandbox, and live server/client rendering continued
+beyond 30,000 frames. The pause menu displayed all entries in portrait and
+landscape; Resume Game restored both joysticks and action buttons in each.
+The build and VGUI/native input integration checks passed.

@@ -11,6 +11,7 @@
 #include "server.h"
 #include "sys_dll.h"
 #include "host.h"
+#include "host_saverestore.h"
 #include "modelloader.h"
 #include "cmodel_engine.h"
 #include "cl_pluginhelpers.h"
@@ -37,7 +38,7 @@ extern void SV_TermSendTables(ServerClass *classes);
 extern "C" void SourceIOSUpdateVideoMode();
 extern void ReleaseMaterialSystemObjects();
 extern void RestoreMaterialSystemObjects(int changeFlags);
-namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false; int savedMark=0; bool playing=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0;
+namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false,saveStarted=false; int savedMark=0; bool playing=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0;
 }
 
 extern "C" void SourceIOSShutdownPortalLevel() {
@@ -45,6 +46,7 @@ extern "C" void SourceIOSShutdownPortalLevel() {
         materials->RemoveReleaseFunc(ReleaseMaterialSystemObjects);
         materials->RemoveRestoreFunc(RestoreMaterialSystemObjects);
     }
+    if (saveStarted) { saverestore->Shutdown(); saveStarted=false; }
     if (playing) host_initialized=false;
     playing=false; playerReader=NULL; tickRemainder=0;
     if (serverStarted) Host_AllowQueuedMaterialSystem(false);
@@ -83,6 +85,7 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
     char name[MAX_PATH]; Q_FileBase(map,name,sizeof(name));
     savedMark=Hunk_LowMark();
     Msg("iOS Portal server infrastructure: begin\n");
+    saverestore->Init(); saveStarted=true;
     sv.Init(false); serverStarted=true;
     sv.InitMaxClients();
     host_state.interval_per_tick=serverGameDLL->GetTickInterval();
@@ -224,5 +227,6 @@ extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t
     g_ClientDLL->View_Render(&rect);
     ClientDLL_FrameStageNotify(FRAME_RENDER_END);
     g_EngineRenderer->FrameEnd();
+    saverestore->OnFrameRendered();
     return true;
 }

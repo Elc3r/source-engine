@@ -378,6 +378,23 @@ void CGame::DispatchInputEvent( const InputEvent_t &event )
 	case IE_FingerMotion:
 		if( g_ClientDLL )
 			g_ClientDLL->IN_TouchEvent( event.m_nType, event.m_nData, event.m_nData2, event.m_nData3 );
+#if defined(IOS)
+        {
+            // A gameplay press can open the menu before its release arrives.
+            // Only route a contact whose DOWN began in the menu to VGUI;
+            // otherwise that opening release can activate Resume immediately.
+            static int menuFinger = -1;
+            bool menuVisible = EngineVGui()->IsGameUIVisible();
+            if (!menuVisible) menuFinger = -1;
+            if (menuVisible && event.m_nType == IE_FingerDown && menuFinger < 0)
+                menuFinger = event.m_nData;
+            if (menuFinger == event.m_nData) {
+                if (g_pMatSystemSurface) g_pMatSystemSurface->HandleInputEvent(event);
+                if (event.m_nType == IE_FingerUp) menuFinger = -1;
+            }
+            break;
+        }
+#endif
 	default:
 		// Let vgui have the first whack at events
 		if ( g_pMatSystemSurface && g_pMatSystemSurface->HandleInputEvent( event ) )

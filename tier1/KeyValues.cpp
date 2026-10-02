@@ -2242,7 +2242,12 @@ bool EvaluateConditional( const char *str )
 		return IsWindows() ^ bNot;
 
 	if ( Q_stristr( str, "$OSX" ) )
+#if defined(IOS)
+        // iOS uses the Apple font faces in existing VGUI resource schemes.
+        return !bNot;
+#else
 		return bNot;
+#endif
 
 	if ( Q_stristr( str, "$LINUX" ) )
 		return ( IsLinux() || IsBSD() || IsOSX() ) ^ bNot;

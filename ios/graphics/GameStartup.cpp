@@ -14,6 +14,7 @@
 #include "vgui_baseui_interface.h"
 #include "ivideomode.h"
 #include "vgui/IPanel.h"
+#include "vgui/IScheme.h"
 #include "vgui/ISurface.h"
 #include "igame.h"
 #include "inputsystem/iinputsystem.h"
@@ -165,6 +166,14 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
         }
         g_ClientDLL->PostInit();
         EngineVGui()->Connect(); EngineVGui()->PostInit();
+        // Menu font handles can exist with no glyphs when resource platform
+        // conditions discard every face. Check the real initialized UI scheme.
+        auto uiScheme=g_pVGuiSchemeManager->GetIScheme(g_pVGuiSchemeManager->GetDefaultScheme());
+        vgui::HFont menuFont=uiScheme ? uiScheme->GetFont("MenuLarge",true) : 0;
+        if (!menuFont || g_pVGuiSurface->GetFontTall(menuFont)<=0 ||
+            g_pVGuiSurface->GetCharacterWidth(menuFont,L'R')<=0) {
+            snprintf(detail,capacity,"Portal UI menu font has no glyphs"); return false;
+        }
         ConVar *hud=g_pCVar->FindVar("cl_drawhud");
         started=hud && hud->IsFlagSet(FCVAR_CLIENTDLL) && g_pCVar->FindVar("sv_cheats")==engineCheats;
     }

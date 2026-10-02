@@ -376,6 +376,11 @@ static void StartGraphics(UIWindowScene *scene)
     }
 #endif
     SDL_SetMainReady();
+#ifdef SOURCE_TOGLES_PROBE
+    // The engine routes native fingers to VGUI itself. SDL mouse emulation
+    // would deliver a second press/release for the same menu interaction.
+    SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+#endif
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "Portrait LandscapeLeft LandscapeRight");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
         SaveResult(NO, @(SDL_GetError()), @{}); return;
