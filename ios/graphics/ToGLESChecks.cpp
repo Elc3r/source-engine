@@ -146,14 +146,21 @@ int RunToGLESChecks(const char *directory, char *detail, size_t capacity) {
         // cannot accidentally produce the expected image.
         for (int direction=1; direction>=-1; direction-=2) {
             GLfloat padded[48]={0};
-            memcpy(padded+(direction>0 ? 24 : 0),vertices,sizeof(vertices));
+            memcpy(padded+24,vertices,sizeof(vertices));
+            // A native base-vertex extension requires index + base >= 0.
+            // The negative case uses indices 3..5 and a base of -3; its
+            // initial attribute offset selects the second triangle. This is
+            // also equivalent to the fallback's shifted attribute pointers.
+            const GLushort drawIndices[]={GLushort(direction>0?0:3),
+                GLushort(direction>0?1:4),GLushort(direction>0?2:5)};
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER,sizeof(drawIndices),drawIndices,GL_STATIC_DRAW);
             glBindBuffer(GL_ARRAY_BUFFER,buffer);
             glBufferData(GL_ARRAY_BUFFER,sizeof(padded),padded,GL_STATIC_DRAW);
             size_t initialOffset=direction>0 ? 0 : sizeof(vertices);
             glVertexAttribPointer(position,4,GL_FLOAT,GL_FALSE,8*sizeof(float),(void *)initialOffset);
             glVertexAttribPointer(uv,4,GL_FLOAT,GL_FALSE,8*sizeof(float),(void *)(initialOffset+4*sizeof(float)));
             glClear(GL_COLOR_BUFFER_BIT);
-            DrawToGLESIndexed(GL_TRIANGLES,0,2,3,GL_UNSIGNED_SHORT,NULL,direction*3);
+            DrawToGLESIndexed(GL_TRIANGLES,drawIndices[0],drawIndices[2],3,GL_UNSIGNED_SHORT,NULL,direction*3);
             uint8_t actual[64]={0}; glReadPixels(0,0,4,4,GL_RGBA,GL_UNSIGNED_BYTE,actual);
             for (int j=0;j<16;++j) {
                 uint8_t expected[4]; memcpy(expected,rgb[j%4],3); expected[3]=alpha5[j%8];
@@ -164,9 +171,17 @@ int RunToGLESChecks(const char *directory, char *detail, size_t capacity) {
             glGetVertexAttribPointerv(uv,GL_VERTEX_ATTRIB_ARRAY_POINTER,&uvPointer);
             GLint boundBuffer=0; glGetIntegerv(GL_ARRAY_BUFFER_BINDING,&boundBuffer);
             valid &= positionPointer==(void *)initialOffset && uvPointer==(void *)(initialOffset+4*sizeof(float));
-            valid &= boundBuffer==(GLint)buffer && glGetError()==GL_NO_ERROR;
+            GLenum error=glGetError();
+            valid &= boundBuffer==(GLint)buffer && error==GL_NO_ERROR;
+            if (!valid) {
+                snprintf(detail,capacity,"Base vertex %d failed: GL 0x%x; pixel %u/%u/%u/%u; VAO restored %d; buffer restored %d",
+                    direction*3,error,actual[0],actual[1],actual[2],actual[3],
+                    positionPointer==(void *)initialOffset && uvPointer==(void *)(initialOffset+4*sizeof(float)),
+                    boundBuffer==(GLint)buffer);
+                break;
+            }
         }
-        if (!valid) { snprintf(detail,capacity,"Signed base-vertex draw or VAO restoration failed"); break; }
+        if (!valid) break;
         snprintf(detail,capacity,"D3D9 shaders; DXT1/3/5; alpha discard; signed base-vertex: PASS");
         passed=1;
     } while (false);

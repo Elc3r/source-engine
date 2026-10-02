@@ -1861,3 +1861,13 @@ valid signatures, and their @rpath dependencies resolve within Frameworks.
 No dependency points to the Mac build tree. IPA ZIP CRC and launch settings
 were checked. The initial IPA is approximately 25.6 MB; runtime verification in
 LiveContainer is still pending the first physical-device test.
+
+The first A17 Pro/iOS 27.0.1 report stopped before gameplay in the signed
+base-vertex check. Its negative fixture used indices 0..2 with base -3, giving
+undefined negative effective indices on a native base-vertex implementation.
+The corrected fixture uses indices 3..5 with base -3, matching draw-range bounds
+and an initial attribute offset that also exercises pointer-shifting fallback.
+Both directions retain degenerate decoy vertices and verify pixels and VAO /
+array-buffer restoration. Failures now report direction, GL error, first pixel
+and restored bindings. Simulator gameplay passes; an updated physical-device
+run is needed to confirm the A17 Pro result.
