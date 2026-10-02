@@ -33,6 +33,7 @@
 #include "materialsystem/materialsystem_config.h"
 
 extern CGlobalVars g_ServerGlobalVariables;
+extern void _Host_SetGlobalTime();
 extern void SV_InitSendTables(ServerClass *classes);
 extern void SV_TermSendTables(ServerClass *classes);
 extern "C" void SourceIOSUpdateVideoMode();
@@ -191,7 +192,13 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     lastFrame=now;
     // Loading/background stalls must not generate an unbounded catch-up burst.
     tickRemainder+=elapsed>=0 && elapsed<.25?elapsed:0;
-    ++host_framecount; g_ClientGlobalVariables.framecount=host_framecount;
+    // Portal opening/static fades use absolute frame time, not simulation
+    // ticks. Publish the same globals as the original desktop host; leaving
+    // absoluteframetime at zero keeps linked portals permanently opaque.
+    realtime=now;
+    host_frametime=elapsed>=0 && elapsed<.25 ? float(elapsed) : 0.0f;
+    ++host_framecount;
+    _Host_SetGlobalTime();
     ClientDLL_FrameStageNotify(FRAME_START);
     while (tickRemainder>=host_state.interval_per_tick) {
         host_frametime=host_state.interval_per_tick;

@@ -1895,3 +1895,18 @@ still running. All reported graphics / resource startup checks passed, including
 signed base-vertex drawing and the corrected 36 sampled DXT mip checks.
 These frame counters do not measure FPS, and this report does not independently
 verify every control, autosave, menu operation, audio or portal rendering.
+
+### Linked portal rendering
+
+The iOS host now calls the original `_Host_SetGlobalTime` before client frame
+processing. Previously `absoluteframetime` stayed zero, preventing portal opening
+and static fades from progressing. Client startup also installs the original
+`CMaterialProxyFactory` with the loaded client module, so `PortalOpenAmount` and
+other game material proxies update the native stencil materials. The previous
+factory is restored during shutdown while the client module remains loaded.
+
+Simulator verification shows linked views through both blue and orange portals,
+including Chell and a portal inside the linked view, using the original stencil
+renderer. Graphics/startup checks and the client Init/PostInit/Shutdown lifecycle
+check pass. The v4 ARM64 IPA includes these fixes; its ZIP CRC and portable launch
+settings were checked. Physical-device confirmation of v4 is pending.

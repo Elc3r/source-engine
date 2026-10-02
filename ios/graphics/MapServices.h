@@ -13,7 +13,7 @@ bool DrawLoadedWorldMap(IMaterialSystem *system, int width, int height, char *de
 bool InitializeGameServices(const char *modules,CreateInterfaceFn factory,char *detail,size_t capacity);
 bool InitializePortalServer(CreateInterfaceFn gameFactory,char *detail,size_t capacity);
 
-bool InitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity);
+bool InitializePortalClient(CSysModule *module,char *detail,size_t capacity);
 bool ShutdownPortalServer();
 
 #include "PortalInputProbe.h"

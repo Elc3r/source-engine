@@ -262,12 +262,12 @@ bool InitializePortalServer(CreateInterfaceFn gameFactory,char *detail,size_t ca
     return start(gameFactory,detail,capacity);
 }
 
-bool InitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity)
+bool InitializePortalClient(CSysModule *module,char *detail,size_t capacity)
 {
-    typedef bool (*Start)(CreateInterfaceFn,char *,size_t);
+    typedef bool (*Start)(CSysModule *,char *,size_t);
     Start start=loaderModule?reinterpret_cast<Start>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSInitializePortalClient")):NULL;
     if (!start) { snprintf(detail,capacity,"Portal client bootstrap entry point unavailable"); return false; }
-    return start(gameFactory,detail,capacity);
+    return start(module,detail,capacity);
 }
 bool ShutdownPortalServer()
 {

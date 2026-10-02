@@ -22,15 +22,20 @@
 #include "GameEventManager.h"
 #include "game/client/iclientrendertargets.h"
 #include "toolframework/itoolframework.h"
+#include "materialproxyfactory.h"
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
 extern IClientRenderTargets *g_pClientRenderTargets;
+extern CSysModule *g_ClientDLLModule;
 extern "C" void SourceIOSShutdownPortalLevel();
 namespace {
 bool initialized=false,clientInitialized=false,uiInitialized=false,eventsInitialized=false,clientTargetsInitialized=false,toolsInitialized=false;
 ConVar *engineCheats=NULL;
 CreateInterfaceFn applicationFactory=NULL;
+CMaterialProxyFactory portalProxyFactory;
+IMaterialProxyFactory *previousProxyFactory=NULL;
+bool proxyFactoryInstalled=false;
 char lastInterface[128]={};
 bool lastAvailable=false;
 void *StartupFactory(const char *name,int *status) {
@@ -94,6 +99,11 @@ extern "C" bool SourceIOSShutdownPortalServer() {
         Msg("iOS engine VGUI Shutdown + root cleanup: %s\n",valid?"PASS":"FAIL");
     }
     uiInitialized=false;
+    if (proxyFactoryInstalled) {
+        materials->SetMaterialProxyFactory(previousProxyFactory);
+        previousProxyFactory=NULL; proxyFactoryInstalled=false;
+    }
+    g_ClientDLLModule=NULL;
     VideoMode_Destroy();
     if (initialized && serverGameDLL) {
         serverGameDLL->DLLShutdown();
@@ -107,7 +117,8 @@ extern "C" bool SourceIOSShutdownPortalServer() {
     applicationFactory=NULL; return valid;
 }
 
-extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity) {
+extern "C" bool SourceIOSInitializePortalClient(CSysModule *module,char *detail,size_t capacity) {
+    CreateInterfaceFn gameFactory=module?Sys_GetFactory(module):NULL;
     if (!initialized || !gameFactory) { snprintf(detail,capacity,"Portal client: server/factory unavailable"); return false; }
     applicationFactory=g_AppSystemFactory;
     if (!toolsInitialized) {
@@ -116,6 +127,17 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
         }
         toolsInitialized=true;
     }
+    // The desktop Shader_Connect path installs this original engine factory.
+    // It resolves game material proxies through the real loaded client DLL.
+    g_ClientDLLModule=module;
+    if (!proxyFactoryInstalled) {
+        previousProxyFactory=materials->GetMaterialProxyFactory();
+        materials->SetMaterialProxyFactory(&portalProxyFactory);
+        proxyFactoryInstalled=true;
+    }
+    IMaterialProxy *openProxy=portalProxyFactory.CreateProxy("PortalOpenAmount");
+    if (!openProxy) { snprintf(detail,capacity,"Portal material proxy factory unavailable"); return false; }
+    portalProxyFactory.DeleteProxy(openProxy);
     if (!uiInitialized) {
         // Map loading connected tier 3 before the optional UI services existed.
         // Refresh those bindings now that the full real service group is loaded.
