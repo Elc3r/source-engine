@@ -372,7 +372,12 @@ static void StartGraphics(UIWindowScene *scene)
     NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:
         [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"ios-launch.plist"]];
     for (NSString *key in settings) {
-        if (!getenv(key.UTF8String)) setenv(key.UTF8String, [settings[key] UTF8String], 1);
+        NSString *value = settings[key];
+        if ([key isEqualToString:@"SOURCE_IOS_GAME_ROOT"] && [value hasPrefix:@"@documents/"]) {
+            NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+            value = [documents stringByAppendingPathComponent:[value substringFromIndex:11]];
+        }
+        if (!getenv(key.UTF8String)) setenv(key.UTF8String, value.UTF8String, 1);
     }
 #endif
     SDL_SetMainReady();

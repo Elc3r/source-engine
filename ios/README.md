@@ -1823,3 +1823,41 @@ file in the application sandbox, and live server/client rendering continued
 beyond 30,000 frames. The pause menu displayed all entries in portrait and
 landscape; Resume Game restored both joysticks and action buttons in each.
 The build and VGUI/native input integration checks passed.
+
+### Physical device / LiveContainer IPA
+
+Build an ARM64 iPhoneOS app with Portal modules and a portable data location:
+
+```sh
+python3 scripts/build-ios-bootstrap.py --togles --target device --game-modules \
+  --game-startup play --device-game-data --shader-cache build-ios-shaders/compiled \
+  --ipa ~/Downloads/SourceToGLES-Portal-arm64.ipa
+```
+
+The IPA contains code, pinned ANGLE frameworks and generated shader cache, but
+no Valve game assets. It is ad-hoc signed for import/resigning by LiveContainer,
+not provisioned for direct installation with Xcode or Finder. Minimum iOS is 16.
+LiveContainer compatibility and physical GPU behavior require device testing.
+
+Import the IPA using LiveContainer's + button. Hold the app card, open Settings,
+then the selected Container and Open Data Folder. Put your game files inside:
+
+```text
+Documents/Portal-arm64/portal/gameinfo.txt
+Documents/Portal-arm64/portal/maps/testchmb_a_00.bsp
+Documents/Portal-arm64/hl2/...
+Documents/Portal-arm64/platform/...
+```
+
+Keep all multipart VPK files with their directory VPKs. Mac game binaries are
+not needed. `@documents/Portal-arm64` in ios-launch.plist resolves at launch
+against the current application's data container; no Mac absolute path is used.
+The app starts the first chamber automatically. Diagnostic output is available
+in Documents/togles.json; writable configuration and saves are under Library/
+Application Support/SourceEngine/Portal. Use a local device data container.
+
+Device packaging validation: all 22 Mach-O binaries are ARM64/iPhoneOS, have
+valid signatures, and their @rpath dependencies resolve within Frameworks.
+No dependency points to the Mac build tree. IPA ZIP CRC and launch settings
+were checked. The initial IPA is approximately 25.6 MB; runtime verification in
+LiveContainer is still pending the first physical-device test.

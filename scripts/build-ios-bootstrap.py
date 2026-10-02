@@ -34,12 +34,18 @@ def main():
                         help='Compile actual engine world-loading units and report link dependencies (ToGLES only)')
     parser.add_argument('--shader-cache', type=Path, help='Validated FXC shader cache from ios-compile-shaders.py (ToGLES only)')
     parser.add_argument('--portal-root', type=Path, help='Read existing Portal game data directly (simulator only)')
+    parser.add_argument('--device-game-data', action='store_true', help='Launch Portal from Documents/Portal-arm64 on device (assets supplied separately)')
+    parser.add_argument('--ipa', type=Path, help='Package device app as an IPA for importing into LiveContainer')
     parser.add_argument('--world-map', default='maps/testchmb_a_00.bsp', help='Map path for --portal-root')
     parser.add_argument('--min-version', help='Default: 16.0 for ANGLE, 15.0 otherwise')
     parser.add_argument('--simulator', metavar='UDID', help='Install, launch and verify on this simulator')
     args = parser.parse_args()
-    if args.game_startup and (not args.game_modules or not args.portal_root):
-        parser.error("--game-startup requires --game-modules and --portal-root")
+    if args.device_game_data and (args.target != 'device' or not args.game_modules):
+        parser.error('--device-game-data requires --target device and --game-modules')
+    if args.ipa and args.target != 'device':
+        parser.error('--ipa requires --target device')
+    if args.game_startup and (not args.game_modules or not (args.portal_root or args.device_game_data)):
+        parser.error("--game-startup requires --game-modules and game data configuration")
     if args.game_modules and not args.togles:
         parser.error('--game-modules requires --togles')
     if args.world_loader_check and not args.togles:
@@ -111,13 +117,13 @@ def main():
     if app.exists():
         shutil.rmtree(app)
     app.mkdir(parents=True)
-    if args.togles and args.game_modules and args.portal_root:
+    if args.togles and args.game_modules and (args.portal_root or args.device_game_data):
         # Simulator launch settings also apply when opened from SpringBoard.
         # Only paths/settings are packaged, never the game's assets.
         with (app / 'ios-launch.plist').open('wb') as stream:
             plistlib.dump({'SOURCE_IOS_GAME_MODULE_CHECK': '1',
                           'SOURCE_IOS_GAME_STARTUP': 'play',
-                          'SOURCE_IOS_GAME_ROOT': str(args.portal_root),
+                          'SOURCE_IOS_GAME_ROOT': '@documents/Portal-arm64' if args.device_game_data else str(args.portal_root),
                           'SOURCE_IOS_WORLD_MAP': args.world_map}, stream)
     libraries = []
     if args.graphics or args.angle:
@@ -199,6 +205,7 @@ def main():
             'CFBundleSupportedPlatforms': ['iPhoneSimulator' if args.target == 'simulator' else 'iPhoneOS'],
             'UILaunchScreen': {},
             'UIApplicationSceneManifest': {'UIApplicationSupportsMultipleScenes': False},
+            'UIFileSharingEnabled': True, 'LSSupportsOpeningDocumentsInPlace': True,
             'UISupportedInterfaceOrientations': ['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'],
         }, stream)
     for library in libraries:
@@ -206,6 +213,15 @@ def main():
     run('codesign', '--force', '--sign', '-', app)
     run('codesign', '--verify', '--deep', '--strict', app)
     print('Built:', app, flush=True)
+    if args.ipa:
+        import zipfile
+        ipa = args.ipa.resolve()
+        ipa.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(ipa, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as archive:
+            for path in sorted(app.rglob('*')):
+                if path.is_file():
+                    archive.write(path, 'Payload/' + str(path.relative_to(app.parent)))
+        print('IPA:', ipa, flush=True)
     if not args.simulator:
         return
     devices = json.loads(run('xcrun', 'simctl', 'list', 'devices', 'available', '--json', capture=True))
