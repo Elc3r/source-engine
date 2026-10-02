@@ -27,8 +27,8 @@ def main():
     mode.add_argument('--graphics', action='store_true', help='Build the independent SDL/Metal GPU probe')
     mode.add_argument('--angle', action='store_true', help='Build the SDL/ANGLE GLES texture probe (downloads pinned ANGLE)')
     mode.add_argument('--togles', action='store_true', help='Test engine shader translation and DXT decoding through ANGLE')
-    parser.add_argument('--game-startup', nargs='?', const='server', choices=['server','server-cycle','client','client-cycle','level-cycle','player-cycle'],
-                        help='Check Portal server/client initialization, shutdown, or original server map lifecycle (requires game modules/data)')
+    parser.add_argument('--game-startup', nargs='?', const='server', choices=['server','server-cycle','client','client-cycle','level-cycle','player-cycle','play'],
+                        help='Check Portal initialization/map lifecycle, or run continuous native gameplay with play (requires game modules/data)')
     parser.add_argument('--game-modules', action='store_true', help='Build and verify actual Portal client/server factories (ToGLES only)')
     parser.add_argument('--world-loader-check', action='store_true',
                         help='Compile actual engine world-loading units and report link dependencies (ToGLES only)')
@@ -225,14 +225,23 @@ def main():
         launch_env['SIMCTL_CHILD_SOURCE_IOS_WORLD_MAP']=args.world_map
     subprocess.run(['xcrun','simctl','launch','--terminate-running-process',args.simulator,bundle_id],
                    cwd=ROOT,env=launch_env,check=True)
-    deadline = time.monotonic() + 30
-    while not result_file.exists() and time.monotonic() < deadline:
+    # Native map signon plus first-use shader compilation can exceed the small
+    # graphics fixture's deadline. Still require the application's result file.
+    probe_timeout = 60 if args.game_startup else 30
+    deadline = time.monotonic() + probe_timeout
+    while time.monotonic() < deadline:
+        if result_file.exists():
+            candidate = json.loads(result_file.read_text())
+            # Portal starts with a scripted fade. A successful present alone
+            # is not map evidence: wait for the existing pixel-coverage check.
+            if not candidate.get('passed') or not args.portal_root or candidate.get('world_map_rendered'):
+                break
         time.sleep(0.25)
     if not result_file.exists():
         # A crashed process is already gone; do not hide the original timeout
         # behind simctl's "no such process" exit code.
         subprocess.run(['xcrun', 'simctl', 'terminate', args.simulator, bundle_id], check=False)
-        raise SystemExit('App did not write its probe result within 30 seconds')
+        raise SystemExit(f'App did not write its probe result within {probe_timeout} seconds')
     result = json.loads(result_file.read_text())
     print(json.dumps(result, indent=2))
     shutil.copy2(result_file, build / (result_name + '-result.json'))

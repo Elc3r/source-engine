@@ -19,12 +19,15 @@
 #include "inputsystem/iinputsystem.h"
 #include "cmd.h"
 #include "GameEventManager.h"
+#include "game/client/iclientrendertargets.h"
+#include "toolframework/itoolframework.h"
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
+extern IClientRenderTargets *g_pClientRenderTargets;
 extern "C" void SourceIOSShutdownPortalLevel();
 namespace {
-bool initialized=false,clientInitialized=false,uiInitialized=false,eventsInitialized=false;
+bool initialized=false,clientInitialized=false,uiInitialized=false,eventsInitialized=false,clientTargetsInitialized=false,toolsInitialized=false;
 ConVar *engineCheats=NULL;
 CreateInterfaceFn applicationFactory=NULL;
 char lastInterface[128]={};
@@ -74,6 +77,8 @@ extern "C" bool SourceIOSInitializePortalServer(CreateInterfaceFn gameFactory,ch
 extern "C" bool SourceIOSShutdownPortalServer() {
     bool valid=true;
     SourceIOSShutdownPortalLevel();
+    if (clientTargetsInitialized && g_pClientRenderTargets) g_pClientRenderTargets->ShutdownClientRenderTargets();
+    clientTargetsInitialized=false; g_pClientRenderTargets=NULL;
     if (clientInitialized && g_ClientDLL) {
         Msg("iOS Portal client Shutdown: begin\n");
         ClientDLL_Shutdown();
@@ -81,6 +86,7 @@ extern "C" bool SourceIOSShutdownPortalServer() {
         Msg("iOS Portal client Shutdown + client cvar cleanup: %s\n",valid?"PASS":"FAIL");
     }
     clientInitialized=false; g_ClientDLL=NULL; g_ClientFactory=NULL;
+    if (toolsInitialized) { toolframework->Shutdown(); toolframework->Disconnect(); toolsInitialized=false; }
     if (uiInitialized) {
         EngineVGui()->Shutdown();
         valid=valid && !EngineVGui()->IsInitialized() && !EngineVGui()->GetPanel(PANEL_CLIENTDLL);
@@ -103,6 +109,12 @@ extern "C" bool SourceIOSShutdownPortalServer() {
 extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity) {
     if (!initialized || !gameFactory) { snprintf(detail,capacity,"Portal client: server/factory unavailable"); return false; }
     applicationFactory=g_AppSystemFactory;
+    if (!toolsInitialized) {
+        if (!toolframework->Connect(applicationFactory) || toolframework->Init()!=INIT_OK) {
+            snprintf(detail,capacity,"Portal tool framework initialization failed"); return false;
+        }
+        toolsInitialized=true;
+    }
     if (!uiInitialized) {
         // Map loading connected tier 3 before the optional UI services existed.
         // Refresh those bindings now that the full real service group is loaded.
@@ -142,6 +154,15 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
     if (started) ClientDLL_Init();
     clientInitialized=started;
     if (started) {
+        const char *mode=getenv("SOURCE_IOS_GAME_STARTUP");
+        if (mode && !strcmp(mode,"play")) {
+            g_pClientRenderTargets=static_cast<IClientRenderTargets *>(gameFactory(CLIENTRENDERTARGETS_INTERFACE_VERSION,NULL));
+            if (!g_pClientRenderTargets) { snprintf(detail,capacity,"Portal client render targets unavailable"); return false; }
+            materials->BeginRenderTargetAllocation();
+            g_pClientRenderTargets->InitClientRenderTargets(materials,g_pMaterialSystemHardwareConfig);
+            materials->EndRenderTargetAllocation();
+            clientTargetsInitialized=true;
+        }
         g_ClientDLL->PostInit();
         EngineVGui()->Connect(); EngineVGui()->PostInit();
         ConVar *hud=g_pCVar->FindVar("cl_drawhud");
@@ -161,6 +182,10 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
 
 extern "C" bool SourceIOSDispatchPortalInput() {
     if (!clientInitialized || !g_ClientDLL) return false;
+    const InputEvent_t *events=g_pInputSystem->GetEventData();
+    for (int i=0;i<g_pInputSystem->GetEventCount();++i)
+        if (events[i].m_nType==IE_FingerDown || events[i].m_nType==IE_FingerUp)
+            Msg("iOS live touch: type %d; slot %d; menu %d\n",events[i].m_nType,events[i].m_nData,EngineVGui()->IsGameUIVisible());
     game->DispatchAllStoredGameMessages();
     Cbuf_Execute();
     return true;

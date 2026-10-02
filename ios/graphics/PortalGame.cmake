@@ -22,6 +22,7 @@ foreach(side IN ITEMS client server)
         ../../vgui2/controls ../../thirdparty/SDL-src/include
         ${PORTAL_${upper}_INCLUDES})
 endforeach()
+target_compile_definitions(PortalCLIENT PRIVATE DX_TO_GL_ABSTRACTION=1 TOGLES=1)
 add_custom_target(PortalGameCompile DEPENDS PortalCLIENT PortalSERVER)
 
 add_library(PortalSupport STATIC EXCLUDE_FROM_ALL ${PORTAL_SUPPORT_SOURCES})

@@ -1,5 +1,8 @@
 #include "render_pch.h"
 #include "PortalPlayerProbe.h"
+#include "cl_pred.h"
+#include "vgui_baseui_interface.h"
+#include "render.h"
 #include "cdll_int.h"
 #include "cdll_engine_int.h"
 #include "eiface.h"
@@ -30,9 +33,12 @@
 extern CGlobalVars g_ServerGlobalVariables;
 extern void SV_InitSendTables(ServerClass *classes);
 extern void SV_TermSendTables(ServerClass *classes);
-namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false; int savedMark=0; }
+namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false; int savedMark=0; bool playing=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0;
+}
 
 extern "C" void SourceIOSShutdownPortalLevel() {
+    if (playing) host_initialized=false;
+    playing=false; playerReader=NULL; tickRemainder=0;
     if (serverStarted) Host_AllowQueuedMaterialSystem(false);
     if (networkStarted) cl.Disconnect("iOS player cycle complete",false);
     if (levelStarted) {
@@ -93,7 +99,7 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
     snprintf(detail,capacity,"Portal GameInit/SpawnServer/LevelInit/ServerActivate: %s; %d live edicts (player not connected)",passed?"PASS":"FAIL",entities);
     Msg("%s\n",detail);
     const char *mode=getenv("SOURCE_IOS_GAME_STARTUP");
-    if (passed && mode && !strcmp(mode,"player-cycle")) {
+    if (passed && mode && (!strcmp(mode,"player-cycle") || !strcmp(mode,"play"))) {
         Msg("iOS Portal localhost connection: begin\n");
         g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
         InitStudioRender(); renderStarted=true;
@@ -150,6 +156,59 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
             passed?"PASS":"FAIL",cl.m_nSignonState,ticks,after.command,cl.lastoutgoingcommand,before.tickBase,after.tickBase);
         Msg("%s\n",detail);
     }
-    SourceIOSShutdownPortalLevel();
+    if (passed && mode && !strcmp(mode,"play")) {
+        // The UIKit bootstrap bypasses the desktop loading-screen transition.
+        // Enter gameplay through the original UI lifecycle so touch input is
+        // no longer gated by the menu panel.
+        EngineVGui()->HideGameUI();
+        // IsPaused gates native CreateMove on completion of host startup.
+        // The UIKit host has now initialized its services and connected player.
+        host_initialized=true;
+        playing=true; playerReader=readPlayer; lastFrame=Plat_FloatTime(); tickRemainder=0;
+        snprintf(detail,capacity,"Portal live server/client: PASS; player connected; original renderer");
+    } else SourceIOSShutdownPortalLevel();
     return passed;
+}
+
+
+extern "C" bool SourceIOSIsPortalGameLive() { return playing; }
+extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
+    if (!playing || !cl.IsActive() || !sv.IsActive()) { snprintf(detail,capacity,"Portal live connection lost"); return false; }
+    double now=Plat_FloatTime(),elapsed=now-lastFrame;
+    lastFrame=now;
+    // Loading/background stalls must not generate an unbounded catch-up burst.
+    tickRemainder+=elapsed>=0 && elapsed<.25?elapsed:0;
+    ++host_framecount; g_ClientGlobalVariables.framecount=host_framecount;
+    ClientDLL_FrameStageNotify(FRAME_START);
+    while (tickRemainder>=host_state.interval_per_tick) {
+        host_frametime=host_state.interval_per_tick;
+        g_ServerGlobalVariables.realtime=now;
+        NET_RunFrame(now);
+        cl.SetFrameTime(host_state.interval_per_tick);
+        g_ClientDLL->IN_SetSampleTime(host_state.interval_per_tick);
+        CL_Move(0,true);
+        SV_Frame(true);
+        CL_ReadPackets(true);
+        cl.RunFrame();
+        tickRemainder-=host_state.interval_per_tick;
+    }
+    g_ClientGlobalVariables.interpolation_amount=tickRemainder/host_state.interval_per_tick;
+    CL_RunPrediction(PREDICTION_NORMAL);
+    IOSPortalPlayer player={};
+    if (!playerReader || !playerReader(1,&player)) { snprintf(detail,capacity,"Portal live player unavailable"); return false; }
+    snprintf(detail,capacity,"Portal LIVE: server tick %d; command %d/%d; player %.1f %.1f %.1f; yaw %.1f; move %.0f/%.0f; flags %x",
+        sv.m_nTickCount,player.command,cl.lastoutgoingcommand,player.x,player.y,player.z,cl.viewangles.y,player.forward,player.side,player.flags);
+    return true;
+}
+extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t capacity) {
+    if (!playing || !g_ClientDLL || width<1 || height<1) return false;
+    EngineVGui()->Simulate();
+    ClientDLL_FrameStageNotify(FRAME_RENDER_START);
+    g_EngineRenderer->FrameBegin();
+    cl.UpdateAreaBits_BackwardsCompatible();
+    vrect_t rect={}; rect.width=width; rect.height=height;
+    g_ClientDLL->View_Render(&rect);
+    ClientDLL_FrameStageNotify(FRAME_RENDER_END);
+    g_EngineRenderer->FrameEnd();
+    return true;
 }

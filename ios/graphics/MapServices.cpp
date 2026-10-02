@@ -174,6 +174,7 @@ bool LoadRequestedWorldMap(char *detail, size_t capacity)
     if (!root || !map || !loaderModule || !g_pFullFileSystem) {
         snprintf(detail,capacity,"World map: game root/map/services missing"); return false;
     }
+    if (HasLivePortalGame()) { worldLoaded=true; Q_strncpy(worldDetail,"Original Portal server/client world",sizeof(worldDetail)); return true; }
     auto load=reinterpret_cast<decltype(&SourceIOSLoadWorldMap)>(
         GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSLoadWorldMap"));
     if (!load) { snprintf(detail,capacity,"World map: loader entry point missing"); return false; }
@@ -303,4 +304,21 @@ bool CheckPortalLevel(char *detail,size_t capacity,IOSReadPortalPlayer readPlaye
         reinterpret_cast<void *>(loaderModule),"SourceIOSCheckPortalLevel")):NULL;
     if (!check) { snprintf(detail,capacity,"Portal level entry point unavailable"); return false; }
     return check(detail,capacity,readPlayer);
+}
+
+
+bool HasLivePortalGame() {
+    typedef bool (*Query)();
+    Query query=loaderModule?reinterpret_cast<Query>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSIsPortalGameLive")):NULL;
+    return query && query();
+}
+bool AdvancePortalGame(char *detail,size_t capacity) {
+    typedef bool (*Advance)(char *,size_t);
+    Advance advance=loaderModule?reinterpret_cast<Advance>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSAdvancePortalGame")):NULL;
+    return advance && advance(detail,capacity);
+}
+bool DrawPortalGame(int width,int height,char *detail,size_t capacity) {
+    typedef bool (*Draw)(int,int,char *,size_t);
+    Draw draw=loaderModule?reinterpret_cast<Draw>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSDrawPortalGame")):NULL;
+    return draw && draw(width,height,detail,capacity);
 }

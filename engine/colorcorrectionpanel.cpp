@@ -5341,7 +5341,7 @@ bool CColorCorrectionTools::ShouldPause() const
 
 void CColorCorrectionTools::GrabPreColorCorrectedFrame( int x, int y, int width, int height )
 {
-	if ( !g_pColorCorrectionUI->IsVisible() )
+	if ( !g_pColorCorrectionUI || !g_pColorCorrectionUI->IsVisible() )
 		return;
 
 	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
@@ -5401,4 +5401,3 @@ void PrintColorCorrection()
 }
 
 static ConCommand print_colorcorrection( "print_colorcorrection", PrintColorCorrection, "Display the color correction layer information.", FCVAR_CHEAT );
-

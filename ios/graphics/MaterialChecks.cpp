@@ -393,7 +393,7 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                 }
                 if (valid) valid=InitializeMapServices(modules,ApplicationFactory,detail,capacity);
                 const char *startupMode=getenv("SOURCE_IOS_GAME_STARTUP");
-                bool levelCycle=startupMode && (!strcmp(startupMode,"level-cycle") || !strcmp(startupMode,"player-cycle"));
+                bool levelCycle=startupMode && (!strcmp(startupMode,"level-cycle") || !strcmp(startupMode,"player-cycle") || !strcmp(startupMode,"play"));
                 if (valid && retain && !levelCycle) valid=LoadRequestedWorldMap(detail,capacity);
                 if (valid && retain) valid=InitializePortalGame(modules,ApplicationFactory,detail,capacity);
                 if (valid && retain && levelCycle) valid=LoadRequestedWorldMap(detail,capacity);
@@ -478,6 +478,8 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
 {
     PollInspectionInput();
     if (!liveMaterial) { snprintf(detail,capacity,"No live material system"); return false; }
+    const bool playing=HasLivePortalGame();
+    if (playing && !AdvancePortalGame(detail,capacity)) return false;
     uint targetWidth=0,targetHeight=0;
     applicationHost->displayedSize(applicationHost->userData,targetWidth,targetHeight);
     int width=0,height=0;
@@ -511,7 +513,10 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
         context->SetToneMappingScaleLinear(Vector(1,1,1));
     }
     bool scene=!worldLoaded && HasCompiledUnlit() && width>=64 && height>=64;
-    if (worldLoaded) valid=DrawLoadedWorldMap(liveMaterial,width,height,detail,capacity);
+    // Swap applies the pending drawable resize. Do not initialize the native
+    // view/postprocessing against the bootstrap's temporary 8x8 backbuffer.
+    if (playing) { if (!resize) valid=DrawPortalGame(width,height,detail,capacity); }
+    else if (worldLoaded) valid=DrawLoadedWorldMap(liveMaterial,width,height,detail,capacity);
     else if (valid && scene) valid=DrawPerspectiveScene(liveMaterial,context,width,height,sceneFrame++,livePresentation->scene,detail,capacity);
     else if (valid) valid=HasCompiledUnlit()
         ? DrawUnlitMaterial(liveMaterial,context,false,width,height,detail,capacity)

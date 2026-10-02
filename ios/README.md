@@ -1626,8 +1626,23 @@ sandbox first, while game assets stay in their existing directories/VPKs.
 Validation: player signon, eight server/client ticks, input/codec and VGUI checks,
 level teardown, and 120 subsequent inspection frames pass in the iOS 27 simulator.
 This is a bounded startup test: it disconnects the player before inspection
-rendering. Continuous gameplay, prediction/render updates and a view from the
-real player's camera remain to be integrated.
+rendering.
+
+`--game-startup play` retains the connected server/client world instead of
+reloading the inspection renderer. The UIKit frame loop advances original
+`CL_Move` / `SV_Frame` / `CL_ReadPackets`, runs native prediction and render-stage
+notifications, and calls the Portal client's `View_Render` with the real player
+camera. The status overlay reports server ticks, matching command numbers,
+server player position and last command movement. Portal client render targets
+are allocated through its original render-target interface. Desktop Steam UI
+modules and debug panels are excluded from this UIKit lifecycle.
+
+This mode is an integration build, not a completed game port: touch-button
+textures/layout and visual parity still need work. Its PASS label verifies the
+render/presentation loop; it does not imply that every gameplay feature works.
+Simulator validation: more than 3,000 native client frames, real UIKit gestures
+changing yaw, and a server-observed forward command of 450 (command 2043/2043)
+moving the real player from (-544, -368.8, 160) to (-622, -293.5, 164).
 
 ### Shared touch input preparation
 

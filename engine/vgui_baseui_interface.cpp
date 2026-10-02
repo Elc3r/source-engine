@@ -1637,7 +1637,11 @@ void CEngineVGui::Simulate()
 		vgui::GetAnimationController()->UpdateAnimations( Sys_FloatTime() );
 
 		int w, h;
-#if defined( USE_SDL )
+#if defined( IOS )
+		// UIKit owns the window; there is no desktop launcher manager.
+		w = videomode->GetModeWidth();
+		h = videomode->GetModeHeight();
+#elif defined( USE_SDL )
 		uint width,height;
 		g_pLauncherMgr->RenderedSize( width, height, false );	// false = get
 		w = width;
@@ -1668,8 +1672,10 @@ void CEngineVGui::Simulate()
 
 		// Some debugging helpers
 		DrawMouseFocus();
+#if !defined(IOS)
 		VGui_UpdateDrawTreePanel();
 		VGui_UpdateTextureListPanel();
+#endif
 
 		vgui::surface()->CalculateMouseVisible();
 		VGui_ActivateMouse();

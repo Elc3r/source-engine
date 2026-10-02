@@ -22,3 +22,7 @@ void PollInspectionInput();
 
 #include "PortalPlayerProbe.h"
 bool CheckPortalLevel(char *detail,size_t capacity,IOSReadPortalPlayer readPlayer);
+
+bool HasLivePortalGame();
+bool AdvancePortalGame(char *detail,size_t capacity);
+bool DrawPortalGame(int width,int height,char *detail,size_t capacity);

@@ -4,5 +4,7 @@ struct IOSPortalPlayer {
     int command, tickBase;
     unsigned int checksum;
     float x,y,z;
+    float forward,side,yaw;
+    int flags;
 };
 typedef bool (*IOSReadPortalPlayer)(int index,IOSPortalPlayer *out);

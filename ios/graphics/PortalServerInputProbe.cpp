@@ -10,6 +10,8 @@ extern "C" bool SourceIOSReadPortalPlayer(int index,IOSPortalPlayer *out) {
     if (!cmd) return false;
     out->command=cmd->command_number;
     out->checksum=cmd->GetChecksum();
+    out->forward=cmd->forwardmove; out->side=cmd->sidemove; out->yaw=cmd->viewangles.y;
+    out->flags=player->GetFlags();
     out->tickBase=TIME_TO_TICKS(player->GetTimeBase());
     const Vector &origin=player->GetAbsOrigin();
     out->x=origin.x; out->y=origin.y; out->z=origin.z;

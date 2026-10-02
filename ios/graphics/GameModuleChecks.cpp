@@ -67,20 +67,20 @@ extern "C" int InitializePortalGame(const char *directory,CreateInterfaceFn appl
         passed=ShutdownPortalServer();
         snprintf(startupDetail,sizeof(startupDetail),"Portal server DLLInit/DLLShutdown + game cvar cleanup + engine cvar preservation: %s",passed?"PASS":"FAIL");
     }
-    if (passed && (!strcmp(mode,"client") || !strcmp(mode,"client-cycle") || !strcmp(mode,"level-cycle") || !strcmp(mode,"player-cycle"))) {
+    if (passed && (!strcmp(mode,"client") || !strcmp(mode,"client-cycle") || !strcmp(mode,"level-cycle") || !strcmp(mode,"player-cycle") || !strcmp(mode,"play"))) {
         snprintf(path,sizeof(path),"%s/libclient.dylib",directory);
         if (!modules[0]) modules[0]=Sys_LoadModule(path);
         passed=InitializePortalClient(modules[0]?Sys_GetFactory(modules[0]):NULL,startupDetail,sizeof(startupDetail));
     }
     if (passed && getenv("SOURCE_IOS_CLIENT_INPUT_CHECK") &&
-        (!strcmp(mode,"client") || !strcmp(mode,"client-cycle") || !strcmp(mode,"level-cycle") || !strcmp(mode,"player-cycle"))) {
+        (!strcmp(mode,"client") || !strcmp(mode,"client-cycle") || !strcmp(mode,"level-cycle") || !strcmp(mode,"player-cycle") || !strcmp(mode,"play"))) {
         IOSReadPortalCommand readCommand=reinterpret_cast<IOSReadPortalCommand>(GetProcAddress(
             reinterpret_cast<void *>(modules[0]),"SourceIOSReadPortalCommand"));
         IOSFindPortalControl findControl=reinterpret_cast<IOSFindPortalControl>(GetProcAddress(
             reinterpret_cast<void *>(modules[0]),"SourceIOSFindPortalControl"));
         passed=CheckPortalClientInput(readCommand,findControl,startupDetail,sizeof(startupDetail));
     }
-    if (passed && (!strcmp(mode,"level-cycle") || !strcmp(mode,"player-cycle"))) {
+    if (passed && (!strcmp(mode,"level-cycle") || !strcmp(mode,"player-cycle") || !strcmp(mode,"play"))) {
         IOSReadPortalPlayer readPlayer=reinterpret_cast<IOSReadPortalPlayer>(GetProcAddress(
             reinterpret_cast<void *>(modules[1]),"SourceIOSReadPortalPlayer"));
         passed=CheckPortalLevel(startupDetail,sizeof(startupDetail),readPlayer);
