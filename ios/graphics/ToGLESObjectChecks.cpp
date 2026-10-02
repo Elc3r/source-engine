@@ -7,6 +7,81 @@ bool CheckToGLESD3DDevice(const GLMContextHost *host, char *detail, size_t capac
 bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *detail, size_t capacity, bool retain);
 
 namespace {
+// Compressed textures can be sampled but cannot be framebuffer attachments.
+// Check their uploaded mip contents through an ordinary RGBA render target,
+// covering both native S3TC and the CPU decompression path.
+bool ReadSampledMip(GLuint texture, int mip, int size, unsigned char *pixels,
+    char *detail, size_t capacity)
+{
+    GLint programBefore,vaoBefore,activeBefore,textureBefore,readBefore,drawBefore,viewport[4];
+    gGL->glGetIntegerv(GL_CURRENT_PROGRAM,&programBefore);
+    gGL->glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vaoBefore);
+    gGL->glGetIntegerv(GL_ACTIVE_TEXTURE,&activeBefore);
+    gGL->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&readBefore);
+    gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&drawBefore);
+    gGL->glGetIntegerv(GL_VIEWPORT,viewport);
+    const GLenum tests[]={GL_DEPTH_TEST,GL_CULL_FACE,GL_BLEND,GL_SCISSOR_TEST,GL_RASTERIZER_DISCARD};
+    GLboolean enabled[5],mask[4];
+    for (int i=0;i<5;++i) { enabled[i]=gGL->glIsEnabled(tests[i]); gGL->glDisable(tests[i]); }
+    gGL->glGetBooleanv(GL_COLOR_WRITEMASK,mask);
+    gGL->glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
+    gGL->glActiveTexture(GL_TEXTURE0);
+    gGL->glGetIntegerv(GL_TEXTURE_BINDING_2D,&textureBefore);
+    const char *sources[]={
+        "#version 300 es\nout vec2 uv;\nvoid main(){vec2 p=vec2(float((gl_VertexID<<1)&2),float(gl_VertexID&2));uv=p;gl_Position=vec4(p*2.0-1.0,0,1);}",
+        "#version 300 es\nprecision highp float;\nin vec2 uv;uniform sampler2D source;uniform float mip;out vec4 color;void main(){color=textureLod(source,uv,mip);}"};
+    GLuint program=gGL->glCreateProgram(),shaders[2]={},fbo=0,color=0,vao=0;
+    bool valid=true;
+    for (int i=0;i<2;++i) {
+        shaders[i]=gGL->glCreateShader(i?GL_FRAGMENT_SHADER:GL_VERTEX_SHADER);
+        gGL->glShaderSource(shaders[i],1,&sources[i],NULL);
+        gGL->glCompileShader(shaders[i]);
+        GLint compiled=0; gGL->glGetShaderiv(shaders[i],GL_COMPILE_STATUS,&compiled);
+        if (!compiled) { gGL->glGetShaderInfoLog(shaders[i],capacity,NULL,detail); valid=false; }
+        gGL->glAttachShader(program,shaders[i]);
+    }
+    gGL->glLinkProgram(program);
+    GLint linked=0; gGL->glGetProgramiv(program,GL_LINK_STATUS,&linked);
+    if (!linked) { gGL->glGetProgramInfoLog(program,capacity,NULL,detail); valid=false; }
+    if (valid) {
+        gGL->glGenTextures(1,&color); gGL->glBindTexture(GL_TEXTURE_2D,color);
+        gGL->glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA8,size,size,0,GL_RGBA,GL_UNSIGNED_BYTE,NULL);
+        gGL->glGenFramebuffers(1,&fbo); gGL->glBindFramebuffer(GL_FRAMEBUFFER,fbo);
+        gGL->glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,color,0);
+        valid=gGL->glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE;
+        gGL->glBindTexture(GL_TEXTURE_2D,texture);
+        GLint minFilter,magFilter;
+        typedef void (*GetTexParameter)(GLenum,GLenum,GLint *);
+        auto getTexParameter=reinterpret_cast<GetTexParameter>(eglGetProcAddress("glGetTexParameteriv"));
+        getTexParameter(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,&minFilter);
+        getTexParameter(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,&magFilter);
+        gGL->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST_MIPMAP_NEAREST);
+        gGL->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+        gGL->glUseProgram(program);
+        gGL->glUniform1i(gGL->glGetUniformLocation(program,"source"),0);
+        gGL->glUniform1f(gGL->glGetUniformLocation(program,"mip"),float(mip));
+        gGL->glGenVertexArrays(1,&vao); gGL->glBindVertexArray(vao);
+        gGL->glViewport(0,0,size,size);
+        if (valid) {
+            gGL->glDrawArrays(GL_TRIANGLES,0,3);
+            gGL->glReadPixels(0,0,size,size,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+        }
+        gGL->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,minFilter);
+        gGL->glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,magFilter);
+    }
+    gGL->glUseProgram(programBefore); gGL->glBindVertexArray(vaoBefore);
+    gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,readBefore);
+    gGL->glBindFramebuffer(GL_DRAW_FRAMEBUFFER,drawBefore);
+    gGL->glBindTexture(GL_TEXTURE_2D,textureBefore); gGL->glActiveTexture(activeBefore);
+    gGL->glViewport(viewport[0],viewport[1],viewport[2],viewport[3]);
+    for (int i=0;i<5;++i) if (enabled[i]) gGL->glEnable(tests[i]);
+    gGL->glColorMask(mask[0],mask[1],mask[2],mask[3]);
+    gGL->glDeleteFramebuffers(1,&fbo); gGL->glDeleteTextures(1,&color); gGL->glDeleteVertexArrays(1,&vao);
+    for (int i=0;i<2;++i) gGL->glDeleteShader(shaders[i]);
+    gGL->glDeleteProgram(program);
+    return valid;
+}
+
 struct HostSurface { EGLDisplay display; EGLSurface surface; };
 bool MakeCurrent(void *data, void *context)
 {
@@ -160,8 +235,6 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
                 key.m_texFlags=kGLMTexMipped;
                 key.m_xSize=4; key.m_ySize=4; key.m_zSize=1;
                 CGLMTex *texture=context->NewTex(&key,3,"ios-object-check");
-                GLuint fbo=0;
-                gGL->glGenFramebuffers(1,&fbo);
                 // Two uploads per level check both allocation and replacement.
                 for (int pass=0;pass<2 && valid;++pass) for (int mip=0;mip<3 && valid;++mip) {
                     int size=4>>mip;
@@ -179,11 +252,8 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
                     if (format==2) block[0]=255;
                     if (bytes) memcpy(bytes,block,format?16:8);
                     texture->Unlock(&lock);
-                    gGL->glBindFramebuffer(GL_FRAMEBUFFER,fbo);
-                    gGL->glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,texture->GetTexName(),mip);
-                    valid=bytes && gGL->glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE;
                     unsigned char pixels[64]={};
-                    if (valid) gGL->glReadPixels(0,0,size,size,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+                    valid=bytes && ReadSampledMip(texture->GetTexName(),mip,size,pixels,detail,capacity);
                     error=gGL->glGetError();
                     valid=valid && error==GL_NO_ERROR;
                     for (int i=0;i<size*size;++i)
@@ -193,7 +263,6 @@ int CheckToGLESObjects(char *detail, size_t capacity, const char *modules)
                         format,mip,pass,valid?"PASS":"FAIL",error,pixels[0],pixels[1],pixels[2],pixels[3]);
                     if (valid) ++uploads;
                 }
-                gGL->glBindFramebuffer(GL_FRAMEBUFFER,0); gGL->glDeleteFramebuffers(1,&fbo);
                 context->DelTex(texture);
             }
             if (valid) valid=CheckRGBUploads(context,detail,capacity);

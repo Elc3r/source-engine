@@ -1871,3 +1871,14 @@ Both directions retain degenerate decoy vertices and verify pixels and VAO /
 array-buffer restoration. Failures now report direction, GL error, first pixel
 and restored bindings. Simulator gameplay passes; an updated physical-device
 run is needed to confirm the A17 Pro result.
+
+The second A17 Pro report passed signed base-vertex drawing and reached GLM
+texture uploads. The old mip-content check attached DXT textures directly to
+an FBO, which only worked when the CPU fallback expanded them to renderable
+RGB(A). Native compressed textures are not color-renderable. The check now
+samples each uploaded mip through a GLES shader into an RGBA8 framebuffer,
+then compares the readback; allocation and replacement for DXT1/3/5 and all
+three mip levels remain checked across two GLM lifecycles. The helper restores
+program, VAO, texture, framebuffer, viewport, filtering and raster state.
+Simulator tests and live Portal startup pass. Physical confirmation is pending
+with the v3 IPA; game data and its container layout are unchanged.
