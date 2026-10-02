@@ -20,6 +20,48 @@ static NSString *runtimeDetail = @"not run";
 #define PROBE_RESULT_NAME @"angle.json"
 #endif
 
+#if TARGET_OS_SIMULATOR
+// A key responder with no hit region: touches continue through SDL's view.
+@interface SourceKeyboardInput : UIView
+@property(nonatomic,strong) NSMutableSet<NSNumber *> *heldKeys;
+- (void)releaseKeys;
+@end
+@implementation SourceKeyboardInput
+- (BOOL)canBecomeFirstResponder { return YES; }
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event { return nil; }
+- (void)sendKey:(UIKey *)key down:(BOOL)down {
+    if (!key || (int)key.keyCode>=SDL_NUM_SCANCODES) return;
+    if (!self.heldKeys) self.heldKeys=[NSMutableSet set];
+    NSNumber *code=@(key.keyCode);
+    SDL_Event event={0}; event.type=down ? SDL_KEYDOWN : SDL_KEYUP;
+    event.key.state=down ? SDL_PRESSED : SDL_RELEASED;
+    event.key.repeat=down && [self.heldKeys containsObject:code];
+    event.key.keysym.scancode=(SDL_Scancode)key.keyCode;
+    event.key.keysym.sym=SDL_GetKeyFromScancode(event.key.keysym.scancode);
+    if (down) [self.heldKeys addObject:code]; else [self.heldKeys removeObject:code];
+    SDL_PushEvent(&event);
+}
+- (void)pressesBegan:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    for (UIPress *press in presses) [self sendKey:press.key down:YES];
+}
+- (void)pressesEnded:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    for (UIPress *press in presses) [self sendKey:press.key down:NO];
+}
+- (void)pressesCancelled:(NSSet<UIPress *> *)presses withEvent:(UIPressesEvent *)event {
+    [self releaseKeys];
+}
+- (void)releaseKeys {
+    for (NSNumber *code in self.heldKeys) {
+        SDL_Event event={0}; event.type=SDL_KEYUP; event.key.state=SDL_RELEASED;
+        event.key.keysym.scancode=(SDL_Scancode)code.intValue;
+        SDL_PushEvent(&event);
+    }
+    [self.heldKeys removeAllObjects];
+}
+@end
+static SourceKeyboardInput *keyboardInput;
+#endif
+
 static SDL_Window *window;
 static SDL_MetalView metalView;
 static EGLDisplay display = EGL_NO_DISPLAY;
@@ -30,6 +72,8 @@ static UILabel *label;
 static BOOL finished, paused, renderFailed;
 static unsigned suspends, resumes;
 static unsigned frames;
+static double fps, fpsStart;
+static unsigned fpsFrames;
 static NSString *renderer = @"unavailable", *version = @"unavailable";
 
 static void SaveResult(BOOL passed, NSString *detail, NSDictionary *extra)
@@ -49,7 +93,7 @@ static void SaveResult(BOOL passed, NSString *detail, NSDictionary *extra)
         BOOL live = getenv("SOURCE_IOS_GAME_STARTUP") &&
             strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "play") == 0;
         if (live && passed) {
-            label.text = [NSString stringWithFormat:@"Portal • LIVE\nFrames: %u", frames];
+            label.text = [NSString stringWithFormat:@"Portal • LIVE  %.1f FPS\nFrames: %u", fps, frames];
             label.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
             CGFloat width = MIN(180, label.superview.bounds.size.width - 200);
             label.frame = CGRectMake((label.superview.bounds.size.width-width)/2,
@@ -294,8 +338,18 @@ static void DrawFrame(void *unused)
             return;
         }
         ++frames;
+        double presentTime=SDL_GetPerformanceCounter()/(double)SDL_GetPerformanceFrequency();
+        if (!fpsStart) { fpsStart=presentTime; fpsFrames=0; }
+        else ++fpsFrames;
+        if (presentTime-fpsStart>=.5) {
+            fps=fpsFrames/(presentTime-fpsStart);
+            fpsStart=presentTime; fpsFrames=0;
+            if (IsSourceWorldMapLoaded() && getenv("SOURCE_IOS_GAME_STARTUP") &&
+                !strcmp(getenv("SOURCE_IOS_GAME_STARTUP"),"play"))
+                label.text=[NSString stringWithFormat:@"Portal • LIVE  %.1f FPS\nFrames: %u",fps,frames];
+        }
         if (frames%120==0) SaveResult(YES,@(detail),
-            @{@"pixel_width": @(width), @"pixel_height": @(height), @"gl_error": @0,
+            @{@"pixel_width": @(width), @"pixel_height": @(height), @"gl_error": @0, @"fps": @(fps),
               @"swap_succeeded": @YES, @"material_loop": @YES, @"suspends": @(suspends), @"resumes": @(resumes)});
         return;
 #endif
@@ -354,11 +408,14 @@ static void StopGraphics(void)
     if (metalView) SDL_Metal_DestroyView(metalView);
     if (window) SDL_DestroyWindow(window);
     SDL_Quit();
+#if TARGET_OS_SIMULATOR
+    [keyboardInput releaseKeys]; keyboardInput=nil;
+#endif
     window = NULL; metalView = NULL; label = nil;
     display = EGL_NO_DISPLAY; context = EGL_NO_CONTEXT; surface = EGL_NO_SURFACE;
     program = texture = vao = frames = 0;
     finished = paused = renderFailed = NO;
-    suspends = resumes = 0;
+    suspends = resumes = 0; fps=fpsStart=0; fpsFrames=0;
 #ifdef SOURCE_TOGLES_PROBE
     engineDetail = @"not run";
     runtimeDetail = @"not run";
@@ -414,6 +471,11 @@ static void StartGraphics(UIWindowScene *scene)
     label.font = [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightMedium];
     label.text = @"SDL + ANGLE / Metal\nVerifying textured GLES output…";
     [view addSubview:label];
+#if TARGET_OS_SIMULATOR
+    keyboardInput=[[SourceKeyboardInput alloc] initWithFrame:CGRectMake(0,0,0,0)];
+    [view addSubview:keyboardInput];
+    [keyboardInput becomeFirstResponder];
+#endif
     if (!StartRenderer()) return;
     if (SDL_iPhoneSetAnimationCallback(window, 1, DrawFrame, NULL) != 0)
         SaveResult(NO, @(SDL_GetError()), @{});
@@ -425,13 +487,19 @@ static void StartGraphics(UIWindowScene *scene)
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)options
 { StartGraphics((UIWindowScene *)scene); }
 - (void)sceneWillResignActive:(UIScene *)scene {
-    paused = YES; ++suspends;
+    paused = YES; ++suspends; fpsStart=0; fpsFrames=0;
+#if TARGET_OS_SIMULATOR
+    [keyboardInput releaseKeys];
+#endif
     if (display != EGL_NO_DISPLAY) eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
 }
 - (void)sceneDidBecomeActive:(UIScene *)scene {
     if (display != EGL_NO_DISPLAY && context != EGL_NO_CONTEXT)
         eglMakeCurrent(display,surface,surface,context);
     paused = NO; ++resumes;
+#if TARGET_OS_SIMULATOR
+    [keyboardInput becomeFirstResponder];
+#endif
 }
 - (void)sceneDidDisconnect:(UIScene *)scene { StopGraphics(); }
 @end

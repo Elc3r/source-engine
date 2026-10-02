@@ -696,6 +696,17 @@ bool MapCocoaVirtualKeyToButtonCode( int nCocoaVirtualKeyCode, ButtonCode_t *pOu
 	return true;
 }
 
+#if defined(IOS)
+void CInputSystem::SDLKeyboardEvent(int scancode, bool pressed, bool repeat)
+{
+	if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES || repeat) return;
+	ButtonCode_t code = (ButtonCode_t)scantokey[scancode];
+	if (code == BUTTON_CODE_NONE) return;
+	if (pressed) PostButtonPressedEvent(IE_ButtonPressed, m_nLastSampleTick, code, code);
+	else PostButtonReleasedEvent(IE_ButtonReleased, m_nLastSampleTick, code, code);
+}
+#endif
+
 void CInputSystem::PollInputState_Platform()
 {
 #ifdef IOS

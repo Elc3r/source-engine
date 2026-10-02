@@ -44,7 +44,7 @@ extern "C" bool SourceIOSCheckPortalClientInput(IOSReadPortalCommand readCommand
     };
     IOSPortalCommand baseline=command();
     float moveX=0,moveY=0,lookX=0,lookY=0;
-    check(findControl("move",&moveX,&moveY) && findControl("look",&lookX,&lookY),"joystick lookup");
+    check(findControl("move",&moveX,&moveY) && findControl("look",&lookX,&lookY),"move/look region lookup");
     send(SDL_FINGERDOWN,INT64_MAX,moveX,moveY);
     send(SDL_FINGERDOWN,-999,lookX,lookY);
     command();
@@ -53,10 +53,29 @@ extern "C" bool SourceIOSCheckPortalClientInput(IOSReadPortalCommand readCommand
     IOSPortalCommand moved=command();
     check(moved.forward>0 && moved.side<0 && (moved.buttons&IN_FORWARD),"simultaneous move/look movement");
     check(moved.yaw!=baseline.yaw && moved.pitch!=baseline.pitch,"simultaneous move/look angles");
+    IOSPortalCommand stationary=command();
+    check(stationary.yaw==moved.yaw && stationary.pitch==moved.pitch,"stationary finger does not rotate camera");
     send(SDL_FINGERUP,INT64_MAX,moveX-.04f,moveY-.04f);
     send(SDL_FINGERUP,-999,lookX+.04f,lookY+.03f);
     IOSPortalCommand released=command();
     check(released.forward==0 && released.side==0,"movement release");
+    send(SDL_FINGERDOWN,17,.25f,.4f); command();
+    send(SDL_FINGERMOTION,17,.28f,.42f,.03f,.02f);
+    IOSPortalCommand leftLook=command();
+    check(leftLook.yaw!=released.yaw && leftLook.pitch!=released.pitch,"left screen free-look");
+    send(SDL_FINGERUP,17,.28f,.42f); command();
+    auto key=[&](SDL_Scancode scancode,bool pressed) {
+        SDL_Event event={}; event.type=pressed?SDL_KEYDOWN:SDL_KEYUP;
+        event.key.state=pressed?SDL_PRESSED:SDL_RELEASED; event.key.keysym.scancode=scancode;
+        event.key.keysym.sym=SDL_GetKeyFromScancode(scancode);
+        passed=(SDL_PushEvent(&event)==1)&&passed;
+    };
+    key(SDL_SCANCODE_W,true); key(SDL_SCANCODE_D,true);
+    IOSPortalCommand keyboard=command();
+    check(keyboard.forward>0 && keyboard.side>0,"keyboard WASD movement");
+    key(SDL_SCANCODE_W,false); key(SDL_SCANCODE_D,false);
+    keyboard=command();
+    check(keyboard.forward==0 && keyboard.side==0,"keyboard release");
     const struct {int bit;const char *name;} actions[]={
         {IN_USE,"use"},{IN_JUMP,"jump"},{IN_ATTACK,"attack"},
         {IN_ATTACK2,"attack2"},{IN_DUCK,"duck"}};

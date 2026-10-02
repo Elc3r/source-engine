@@ -223,7 +223,6 @@ private:
 #if defined(IOS)
 	vgui::HFont fallbackFont;
 	int fallbackFontSize;
-	float look_start_x, look_start_y, lookStickX, lookStickY;
 #endif
 	IMesh* m_pMesh;
 	CMeshBuilder meshBuilder;

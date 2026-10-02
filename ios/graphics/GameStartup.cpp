@@ -19,6 +19,7 @@
 #include "igame.h"
 #include "inputsystem/iinputsystem.h"
 #include "cmd.h"
+#include "keys.h"
 #include "GameEventManager.h"
 #include "game/client/iclientrendertargets.h"
 #include "toolframework/itoolframework.h"
@@ -135,6 +136,15 @@ extern "C" bool SourceIOSInitializePortalClient(CSysModule *module,char *detail,
         materials->SetMaterialProxyFactory(&portalProxyFactory);
         proxyFactoryInstalled=true;
     }
+    const struct { ButtonCode_t key; const char *command; } bindings[]={
+        {KEY_W,"+forward"},{KEY_S,"+back"},{KEY_A,"+moveleft"},{KEY_D,"+moveright"},
+        {KEY_SPACE,"+jump"},{KEY_E,"+use"},{KEY_LCONTROL,"+duck"},
+        {KEY_LEFT,"+left"},{KEY_RIGHT,"+right"},{KEY_UP,"+lookup"},{KEY_DOWN,"+lookdown"},
+        {KEY_F,"+attack"},{KEY_G,"+attack2"},{KEY_F5,"save quick"},{KEY_F9,"load quick"}
+    };
+    for (const auto &binding : bindings)
+        if (!Key_BindingForKey(binding.key) || !*Key_BindingForKey(binding.key))
+            Key_SetBinding(binding.key,binding.command);
     IMaterialProxy *openProxy=portalProxyFactory.CreateProxy("PortalOpenAmount");
     if (!openProxy) { snprintf(detail,capacity,"Portal material proxy factory unavailable"); return false; }
     portalProxyFactory.DeleteProxy(openProxy);

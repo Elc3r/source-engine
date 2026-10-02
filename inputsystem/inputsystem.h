@@ -337,6 +337,9 @@ public:
 
 	void SDLFingerEvent( int eventType, int64 deviceId, int64 fingerId, float x, float y, float dx, float dy );
 	void CancelTouch();
+#if defined(IOS)
+	void SDLKeyboardEvent(int scancode, bool pressed, bool repeat);
+#endif
 	void FingerEvent( int eventType, int fingerId, float x, float y, float dx, float dy );	
 	
 	// Steam Controller

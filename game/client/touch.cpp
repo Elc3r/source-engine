@@ -291,11 +291,6 @@ void CTouchControls::GetTouchAccumulators( float *side, float *forward, float *y
 	*side = this->side;
 	*pitch = this->pitch;
 	*yaw = this->yaw;
-#if defined(IOS)
-	float sampleTime = gpGlobals->frametime > 0 ? gpGlobals->frametime : 1.f / 60.f;
-	*yaw += lookStickX * sampleTime * .7f;
-	*pitch += lookStickY * sampleTime * .7f;
-#endif
 	this->yaw = 0.f;
 	this->pitch = 0.f;
 }
@@ -370,7 +365,6 @@ void CTouchControls::Init()
 #if defined(IOS)
 	fallbackFont = 0;
 	fallbackFontSize = 0;
-	look_start_x = look_start_y = lookStickX = lookStickY = 0;
 #endif
 	configchanged = false;
 	config_loaded = false;
@@ -653,15 +647,17 @@ void CTouchControls::UpdateIOSLayout()
 		touch_event_t event = {}; event.type = IE_FingerUp; event.fingerid = finger;
 		FingerPress(&event);
 	}
-	forward = side = yaw = pitch = lookStickX = lookStickY = 0;
+	forward = side = yaw = pitch = 0;
 	float unit = min(screen_w, screen_h), radius = unit * .14f;
 	float margin = unit * (screen_w > screen_h ? .15f : .08f), button = unit * .13f, gap = unit * .035f;
 	float bottom = screen_h - margin - radius;
 	for (auto it = btns.begin(); it != btns.end(); ++it) {
 		CTouchButton *btn = *it;
 		float x, y, w = button, h = button;
-		if (btn->type == touch_move || btn->type == touch_look) {
-			x = btn->type == touch_move ? margin : screen_w - margin - 2 * radius;
+		if (btn->type == touch_look) {
+			x = y = 0; w = screen_w; h = screen_h;
+		} else if (btn->type == touch_move) {
+			x = margin;
 			y = bottom - radius; w = h = radius * 2;
 		} else if (!Q_strcmp(btn->command, "gameui_activate")) {
 			x = margin; y = screen_w > screen_h ? margin : unit * .18f;
@@ -757,13 +753,13 @@ void CTouchControls::Paint()
 	int radius = min(screen_w, screen_h) * .14f;
 	for (it = btns.begin(); it != btns.end(); ++it) {
 		CTouchButton *btn = *it;
-		if (btn->type != touch_move && btn->type != touch_look) continue;
+		if (btn->type != touch_move) continue;
 		int cx = (btn->x1 + btn->x2) * screen_w / 2, cy = (btn->y1 + btn->y2) * screen_h / 2;
 		surface->DrawSetTexture(0);
 		surface->DrawSetColor(190, 225, 235, 140);
 		surface->DrawOutlinedCircle(cx, cy, radius, 48);
-		float dx = btn->type == touch_move ? -side : lookStickX;
-		float dy = btn->type == touch_move ? -forward : lookStickY;
+		float dx = -side;
+		float dy = -forward;
 		float length = sqrtf(dx * dx + dy * dy);
 		if (length > 1) { dx /= length; dy /= length; }
 		int kx = cx + dx * radius * .65f, ky = cy + dy * radius * .65f;
@@ -1168,14 +1164,8 @@ void CTouchControls::FingerMotion(touch_event_t *ev) // finger in my ass
 			}
 			else if( btn->type == touch_look )
 			{
-#if defined(IOS)
-				float radius = min(screen_w, screen_h) * .14f;
-				lookStickX = clamp((x - look_start_x) * screen_w / radius, -1.f, 1.f);
-				lookStickY = clamp((y - look_start_y) * screen_h / radius, -1.f, 1.f);
-#else
 				yaw += ev->dx;
 				pitch += ev->dy;
-#endif
 			}
 		}
 	}
@@ -1198,6 +1188,18 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 				if( btn->flags & TOUCH_FL_HIDE )
 					continue;
 
+#if defined(IOS)
+				if (btn->type == touch_look) {
+					bool controlHit = false;
+					for (auto other = btns.begin(); other != btns.end(); ++other) {
+						CTouchButton *control = *other;
+						if (control->type != touch_look && !(control->flags & TOUCH_FL_HIDE) &&
+						    x > control->x1 && x < control->x2 && y > control->y1 && y < control->y2)
+							controlHit = true;
+					}
+					if (controlHit) continue;
+				}
+#endif
 				btn->finger = ev->fingerid;
 				if( btn->type == touch_move  )
 				{
@@ -1218,10 +1220,6 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 				{
 					if( look_finger == -1 ) {
 						look_finger = ev->fingerid;
-#if defined(IOS)
-						look_start_x = (btn->x1 + btn->x2) / 2;
-						look_start_y = (btn->y1 + btn->y2) / 2;
-#endif
 					}
 					else
 						btn->finger = look_finger;
@@ -1251,9 +1249,6 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 				}
 				else if( btn->type == touch_look ) {
 					look_finger = -1;
-#if defined(IOS)
-					lookStickX = lookStickY = 0;
-#endif
 				}
 				else if( btn->command[0] == '+' )
 				{

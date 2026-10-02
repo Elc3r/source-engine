@@ -23,9 +23,18 @@ int TouchSDLWatcher( void *userInfo, SDL_Event *event )
 	if( !event || !pInputSystem ) return 1;
 
 	switch ( event->type ) {
+#if defined(IOS)
+	case SDL_KEYDOWN:
+	case SDL_KEYUP:
+		pInputSystem->SDLKeyboardEvent(event->key.keysym.scancode, event->type == SDL_KEYDOWN, event->key.repeat != 0);
+		break;
+#endif
 	case SDL_APP_WILLENTERBACKGROUND:
 	case SDL_APP_TERMINATING:
 		pInputSystem->CancelTouch();
+#if defined(IOS)
+		pInputSystem->ResetInputState();
+#endif
 		break;
 	case SDL_WINDOWEVENT:
 		if ( event->window.event == SDL_WINDOWEVENT_FOCUS_LOST
@@ -33,7 +42,12 @@ int TouchSDLWatcher( void *userInfo, SDL_Event *event )
 		     || event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED
 #endif
 		   )
+		{
 			pInputSystem->CancelTouch();
+#if defined(IOS)
+			pInputSystem->ResetInputState();
+#endif
+		}
 		break;
 	case SDL_FINGERDOWN:
 		pInputSystem->SDLFingerEvent( IE_FingerDown, event->tfinger.touchId, event->tfinger.fingerId, event->tfinger.x, event->tfinger.y, event->tfinger.dx, event->tfinger.dy );

@@ -1960,4 +1960,32 @@ the player, loading restored (-544, -368.8, 160; yaw -170), signon FULL and live
 rendering with GL error 0. Previously generated saves may lack sidecar payloads;
 they cannot be reconstructed from the broken archive, so hardware verification
 must include creating and loading a fresh save. The new filesystem regression
-probe and full simulator gameplay startup passed. The v6 IPA needs hardware testing.
+probe and full simulator gameplay startup passed. The user subsequently confirmed saved-game loading works on hardware with v6.
+
+
+### Mobile look, FPS and simulator keyboard
+
+The iOS look region now covers the whole screen except visible movement/action
+controls. Camera rotation follows finger deltas and stops when the finger stops;
+the right stick is removed, while the left movement stick stays visible.
+Touches starting on joystick/buttons do not also claim the look region.
+
+The live UIKit status panel displays presented frames per second, sampled over
+half-second wall-clock windows. Sampling resets on backgrounding; the JSON
+report includes `fps` for live frames. This is presentation rate, not a server
+simulation tick counter or a GPU benchmark.
+
+SDL keyboard events now reach engine button events and native bindings. The
+simulator also has a transparent UIKit key responder without a touch hit region
+or software keyboard. Enable **Capture Keyboard** in Device Hub (already enabled
+for this session), and focus the simulator window. Default bindings are:
+
+- W/A/S/D: movement; arrows: look; Space: jump; E: use; left Ctrl: crouch.
+- F/G: primary/secondary fire; F5: quicksave; F9: quickload; Escape: game menu.
+
+Existing nonempty bindings are preserved. Focus/background/rotation cancellation
+releases held keyboard and touch controls. Client input/codec regression checks
+pass for simultaneous movement/look, stationary-finger camera, left free-screen
+look, WASD and key release; the client lifecycle and live game startup pass.
+Native Device Hub W/S presses changed player position, and the watched simulator
+shows the FPS panel and only the left stick. The v7 IPA needs hardware testing.
