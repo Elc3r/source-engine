@@ -66,10 +66,14 @@ extern "C" int InitializePortalGame(const char *directory,CreateInterfaceFn appl
         passed=ShutdownPortalServer();
         snprintf(startupDetail,sizeof(startupDetail),"Portal server DLLInit/DLLShutdown + game cvar cleanup + engine cvar preservation: %s",passed?"PASS":"FAIL");
     }
-    if (passed && !strcmp(mode,"client")) {
+    if (passed && (!strcmp(mode,"client") || !strcmp(mode,"client-cycle"))) {
         snprintf(path,sizeof(path),"%s/libclient.dylib",directory);
         if (!modules[0]) modules[0]=Sys_LoadModule(path);
         passed=InitializePortalClient(modules[0]?Sys_GetFactory(modules[0]):NULL,startupDetail,sizeof(startupDetail));
+    }
+    if (passed && !strcmp(mode,"client-cycle")) {
+        passed=ShutdownPortalServer();
+        snprintf(startupDetail,sizeof(startupDetail),"Portal client Init/PostInit/Shutdown + engine VGUI/GameUI lifecycle + server lifecycle + cvar cleanup: %s",passed?"PASS":"FAIL");
     }
     if (getenv("SOURCE_IOS_VGUI_CHECK")) {
         size_t used=strlen(startupDetail);

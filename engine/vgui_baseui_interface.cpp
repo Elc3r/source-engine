@@ -726,6 +726,7 @@ void CEngineVGui::Init()
 		staticGameDLLPanel->SetVisible( false );
 	}
 
+#if !defined(IOS)
 	if ( IsPC() )
 	{
 		COM_TimestampedLog( "Building Panels (staticDebugSystemPanel)" );
@@ -760,12 +761,14 @@ void CEngineVGui::Init()
 		colorcorrectiontools->Init();
 	}
 
+#endif
 	// Make sure this is on top of everything
 	staticFocusOverlayPanel = new CFocusOverlayPanel( staticPanel, "FocusOverlayPanel" );
 	staticFocusOverlayPanel->SetBounds( 0, 0, videomode->GetModeUIWidth(), videomode->GetModeUIHeight() );
 	staticFocusOverlayPanel->SetZPos( 150 );
 	staticFocusOverlayPanel->MoveToFront();
 
+#if !defined(IOS)
 	// Create engine vgui panels
 	if ( IsPC() )
 	{
@@ -775,6 +778,7 @@ void CEngineVGui::Init()
 		CL_CreateTextureListPanel( staticEngineToolsPanel );
 		CreateVProfPanels( staticEngineToolsPanel );
 	}
+#endif
 	staticEngineToolsPanel->LoadControlSettings( "scripts/EngineVGuiLayout.res" );
 
 	COM_TimestampedLog( "materials->CacheUsedMaterials()" );
@@ -916,6 +920,7 @@ void CEngineVGui::Shutdown()
 		vgui::system()->ShellExecute("open", "steam://store_demo/400");
 	}
 
+#if !defined(IOS)
 	DestroyVProfPanels();
 	bugreporter->Shutdown();
 	colorcorrectiontools->Shutdown();
@@ -928,6 +933,7 @@ void CEngineVGui::Shutdown()
 		g_PluginManager->Shutdown();
 	}
 
+#endif
 	// HACK HACK: There was a bug in the old versions of the viewport which would crash in the case where the client .dll hadn't been fully unloaded, so
 	//  we'll leak this panel here instead!!!
 	if ( g_bUsingLegacyAppSystems )

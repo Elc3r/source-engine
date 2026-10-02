@@ -1569,17 +1569,29 @@ The normal teardown shuts down the game before its service dependencies.
 removal of game cvars, preservation of engine cvars, and subsequent map rendering.
 The result is in the `game_startup` field of `Documents/togles.json`.
 
-`--game-startup client` checks readiness for the original client `Init`. Input,
-VGUI and `MatSystemSurface008` are now available. Startup remains blocked because
-the engine's VGUI root panels have not been initialized. The preflight reports this
-before entering client initialization; absent engine panels return a null handle
-rather than causing a null dereference. Original engine/GameUI startup is still
-required before the full client can initialize.
+`--game-startup client` initializes the original engine VGUI roots, GameUI,
+Portal client `Init`/`PostInit`, and GameUI's connection to client exports.
+The engine's real video mode adopts the existing UIKit/SDL drawable dimensions;
+it does not enumerate desktop modes or create another window. All six engine
+root panels are checked for valid handles and dimensions, and the root must be
+attached to the material surface's embedded panel. Client cvars must retain their
+own ownership while engine cvars remain intact.
+
+GameUI resources are read from the existing platform directory/VPK. Native module
+lookup uses the packaged Frameworks directory. `CONFIG`, `DEFAULT_WRITE_PATH` and
+the first `MOD` write path use SDL's application sandbox; game data remains read-only.
+Desktop diagnostics/tool panels are omitted from UIKit startup.
+
+`--game-startup client-cycle` additionally runs original client, GameUI/engine UI
+and server shutdown, checks panel/cvar cleanup, and then renders the inspection
+map. The client VGUI resolution callback is registered during startup and removed
+before panel destruction so a later renderer resize cannot access dead panels.
+
 A failure remains a failed probe, never a successful gameplay result.
 
 Server DLL initialization does not call `LevelInit`, create edicts/player entities
 or advance `GameFrame`. The displayed scene is still the inspection renderer.
-Client startup and the actual map/player game loop are the next steps.
+The actual map/player game loop and input dispatch are the next steps.
 
 ### Shared touch input preparation
 
@@ -1590,8 +1602,8 @@ motions/releases are ignored. Accumulator reads reject invalid indices.
 Background entry, termination and focus loss emit releases for all held contacts.
 Touch initialization now sets its own flag, and input-system shutdown removes the
 watcher. This prepares the existing `IN_TouchEvent` / `CUserCmd` path; it does not
-replace the inspector camera or complete client startup. The standalone iOS input and VGUI services are now integrated; engine root-panel
-startup and dispatch into the client game loop are still pending.
+replace the inspector camera. Input, VGUI, engine roots and client startup are now
+integrated; dispatch into the client game loop remains pending.
 
 Validation: iOS touch translation-unit compilation and PortalCLIENT archive build
 passed. An isolated host harness executing the actual touch method bodies passed
@@ -1667,5 +1679,5 @@ success is recorded as `iOS VGUI integration: PASS` in `game_startup`. Rendering
 map afterward verifies that the fixture restored the render target and viewport.
 
 This does not yet display player HUD/touch buttons. The next dependency is the
-engine root-panel hierarchy and GameUI startup, followed by client initialization
-and actual input dispatch/game frames.
+actual input dispatch and map/player game frames. Engine roots, GameUI and client
+Init/PostInit are available through the startup modes above.

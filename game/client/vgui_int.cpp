@@ -161,8 +161,6 @@ static void VGui_OneTimeInit()
 
 	vgui::Panel::AddPropertyConverter( "CHudTextureHandle", &textureHandleConverter );
 
-
-    g_pMaterialSystem->AddModeChangeCallBack( &VGui_VideoMode_AdjustForModeChange );
 }
 
 bool VGui_Startup( CreateInterfaceFn appSystemFactory )
@@ -190,6 +188,7 @@ bool VGui_Startup( CreateInterfaceFn appSystemFactory )
 	{
 		return false;
 	}
+	g_pMaterialSystem->AddModeChangeCallBack( &VGui_VideoMode_AdjustForModeChange );
 	return true;
 }
 
@@ -229,6 +228,7 @@ void VGui_CreateGlobalPanels( void )
 
 void VGui_Shutdown()
 {
+	g_pMaterialSystem->RemoveModeChangeCallBack( &VGui_VideoMode_AdjustForModeChange );
 	VGUI_DestroyClientDLLRootPanel();
 
 #ifndef _X360

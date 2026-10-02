@@ -8,14 +8,18 @@
 #include "host.h"
 #include "icvar.h"
 #include "tier1/tier1.h"
+#include "tier3/tier3.h"
 #include "server_class.h"
 #include "tier0/icommandline.h"
 #include "vgui_baseui_interface.h"
+#include "ivideomode.h"
+#include "vgui/IPanel.h"
+#include "vgui/ISurface.h"
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
 namespace {
-bool initialized=false,clientInitialized=false;
+bool initialized=false,clientInitialized=false,uiInitialized=false;
 ConVar *engineCheats=NULL;
 CreateInterfaceFn applicationFactory=NULL;
 char lastInterface[128]={};
@@ -61,11 +65,23 @@ extern "C" bool SourceIOSInitializePortalServer(CreateInterfaceFn gameFactory,ch
 }
 extern "C" bool SourceIOSShutdownPortalServer() {
     bool valid=true;
-    if (clientInitialized && g_ClientDLL) g_ClientDLL->Shutdown();
+    if (clientInitialized && g_ClientDLL) {
+        Msg("iOS Portal client Shutdown: begin\n");
+        g_ClientDLL->Shutdown();
+        valid=!g_pCVar->FindVar("cl_drawhud");
+        Msg("iOS Portal client Shutdown + client cvar cleanup: %s\n",valid?"PASS":"FAIL");
+    }
     clientInitialized=false; g_ClientDLL=NULL; g_ClientFactory=NULL;
+    if (uiInitialized) {
+        EngineVGui()->Shutdown();
+        valid=valid && !EngineVGui()->IsInitialized() && !EngineVGui()->GetPanel(PANEL_CLIENTDLL);
+        Msg("iOS engine VGUI Shutdown + root cleanup: %s\n",valid?"PASS":"FAIL");
+    }
+    uiInitialized=false;
+    VideoMode_Destroy();
     if (initialized && serverGameDLL) {
         serverGameDLL->DLLShutdown();
-        valid=!g_pCVar->FindVar("sv_portal_placement_never_fail") &&
+        valid=valid && !g_pCVar->FindVar("sv_portal_placement_never_fail") &&
             engineCheats && g_pCVar->FindVar("sv_cheats")==engineCheats;
     }
     initialized=false; serverGameDLL=NULL; serverGameClients=NULL;
@@ -76,6 +92,32 @@ extern "C" bool SourceIOSShutdownPortalServer() {
 extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity) {
     if (!initialized || !gameFactory) { snprintf(detail,capacity,"Portal client: server/factory unavailable"); return false; }
     applicationFactory=g_AppSystemFactory;
+    if (!uiInitialized) {
+        // Map loading connected tier 3 before the optional UI services existed.
+        // Refresh those bindings now that the full real service group is loaded.
+        DisconnectTier3Libraries();
+        ConnectTier3Libraries(&applicationFactory,1);
+        VideoMode_Create();
+        if (!videomode || !videomode->Init()) {
+            snprintf(detail,capacity,"Portal client: UIKit video mode unavailable"); return false;
+        }
+        Msg("iOS engine VGUI Init: begin (%d x %d)\n",videomode->GetModeUIWidth(),videomode->GetModeUIHeight());
+        EngineVGui()->Init();
+        uiInitialized=EngineVGui()->IsInitialized();
+        const VGuiPanel_t roots[]={PANEL_ROOT,PANEL_CLIENTDLL,PANEL_GAMEUIDLL,PANEL_TOOLS,PANEL_GAMEDLL,PANEL_CLIENTDLL_TOOLS};
+        for (VGuiPanel_t type : roots) {
+            vgui::VPANEL panel=EngineVGui()->GetPanel(type);
+            int width=0,height=0;
+            if (panel) g_pVGuiPanel->GetSize(panel,width,height);
+            if (!panel || width!=videomode->GetModeUIWidth() || height!=videomode->GetModeUIHeight()) {
+                snprintf(detail,capacity,"Portal client: engine VGUI root %d size/handle invalid",int(type)); return false;
+            }
+        }
+        if (g_pVGuiPanel->GetParent(EngineVGui()->GetPanel(PANEL_ROOT))!=g_pVGuiSurface->GetEmbeddedPanel()) {
+            snprintf(detail,capacity,"Portal client: engine VGUI root is detached"); return false;
+        }
+        Msg("iOS engine VGUI Init: %s\n",uiInitialized?"PASS":"FAIL");
+    }
     if (applicationFactory("MatSystemSurface008",NULL) && !EngineVGui()->GetPanel(PANEL_CLIENTDLL)) {
         snprintf(detail,capacity,"Portal server DLLInit: PASS; client Init blocked: engine VGUI root panels are not initialized");
         Msg("%s\n",detail); return false;
@@ -85,13 +127,19 @@ extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,ch
     g_ClientDLL=static_cast<IBaseClientDLL *>(gameFactory(CLIENT_DLL_INTERFACE_VERSION,NULL));
     bool started=g_ClientDLL && g_ClientDLL->Init(StartupFactory,StartupFactory,&g_ClientGlobalVariables);
     clientInitialized=started;
+    if (started) {
+        g_ClientDLL->PostInit();
+        EngineVGui()->Connect(); EngineVGui()->PostInit();
+        ConVar *hud=g_pCVar->FindVar("cl_drawhud");
+        started=hud && hud->IsFlagSet(FCVAR_CLIENTDLL) && g_pCVar->FindVar("sv_cheats")==engineCheats;
+    }
     // The client also checks tier-connected globals after its direct queries.
     if (!started && lastAvailable && !applicationFactory("MatSystemSurface008",NULL)) {
         Q_strncpy(lastInterface,"MatSystemSurface008",sizeof(lastInterface));
         lastAvailable=false;
     }
-    if (!started) { g_ClientDLL=NULL; g_ClientFactory=NULL; }
-    snprintf(detail,capacity,"Portal server DLLInit: PASS; client Init: %s%s%s",started?"PASS":"FAIL",
+    if (!started && !clientInitialized) { g_ClientDLL=NULL; g_ClientFactory=NULL; }
+    snprintf(detail,capacity,"Portal server DLLInit: PASS; client Init/PostInit + engine VGUI roots + client cvar ownership: %s%s%s",started?"PASS":"FAIL",
         !started && !lastAvailable?"; unavailable interface ":"",
         !started && !lastAvailable?lastInterface:"");
     Msg("%s\n",detail); return started;

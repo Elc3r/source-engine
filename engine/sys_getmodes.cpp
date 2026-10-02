@@ -2288,6 +2288,25 @@ CVideoMode_MaterialSystem::CVideoMode_MaterialSystem( )
 //-----------------------------------------------------------------------------
 bool CVideoMode_MaterialSystem::Init( )
 {
+#if defined(IOS)
+    // UIKit/SDL already created the native window and renderer. Adopt its
+    // drawable dimensions without desktop enumeration or a second window.
+    SDL_Window *window = SDL_GetKeyboardFocus();
+    if (!window) return false;
+    SDL_GL_GetDrawableSize(window, &m_nModeWidth, &m_nModeHeight);
+    if (m_nModeWidth <= 0 || m_nModeHeight <= 0) return false;
+    m_nStereoWidth = m_nUIWidth = m_nRenderWidth = m_nModeWidth;
+    m_nStereoHeight = m_nUIHeight = m_nRenderHeight = m_nModeHeight;
+    m_bWindowed = true;
+    m_bSetModeOnce = true;
+    m_bPlayedStartupVideo = false;
+    DefaultVideoMode().width = m_nModeWidth;
+    DefaultVideoMode().height = m_nModeHeight;
+    m_bClientViewRectDirty = true;
+    m_bInitialized = true;
+    return true;
+#endif
+
     m_bSetModeOnce = false;
     m_bPlayedStartupVideo = false;
 

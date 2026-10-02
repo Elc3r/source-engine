@@ -4,6 +4,7 @@
 #include "vgui/IVGui.h"
 #include "vgui/ISurface.h"
 #include <dlfcn.h>
+#include "SDL.h"
 #include <stdlib.h>
 #include "filesystem.h"
 #include "tier2/tier2.h"
@@ -143,6 +144,14 @@ bool MountRequestedWorldData(char *detail, size_t capacity)
     g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
     Q_snprintf(path,sizeof(path),"%s/portal",root);
     g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    Q_snprintf(path,sizeof(path),"%s/platform/platform_misc_dir.vpk",root);
+    g_pFullFileSystem->AddSearchPath(path,"PLATFORM",PATH_ADD_TO_TAIL);
+    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_TAIL);
+    Q_snprintf(path,sizeof(path),"%s/platform",root);
+    g_pFullFileSystem->AddSearchPath(path,"PLATFORM",PATH_ADD_TO_HEAD);
+    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_TAIL);
+    Q_snprintf(path,sizeof(path),"%s/portal",root);
+    g_pFullFileSystem->AddSearchPath(path,"MOD",PATH_ADD_TO_TAIL);
     return true;
 }
 
@@ -197,6 +206,14 @@ extern "C" void MoveSourceWorldCamera(float forward, float right, float yaw, flo
 
 bool InitializeGameServices(const char *directory,CreateInterfaceFn factory,char *detail,size_t capacity)
 {
+    g_pFullFileSystem->AddSearchPath(directory,"EXECUTABLE_PATH",PATH_ADD_TO_HEAD);
+    char *writePath=SDL_GetPrefPath("SourceEngine","Portal");
+    if (!writePath) { snprintf(detail,capacity,"Portal writable sandbox path unavailable"); return false; }
+    g_pFullFileSystem->AddSearchPath(writePath,"DEFAULT_WRITE_PATH",PATH_ADD_TO_HEAD);
+    g_pFullFileSystem->AddSearchPath(writePath,"MOD",PATH_ADD_TO_HEAD);
+    char configPath[MAX_PATH]; Q_snprintf(configPath,sizeof(configPath),"%sconfig",writePath);
+    g_pFullFileSystem->AddSearchPath(configPath,"CONFIG",PATH_ADD_TO_HEAD);
+    SDL_free(writePath);
     const char *names[]={"soundemittersystem","scenefilecache","inputsystem","vgui2","vguimatsurface"};
     const char *interfaces[]={"VSoundEmitter002","SceneFileCache002","InputSystemVersion001","VGUI_ivgui008","VGUI_Surface030"};
     // VGUI and its surface query each other during Connect. Publish every
