@@ -88,3 +88,49 @@ target_link_libraries(inputsystem PRIVATE PortalSupport ${IOS_SDL_TARGET})
 target_include_directories(inputsystem PRIVATE ../../inputsystem)
 target_compile_definitions(inputsystem PRIVATE VERSION_SAFE_STEAM_API_INTERFACES=1)
 add_dependencies(PortalGameModules soundemittersystem scenefilecache inputsystem)
+
+# Reuse the repository's FreeType and original VGUI implementation.
+set(FT_DISABLE_ZLIB OFF CACHE BOOL "" FORCE)
+set(FT_REQUIRE_ZLIB ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+set(_ios_vgui_shared_libs "${BUILD_SHARED_LIBS}")
+set(BUILD_SHARED_LIBS OFF)
+add_subdirectory(../../thirdparty/freetype freetype EXCLUDE_FROM_ALL)
+set(BUILD_SHARED_LIBS "${_ios_vgui_shared_libs}")
+unset(_ios_vgui_shared_libs)
+set_target_properties(freetype PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
+add_library(IOSVGUISurfaceLib STATIC EXCLUDE_FROM_ALL ${IOS_SURFACELIB_SOURCES} IOSFontLookup.cpp)
+add_library(vgui2 SHARED EXCLUDE_FROM_ALL ${IOS_VGUI_SOURCES} ../../tier1/interface.cpp)
+# The Waf list contains empty ASAN VPanel stubs. Use the real panel methods:
+# the surface traverses panels allocated by IVGui across the module boundary.
+list(FILTER IOS_MATSURFACE_SOURCES EXCLUDE REGEX "/asanstubs\\.cpp$")
+add_library(vguimatsurface SHARED EXCLUDE_FROM_ALL ${IOS_MATSURFACE_SOURCES}
+    ../../vgui2/src/VPanel.cpp ../../vgui2/src/vgui_internal.cpp ../../tier1/interface.cpp)
+foreach(module IN ITEMS IOSVGUISurfaceLib vgui2 vguimatsurface)
+    target_compile_features(${module} PRIVATE cxx_std_11)
+    target_compile_options(${module} PRIVATE -fsigned-char)
+    target_compile_definitions(${module} PRIVATE
+        $<TARGET_PROPERTY:PortalSupport,COMPILE_DEFINITIONS>
+        DONT_PROTECT_FILEIO_FUNCTIONS=1 DX_TO_GL_ABSTRACTION=1 TOGLES=1)
+    target_include_directories(${module} PRIVATE
+        $<TARGET_PROPERTY:PortalSupport,INCLUDE_DIRECTORIES>
+        ../../vgui2/src ../../vgui2/vgui_surfacelib ../../vguimatsurface
+        ../../thirdparty/freetype/include)
+    target_link_libraries(${module} PRIVATE freetype)
+endforeach()
+foreach(module IN ITEMS vgui2 vguimatsurface)
+    target_link_libraries(${module} PRIVATE PortalSupport EngineVGUIControls
+        IOSVGUISurfaceLib IOSImage ToGLESRuntime ${IOS_SDL_TARGET}
+        "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/mathlib/libmathlib.a"
+        "${ENGINE_BUILD}/tier0/libtier0.dylib" "-framework CoreText" "-framework CoreFoundation")
+    target_link_options(${module} PRIVATE "-Wl,-exported_symbol,_CreateInterface")
+    set_target_properties(${module} PROPERTIES
+        BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
+endforeach()
+target_sources(vguimatsurface PRIVATE VGUIChecks.cpp)
+target_link_options(vguimatsurface PRIVATE "-Wl,-exported_symbol,_SourceIOSCheckVGUI")
+target_compile_definitions(vguimatsurface PRIVATE VGUIMATSURFACE_DLL_EXPORT=1 GAMEUI_EXPORTS=1)
+add_dependencies(PortalGameModules vgui2 vguimatsurface)

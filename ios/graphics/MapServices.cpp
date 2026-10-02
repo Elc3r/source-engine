@@ -1,6 +1,8 @@
 #include "MapServices.h"
 #include "InputChecks.h"
 #include "inputsystem/iinputsystem.h"
+#include "vgui/IVGui.h"
+#include "vgui/ISurface.h"
 #include <dlfcn.h>
 #include <stdlib.h>
 #include "filesystem.h"
@@ -14,14 +16,14 @@
 #include "tier1/strtools.h"
 
 namespace {
-CSysModule *modules[6]={};
-CreateInterfaceFn factories[6]={};
+CSysModule *modules[8]={};
+CreateInterfaceFn factories[8]={};
 struct Service { IAppSystem *system; bool connected, initialized; };
 Service services[4]={};
 CSysModule *loaderModule=NULL;
 decltype(&SourceIOSShutdownMapLoader) stopLoader=NULL;
-IAppSystem *gameServices[3]={};
-bool gameConnected[3]={},gameInitialized[3]={};
+IAppSystem *gameServices[5]={};
+bool gameConnected[5]={},gameInitialized[5]={};
 bool worldLoaded=false;
 char worldDetail[512]={};
 }
@@ -29,6 +31,10 @@ void *QueryMapService(const char *name)
 {
     for (CreateInterfaceFn factory : factories)
         if (factory) if (void *result=factory(name,NULL)) return result;
+    // Original app-system groups also expose each loaded system's secondary
+    // interfaces (notably IMatSystemSurface), rather than only DLL registries.
+    for (IAppSystem *service : gameServices)
+        if (service) if (void *result=service->QueryInterface(name)) return result;
     if (loaderModule) {
         CreateInterfaceFn engine=Sys_GetFactory(loaderModule);
         if (engine) if (void *result=engine(name,NULL)) return result;
@@ -42,9 +48,9 @@ void ShutdownMapServices()
         Stop stop=reinterpret_cast<Stop>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSShutdownPortalServer"));
         if (stop) stop();
     }
-    for (int i=2;i>=0;--i) if (gameInitialized[i]) gameServices[i]->Shutdown();
-    for (int i=2;i>=0;--i) if (gameConnected[i]) gameServices[i]->Disconnect();
-    for (int i=5;i>=3;--i) {
+    for (int i=4;i>=0;--i) if (gameInitialized[i]) gameServices[i]->Shutdown();
+    for (int i=4;i>=0;--i) if (gameConnected[i]) gameServices[i]->Disconnect();
+    for (int i=7;i>=3;--i) {
         factories[i]=NULL;
         if (modules[i]) Sys_UnloadModule(modules[i]);
         modules[i]=NULL; gameServices[i-3]=NULL;
@@ -191,21 +197,35 @@ extern "C" void MoveSourceWorldCamera(float forward, float right, float yaw, flo
 
 bool InitializeGameServices(const char *directory,CreateInterfaceFn factory,char *detail,size_t capacity)
 {
-    const char *names[]={"soundemittersystem","scenefilecache","inputsystem"};
-    const char *interfaces[]={"VSoundEmitter002","SceneFileCache002","InputSystemVersion001"};
-    for (int i=3;i<6;++i) {
+    const char *names[]={"soundemittersystem","scenefilecache","inputsystem","vgui2","vguimatsurface"};
+    const char *interfaces[]={"VSoundEmitter002","SceneFileCache002","InputSystemVersion001","VGUI_ivgui008","VGUI_Surface030"};
+    // VGUI and its surface query each other during Connect. Publish every
+    // factory first, then connect all systems before initializing any of them.
+    for (int i=3;i<8;++i) {
         char path[MAX_PATH]; Q_snprintf(path,sizeof(path),"%s/lib%s.dylib",directory,names[i-3]);
         modules[i]=Sys_LoadModule(path); factories[i]=modules[i]?Sys_GetFactory(modules[i]):NULL;
-        IAppSystem *service=factories[i]?static_cast<IAppSystem *>(factories[i](interfaces[i-3],NULL)):NULL;
-        gameServices[i-3]=service;
-        if (!service || !service->Connect(factory)) {
-            snprintf(detail,capacity,"Portal game service %s Connect failed",names[i-3]); return false;
+        gameServices[i-3]=factories[i]?static_cast<IAppSystem *>(factories[i](interfaces[i-3],NULL)):NULL;
+        if (!gameServices[i-3]) {
+            snprintf(detail,capacity,"Portal game service %s load failed",names[i-3]); return false;
         }
-        gameConnected[i-3]=true;
-        if (service->Init()!=INIT_OK) {
-            snprintf(detail,capacity,"Portal game service %s Init failed",names[i-3]); return false;
+    }
+    for (int i=0;i<5;++i) {
+        if (!gameServices[i]->Connect(factory)) {
+            gameServices[i]->Disconnect();
+            snprintf(detail,capacity,"Portal game service %s Connect failed",names[i]); return false;
         }
-        gameInitialized[i-3]=true;
+        gameConnected[i]=true;
+    }
+    for (int i=0;i<5;++i) {
+        if (gameServices[i]->Init()!=INIT_OK) {
+            snprintf(detail,capacity,"Portal game service %s Init failed",names[i]); return false;
+        }
+        gameInitialized[i]=true;
+    }
+    if (getenv("SOURCE_IOS_VGUI_CHECK")) {
+        typedef bool (*Check)(char *,size_t);
+        Check check=reinterpret_cast<Check>(GetProcAddress(reinterpret_cast<void *>(modules[7]),"SourceIOSCheckVGUI"));
+        if (!check || !check(detail,capacity)) return false;
     }
     if (getenv("SOURCE_IOS_INPUT_CHECK") && !CheckIOSInput(static_cast<IInputSystem *>(QueryMapService(INPUTSYSTEM_INTERFACE_VERSION)))) {
         snprintf(detail,capacity,"iOS input integration: FAIL"); return false;

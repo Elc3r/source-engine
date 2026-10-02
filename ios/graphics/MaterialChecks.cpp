@@ -552,3 +552,22 @@ extern "C" int IsSourceWorldMapRendered()
     return HasLoadedWorldMap() && livePresentation && livePresentation->valid &&
         livePresentation->worldPixelsVerified;
 }
+
+// VGUI integration samples the active native backbuffer without constructing a
+// full-screen D3D staging texture. Coordinates follow VGUI's top-left origin.
+extern "C" bool SourceIOSReadSurfacePixels(IMatRenderContext *context,int x,int y,
+    int width,int height,unsigned char *pixels)
+{
+    context->Flush();
+    int vx=0,vy=0,vw=0,vh=0; context->GetViewport(vx,vy,vw,vh);
+    GLint read=0,draw=0;
+    gGL->glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING,&read);
+    gGL->glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING,&draw);
+    gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,draw);
+    // The D3D-to-GL renderer reverses projection Y for offscreen targets.
+    // Window pixels need the usual GL bottom-left conversion.
+    int readY=context->GetRenderTarget() ? vy+y : vy+vh-y-height;
+    gGL->glReadPixels(vx+x,readY,width,height,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+    gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER,read);
+    return gGL->glGetError()==GL_NO_ERROR;
+}

@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>
@@ -549,7 +549,10 @@ char *CLinuxFont::GetFontFileName( const char *windowsFontName, int flags )
 	if ( !Q_stricmp( pchFontName, "Helvetica Bold" ) )
 		pchFontName = "Helvetica";
 
-#if !HAVE_FC
+#if defined(IOS)
+	extern char *SourceIOSFontFileName(const char *, bool, bool);
+	return SourceIOSFontFileName(windowsFontName, bBold, flags & vgui::ISurface::FONTFLAG_ITALIC);
+#elif !HAVE_FC
 	char *filename = TryFindFont( windowsFontName, bBold, flags & vgui::ISurface::FONTFLAG_ITALIC );
 	if( !filename ) return NULL;
 	Msg("Found font: %s\n", filename);

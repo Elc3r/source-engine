@@ -42,6 +42,20 @@ def main():
         lines.append('list(APPEND PORTAL_SUPPORT_SOURCES')
         lines.extend('  "'+str((directory / name).resolve())+'"' for name in ast.literal_eval(source))
         lines.append(')')
+    for module, variable, extra in (
+        ('vgui2/src', 'IOS_VGUI_SOURCES', ['system_posix.cpp']),
+        ('vguimatsurface', 'IOS_MATSURFACE_SOURCES', []),
+        ('vgui2/vgui_surfacelib', 'IOS_SURFACELIB_SOURCES', ['linuxfont.cpp'])):
+        directory = ROOT / module
+        tree = ast.parse((directory / 'wscript').read_text())
+        build = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == 'build')
+        source = next(n.value for n in build.body if isinstance(n, ast.Assign)
+                      and any(isinstance(t, ast.Name) and t.id == 'source' for t in n.targets))
+        names = ast.literal_eval(source) + extra
+        lines.append('set(' + variable)
+        lines.extend('  "' + str((directory / name).resolve()) + '"'
+                     for name in names if not name.endswith('memoverride.cpp'))
+        lines.append(')')
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text('\n'.join(lines)+'\n')
 

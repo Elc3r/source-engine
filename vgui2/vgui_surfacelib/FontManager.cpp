@@ -594,7 +594,7 @@ FallbackFont_t g_FallbackFonts[] =
 	{ "Tahoma", NULL },
 	{ NULL, "Tahoma" },		// every other font falls back to this
 };
-#elif defined(OSX)
+#elif defined(OSX) || defined(IOS)
 static const char *g_szValidAsianFonts[] = { "Apple Symbols", NULL };
 // list of how fonts fallback
 FallbackFont_t g_FallbackFonts[] =
@@ -670,7 +670,7 @@ const char *CFontManager::GetForeignFallbackFontName()
 #ifdef WIN32
 	// tahoma has all the necessary characters for asian/russian languages for winXP/2K+
 	return "Tahoma";
-#elif defined(OSX)
+#elif defined(OSX) || defined(IOS)
 	return "Helvetica";
 #elif defined(LINUX) || defined(PLATFORM_BSD)
 	return "WenQuanYi Zen Hei";

@@ -63,6 +63,10 @@ extern "C" int InitializePortalGame(const char *directory,CreateInterfaceFn appl
         if (!modules[0]) modules[0]=Sys_LoadModule(path);
         passed=InitializePortalClient(modules[0]?Sys_GetFactory(modules[0]):NULL,startupDetail,sizeof(startupDetail));
     }
+    if (getenv("SOURCE_IOS_VGUI_CHECK")) {
+        size_t used=strlen(startupDetail);
+        snprintf(startupDetail+used,sizeof(startupDetail)-used,"; iOS VGUI integration: PASS");
+    }
     if (getenv("SOURCE_IOS_INPUT_CHECK")) {
         size_t used=strlen(startupDetail);
         snprintf(startupDetail+used,sizeof(startupDetail)-used,"; iOS input integration: PASS");

@@ -10,6 +10,7 @@
 #include "tier1/tier1.h"
 #include "server_class.h"
 #include "tier0/icommandline.h"
+#include "vgui_baseui_interface.h"
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
@@ -75,6 +76,10 @@ extern "C" bool SourceIOSShutdownPortalServer() {
 extern "C" bool SourceIOSInitializePortalClient(CreateInterfaceFn gameFactory,char *detail,size_t capacity) {
     if (!initialized || !gameFactory) { snprintf(detail,capacity,"Portal client: server/factory unavailable"); return false; }
     applicationFactory=g_AppSystemFactory;
+    if (applicationFactory("MatSystemSurface008",NULL) && !EngineVGui()->GetPanel(PANEL_CLIENTDLL)) {
+        snprintf(detail,capacity,"Portal server DLLInit: PASS; client Init blocked: engine VGUI root panels are not initialized");
+        Msg("%s\n",detail); return false;
+    }
     lastInterface[0]=0;
     g_ClientFactory=gameFactory;
     g_ClientDLL=static_cast<IBaseClientDLL *>(gameFactory(CLIENT_DLL_INTERFACE_VERSION,NULL));

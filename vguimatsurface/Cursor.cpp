@@ -412,8 +412,14 @@ void HideHardwareCursor()
 	//if ( s_hCurrentlySetCursor != s_pDefaultCursor[ dc_none ] )
 	{
 		s_hCurrentlySetCursor = s_pDefaultCursor[ dc_none ];
-		g_pLauncherMgr->SetMouseCursor( s_hCurrentlySetCursor );
-		g_pLauncherMgr->SetMouseVisible( false );
+		if ( g_pLauncherMgr ) g_pLauncherMgr->SetMouseCursor( s_hCurrentlySetCursor );
+#ifdef IOS
+		if ( s_hCurrentlySetCursor ) SDL_SetCursor( s_hCurrentlySetCursor );
+#endif
+		if ( g_pLauncherMgr ) g_pLauncherMgr->SetMouseVisible( false );
+#ifdef IOS
+		SDL_ShowCursor( SDL_DISABLE );
+#endif
 	}
 #else
 #error
@@ -440,8 +446,14 @@ void ActivateCurrentCursor()
 		if (s_hCurrentlySetCursor != s_hCurrentCursor )
 		{
 			s_hCurrentlySetCursor = s_hCurrentCursor;
-			g_pLauncherMgr->SetMouseCursor( s_hCurrentlySetCursor );
-			g_pLauncherMgr->SetMouseVisible( true );
+			if ( g_pLauncherMgr ) g_pLauncherMgr->SetMouseCursor( s_hCurrentlySetCursor );
+#ifdef IOS
+		if ( s_hCurrentlySetCursor ) SDL_SetCursor( s_hCurrentlySetCursor );
+#endif
+			if ( g_pLauncherMgr ) g_pLauncherMgr->SetMouseVisible( true );
+#ifdef IOS
+		SDL_ShowCursor( SDL_ENABLE );
+#endif
 		}
 #else
 #error
@@ -494,13 +506,14 @@ void CursorGetPos(void *hwnd, int &x, int &y)
 		int windowHeight = 0;
 		int windowWidth = 0;
 		//unsigned int ignored;
-		SDL_GetWindowSize( ( SDL_Window * )g_pLauncherMgr->GetWindowRef(), &windowWidth, &windowHeight );
+		SDL_Window *window = g_pLauncherMgr ? (SDL_Window *)g_pLauncherMgr->GetWindowRef() : SDL_GetKeyboardFocus();
+		if ( window ) SDL_GetWindowSize( window, &windowWidth, &windowHeight );
 
 		CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 		int rx, ry, width, height;
 		pRenderContext->GetViewport( rx, ry, width, height );
 	
-		if ( !s_bSoftwareCursorActive && (width != windowWidth || height != windowHeight )  )
+		if ( !s_bSoftwareCursorActive && windowWidth > 0 && windowHeight > 0 && (width != windowWidth || height != windowHeight )  )
 		{
 			// scale the x/y back into the co-ords of the back buffer, not the scaled up window 
 			//DevMsg( "Mouse x:%d y:%d %d %d %d %d\n", x, y, width, windowWidth, height, abs( height - windowHeight ) );

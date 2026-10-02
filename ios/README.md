@@ -1569,11 +1569,12 @@ The normal teardown shuts down the game before its service dependencies.
 removal of game cvars, preservation of engine cvars, and subsequent map rendering.
 The result is in the `game_startup` field of `Documents/togles.json`.
 
-`--game-startup client` also attempts the original client `Init`. This is currently
-a diagnostic that fails: the first unavailable required interface is
-`MatSystemSurface008`. The input system is now available; the original VGUI
-and material-system surface services must be integrated before client initialization
-can finish.
+`--game-startup client` checks readiness for the original client `Init`. Input,
+VGUI and `MatSystemSurface008` are now available. Startup remains blocked because
+the engine's VGUI root panels have not been initialized. The preflight reports this
+before entering client initialization; absent engine panels return a null handle
+rather than causing a null dereference. Original engine/GameUI startup is still
+required before the full client can initialize.
 A failure remains a failed probe, never a successful gameplay result.
 
 Server DLL initialization does not call `LevelInit`, create edicts/player entities
@@ -1589,8 +1590,8 @@ motions/releases are ignored. Accumulator reads reject invalid indices.
 Background entry, termination and focus loss emit releases for all held contacts.
 Touch initialization now sets its own flag, and input-system shutdown removes the
 watcher. This prepares the existing `IN_TouchEvent` / `CUserCmd` path; it does not
-replace the inspector camera or complete client startup. The standalone iOS input service is now integrated; original VGUI initialization
-and dispatch into the client game loop are still pending.
+replace the inspector camera or complete client startup. The standalone iOS input and VGUI services are now integrated; engine root-panel
+startup and dispatch into the client game loop are still pending.
 
 Validation: iOS touch translation-unit compilation and PortalCLIENT archive build
 passed. An isolated host harness executing the actual touch method bodies passed
@@ -1628,3 +1629,43 @@ removal or reinitialization. It runs before client/inspector contacts exist. The
 console and `game_startup` report `iOS input integration: PASS`; server-cycle and 120 rendered frames
 are verified separately by the usual result JSON. These are transport/lifecycle
 checks, not a claim that player movement or touch-button rendering is operational.
+
+
+### Original VGUI and material surface
+
+Game startup now loads `libvgui2.dylib` and `libvguimatsurface.dylib`. Their source
+lists come from the repository's Waf projects. All service factories are published
+before Connect/Init because the VGUI system and surface depend on each other.
+App-system `QueryInterface` supplies secondary interfaces such as
+`MatSystemSurface008`, matching the original app-framework lookup behavior.
+
+The surface uses the actual `VPanel` methods instead of the Waf list's empty ASAN
+stubs. UIKit/SDL handle cursors and URL opening without the desktop launcher or
+forking processes. CoreText resolves system font files; the repository's FreeType
+backend still produces the original metrics, glyph textures and font effects.
+Game fonts remain read directly through the existing filesystem. VGUI builds use
+the renderer's RGBA vertex-color convention (`DX_TO_GL_ABSTRACTION`), and teardown
+releases the embedded panel, glyph cache and retained font data while dependencies
+are still alive. FreeType uses SDK zlib; optional BZip2/PNG/HarfBuzz/Brotli features
+are disabled for this build.
+
+To verify actual panel traversal, clipping, vertex colors and Unicode glyph pixels:
+
+```sh
+SIMCTL_CHILD_SOURCE_IOS_VGUI_CHECK=1 SIMCTL_CHILD_SOURCE_IOS_INPUT_CHECK=1 \
+python3 scripts/build-ios-bootstrap.py --togles --game-modules \
+  --game-startup server-cycle --shader-cache build-ios-shaders/compiled \
+  --simulator BEF86C07-FE64-497C-A857-D21C42C19666 \
+  --portal-root /Users/vavrinakm/Games/Portal-arm64
+```
+
+The check paints real parent/child VGUI panels into a 256x128 color/depth render
+target. Pixel assertions verify a cyan quad, clipping at the child boundary, and
+white glyphs for `iOS Žluť` from CoreText/FreeType. Native readback accounts for the
+renderer's different window/offscreen projection orientation. Failures stop startup;
+success is recorded as `iOS VGUI integration: PASS` in `game_startup`. Rendering the
+map afterward verifies that the fixture restored the render target and viewport.
+
+This does not yet display player HUD/touch buttons. The next dependency is the
+engine root-panel hierarchy and GameUI startup, followed by client initialization
+and actual input dispatch/game frames.

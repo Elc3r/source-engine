@@ -997,7 +997,8 @@ inline vgui::Panel *CEngineVGui::GetRootPanel( VGuiPanel_t type )
 
 vgui::VPANEL CEngineVGui::GetPanel( VGuiPanel_t type )
 {
-	return GetRootPanel( type )->GetVPanel();
+	vgui::Panel *panel = GetRootPanel( type );
+	return panel ? panel->GetVPanel() : 0;
 }
 
 //-----------------------------------------------------------------------------
