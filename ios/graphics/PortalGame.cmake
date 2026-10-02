@@ -72,11 +72,14 @@ add_library(soundemittersystem SHARED EXCLUDE_FROM_ALL
     ../../tier1/interface.cpp)
 add_library(scenefilecache SHARED EXCLUDE_FROM_ALL
     ../../scenefilecache/SceneFileCache.cpp ../../tier1/interface.cpp)
+add_library(vaudio_minimp3 SHARED EXCLUDE_FROM_ALL
+    ../../engine/voice_codecs/minimp3/mp3codecs.cpp ../../tier1/interface.cpp)
+target_include_directories(vaudio_minimp3 PRIVATE ../../thirdparty/minimp3)
 add_library(inputsystem SHARED EXCLUDE_FROM_ALL
     ../../inputsystem/inputsystem.cpp ../../inputsystem/joystick_sdl.cpp
     ../../inputsystem/touch_sdl.cpp ../../inputsystem/key_translation.cpp
     ../../inputsystem/steamcontroller.cpp ../../tier1/interface.cpp)
-foreach(module IN ITEMS soundemittersystem scenefilecache inputsystem)
+foreach(module IN ITEMS soundemittersystem scenefilecache inputsystem vaudio_minimp3)
     target_compile_features(${module} PRIVATE cxx_std_11)
     target_compile_definitions(${module} PRIVATE
         $<TARGET_PROPERTY:PortalSupport,COMPILE_DEFINITIONS>)
@@ -93,7 +96,7 @@ target_compile_definitions(soundemittersystem PRIVATE SOUNDEMITTERSYSTEM_EXPORTS
 target_link_libraries(inputsystem PRIVATE PortalSupport ${IOS_SDL_TARGET})
 target_include_directories(inputsystem PRIVATE ../../inputsystem)
 target_compile_definitions(inputsystem PRIVATE VERSION_SAFE_STEAM_API_INTERFACES=1)
-add_dependencies(PortalGameModules soundemittersystem scenefilecache inputsystem)
+add_dependencies(PortalGameModules soundemittersystem scenefilecache inputsystem vaudio_minimp3)
 
 # Reuse the repository's FreeType and original VGUI implementation.
 set(FT_DISABLE_ZLIB OFF CACHE BOOL "" FORCE)

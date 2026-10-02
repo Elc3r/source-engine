@@ -425,6 +425,7 @@ static void StopGraphics(void)
 
 static void StartGraphics(UIWindowScene *scene)
 {
+    SDL_SetHint(SDL_HINT_AUDIO_CATEGORY,"playback");
 #ifdef SOURCE_TOGLES_PROBE
     NSDictionary *settings = [NSDictionary dictionaryWithContentsOfFile:
         [NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"ios-launch.plist"]];
@@ -488,6 +489,9 @@ static void StartGraphics(UIWindowScene *scene)
 { StartGraphics((UIWindowScene *)scene); }
 - (void)sceneWillResignActive:(UIScene *)scene {
     paused = YES; ++suspends; fpsStart=0; fpsFrames=0;
+#ifdef SOURCE_TOGLES_PROBE
+    SetSourceGameAudioActive(0);
+#endif
 #if TARGET_OS_SIMULATOR
     [keyboardInput releaseKeys];
 #endif
@@ -497,6 +501,9 @@ static void StartGraphics(UIWindowScene *scene)
     if (display != EGL_NO_DISPLAY && context != EGL_NO_CONTEXT)
         eglMakeCurrent(display,surface,surface,context);
     paused = NO; ++resumes;
+#ifdef SOURCE_TOGLES_PROBE
+    SetSourceGameAudioActive(1);
+#endif
 #if TARGET_OS_SIMULATOR
     [keyboardInput becomeFirstResponder];
 #endif

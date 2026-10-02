@@ -137,7 +137,9 @@ bool MountRequestedWorldData(char *detail, size_t capacity)
     // Simulator integration reads the user's existing game data. Native device
     // packaging and general gameinfo search-path handling are separate work.
     char path[MAX_PATH];
-    const char *archives[]={"hl2/hl2_misc_dir.vpk","hl2/hl2_textures_dir.vpk","portal/portal_pak_dir.vpk"};
+    const char *archives[]={"hl2/hl2_misc_dir.vpk","hl2/hl2_textures_dir.vpk",
+        "hl2/hl2_sound_misc_dir.vpk","hl2/hl2_sound_vo_english_dir.vpk",
+        "portal/portal_pak_dir.vpk"};
     for (const char *archive : archives) {
         Q_snprintf(path,sizeof(path),"%s/%s",root,archive);
         g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
@@ -321,4 +323,10 @@ bool DrawPortalGame(int width,int height,char *detail,size_t capacity) {
     typedef bool (*Draw)(int,int,char *,size_t);
     Draw draw=loaderModule?reinterpret_cast<Draw>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSDrawPortalGame")):NULL;
     return draw && draw(width,height,detail,capacity);
+}
+extern "C" void SetSourceGameAudioActive(int active) {
+    typedef void (*SetActive)(bool);
+    SetActive setActive=loaderModule?reinterpret_cast<SetActive>(GetProcAddress(
+        reinterpret_cast<void *>(loaderModule),"SourceIOSSetPortalAudioActive")):NULL;
+    if (setActive) setActive(active!=0);
 }

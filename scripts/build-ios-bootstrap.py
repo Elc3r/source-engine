@@ -188,7 +188,7 @@ def main():
         libraries.append(sdl)
         module_names = ['libToGLESRuntime', 'libshaderapidx9', 'libmaterialsystem', 'stdshader_dx9', 'stdshader_dbg', 'libdatacache', 'libvphysics', 'libstudiorender', 'libEngineMapLinkCheck']
         if args.game_modules:
-            module_names += ['libclient', 'libserver', 'libsoundemittersystem', 'libscenefilecache', 'libinputsystem', 'libvgui2', 'libvguimatsurface', 'libGameUI']
+            module_names += ['libclient', 'libserver', 'libsoundemittersystem', 'libscenefilecache', 'libinputsystem', 'libvgui2', 'libvguimatsurface', 'libGameUI', 'libvaudio_minimp3']
         for name in module_names:
             module = app / 'Frameworks' / (name + '.dylib')
             shutil.copy2(graphics_build / module.name, module)

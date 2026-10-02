@@ -33,8 +33,11 @@
 #include "r_local.h"
 #include "materialsystem/materialsystem_config.h"
 #include "icliententitylist.h"
+#include "engine/audio/sound.h"
+#include "engine/audio/snd_device.h"
 
 extern IClientEntityList *entitylist;
+extern IAudioDevice *g_AudioDevice;
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern void _Host_SetGlobalTime();
@@ -43,7 +46,19 @@ extern void SV_TermSendTables(ServerClass *classes);
 extern "C" void SourceIOSUpdateVideoMode();
 extern void ReleaseMaterialSystemObjects();
 extern void RestoreMaterialSystemObjects(int changeFlags);
+extern void Host_UpdateSounds();
+extern "C" void SourceIOSSetSoundFocus(bool active);
+extern void S_BlockSound();
+extern void S_UnblockSound();
 namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false,saveStarted=false; int savedMark=0; bool playing=false,clientFrameReady=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0,reconnectStarted=0;
+bool audioStarted=false,audioPaused=false;
+}
+
+extern "C" void SourceIOSSetPortalAudioActive(bool active) {
+    SourceIOSSetSoundFocus(active);
+    if (!audioStarted || audioPaused==!active) return;
+    if (active) S_UnblockSound(); else S_BlockSound();
+    audioPaused=!active;
 }
 
 extern "C" void SourceIOSShutdownPortalLevel() {
@@ -77,6 +92,7 @@ extern "C" void SourceIOSShutdownPortalLevel() {
         serverStarted=false;
     }
     if (networkStarted) { NET_Shutdown(); networkStarted=false; }
+    if (audioStarted) { S_Shutdown(); audioStarted=false; audioPaused=false; }
     if (renderStarted) { SCR_EndLoadingPlaque(); SCR_Shutdown(); ShutdownStudioRender(); g_pMaterialSystemConfig=NULL; renderStarted=false; }
 }
 
@@ -98,6 +114,15 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
     host_state.interval_per_tick=serverGameDLL->GetTickInterval();
     g_ServerGlobalVariables.interval_per_tick=host_state.interval_per_tick;
     SV_InitSendTables(serverGameDLL->GetAllServerClasses());
+    SourceIOSSetSoundFocus(true);
+    S_Init(); audioStarted=true;
+    if (!g_AudioDevice || !g_AudioDevice->IsActive()) {
+        snprintf(detail,capacity,"Portal audio device unavailable");
+        SourceIOSShutdownPortalLevel(); return false;
+    }
+    Msg("iOS Portal audio: %s; %d Hz; %d channels; %d bits\n",
+        g_AudioDevice->DeviceName(),g_AudioDevice->DeviceDmaSpeed(),
+        g_AudioDevice->DeviceChannels(),g_AudioDevice->DeviceSampleBits());
     Msg("iOS Portal GameInit: begin\n");
     gameStarted=serverGameDLL->GameInit();
     if (!gameStarted) { snprintf(detail,capacity,"Portal GameInit: FAIL"); SourceIOSShutdownPortalLevel(); return false; }
@@ -263,7 +288,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
 }
 extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t capacity) {
     if (!playing || !g_ClientDLL || width<1 || height<1) return false;
-    if (!cl.IsActive() || !clientFrameReady) { EngineVGui()->Simulate(); return true; }
+    if (!cl.IsActive() || !clientFrameReady) { EngineVGui()->Simulate(); Host_UpdateSounds(); return true; }
     if (videomode->GetModeWidth()!=width || videomode->GetModeHeight()!=height)
         SourceIOSUpdateVideoMode();
     EngineVGui()->Simulate();
@@ -274,6 +299,8 @@ extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t
     g_ClientDLL->View_Render(&rect);
     ClientDLL_FrameStageNotify(FRAME_RENDER_END);
     g_EngineRenderer->FrameEnd();
+    // View_Render publishes the original listener state via Host_SetAudioState.
+    Host_UpdateSounds();
     saverestore->OnFrameRendered();
     return true;
 }

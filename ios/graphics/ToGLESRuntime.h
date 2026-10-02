@@ -16,6 +16,7 @@ void StopToGLESMaterialLoop(void);
 int IsSourceWorldMapLoaded(void);
 int IsSourceWorldMapRendered(void);
 void MoveSourceWorldCamera(float forward, float right, float yaw, float pitch, float seconds);
+void SetSourceGameAudioActive(int active);
 const char *SourceWorldMapDetail(void);
 int CheckSurfaceSort(char *detail, size_t capacity);
 int CheckWorldState(char *detail, size_t capacity);

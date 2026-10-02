@@ -2014,3 +2014,36 @@ transition. Device ARM64 v8 builds and IPA/signature checks pass. A fresh save i
 second map also reloads in the simulator and resumes live frames. The user
 confirmed multiple subsequent levels load on iPhone with v8 and saved-game
 loading continues to work.
+
+
+### Native game audio (v9)
+
+The UIKit game host initializes and shuts down the original Source sound system,
+updates the mixer after View_Render publishes the listener, and packages the
+repository's vaudio_minimp3 decoder. GAME search paths now include HL2 sound
+archives. SDL requests the mixer's fixed 44.1 kHz, stereo S16 format and converts
+to the hardware format. The iOS playback category and scene activation bridge
+pause/resume the device; sound-service focus follows UIKit independently of the
+desktop launcher's mouse/video activation path. Generated metadata caches stay
+under the writable MOD root and empty entries are rebuilt lazily for available
+sounds, without writing caches alongside externally supplied game archives.
+
+Simulator verification uses LLDB and simctl, without Device Hub control. In the
+normal game loop, portal_still_alive.mp3 produced 32,743 nonzero S16 samples
+in a 64 KiB ring snapshot (peak 7,977). A GLaDOS WAV produced 3,964 nonzero
+samples in an 8 KiB SDL callback output (peak 100). Repeated deactivate calls
+leave the pause count at one; activate returns it to zero. These are PCM checks,
+not confirmation of audible output on iPhone. Device ARM64 builds and deep
+signature checks pass; v9 reads game data from Documents/Portal-arm64 and
+contains only the project's generated probe assets, not Portal game data.
+
+Earlier diagnostic runs saw startup/memory failures and a null desktop mouse
+launcher after enabling desktop app focus. The final sound-focus bridge avoids
+that desktop activation path. Memory failures from earlier diagnostic runs
+have not been independently isolated; continued hardware testing is required.
+
+The audio run's additional save/load check did not pass: the simulator reported
+save/ios_audio_check.sav invalid, with failed sidecar removals in its existing
+write root. This does not validate save/load with audio enabled and needs a
+clean-write-root retest or hardware confirmation. The prior v8 hardware
+save/load confirmation is unchanged.

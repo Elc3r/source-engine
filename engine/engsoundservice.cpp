@@ -39,6 +39,14 @@
 
 void Snd_Restart_f();
 
+#if defined( IOS )
+namespace { bool iosSoundFocused = false; }
+extern "C" void SourceIOSSetSoundFocus( bool active )
+{
+	iosSoundFocused = active;
+}
+#endif
+
 #define MAPLIST_FILE "maplist.txt"
 
 class CEngineSoundServices : public ISoundServices
@@ -181,6 +189,10 @@ public:
 	
 	virtual bool IsGameActive()
 	{
+#if defined( IOS )
+		// UIKit scene activation replaces desktop launcher/window focus.
+		return iosSoundFocused;
+#else
 		extern IVEngineClient *engineClient;
 		if ( !engineClient )
 		{
@@ -189,6 +201,7 @@ public:
 		}
 
 		return engineClient->IsActiveApp();
+#endif
 	}
 
 	virtual void RestartSoundSystem()
