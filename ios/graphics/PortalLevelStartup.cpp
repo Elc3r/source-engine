@@ -32,6 +32,9 @@
 #include "l_studio.h"
 #include "r_local.h"
 #include "materialsystem/materialsystem_config.h"
+#include "icliententitylist.h"
+
+extern IClientEntityList *entitylist;
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern void _Host_SetGlobalTime();
@@ -40,7 +43,7 @@ extern void SV_TermSendTables(ServerClass *classes);
 extern "C" void SourceIOSUpdateVideoMode();
 extern void ReleaseMaterialSystemObjects();
 extern void RestoreMaterialSystemObjects(int changeFlags);
-namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false,saveStarted=false; int savedMark=0; bool playing=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0,reconnectStarted=0;
+namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false,saveStarted=false; int savedMark=0; bool playing=false,clientFrameReady=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0,reconnectStarted=0;
 }
 
 extern "C" void SourceIOSShutdownPortalLevel() {
@@ -50,7 +53,7 @@ extern "C" void SourceIOSShutdownPortalLevel() {
     }
     if (saveStarted) { saverestore->Shutdown(); saveStarted=false; }
     if (playing) host_initialized=false;
-    playing=false; playerReader=NULL; tickRemainder=0; reconnectStarted=0;
+    playing=false; clientFrameReady=false; playerReader=NULL; tickRemainder=0; reconnectStarted=0;
     if (serverStarted) Host_AllowQueuedMaterialSystem(false);
     if (networkStarted) cl.Disconnect("iOS player cycle complete",false);
     if (levelStarted) {
@@ -191,6 +194,7 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
 
 extern "C" bool SourceIOSIsPortalGameLive() { return playing; }
 extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
+    clientFrameReady=false;
     if (!playing) { snprintf(detail,capacity,"Portal game not running"); return false; }
     double now=Plat_FloatTime(),elapsed=now-lastFrame;
     lastFrame=now;
@@ -207,7 +211,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     // state machine before treating that temporary disconnect as a failure.
     HostState_FrameTransitions(host_frametime);
     Cbuf_Execute();
-    if (!cl.IsActive()) {
+    if (!cl.IsActive() || !entitylist || !entitylist->GetClientEntity(cl.m_nPlayerSlot+1)) {
         if (!reconnectStarted) reconnectStarted=now;
         if (now-reconnectStarted>30.0) {
             snprintf(detail,capacity,"Portal reconnect timed out; signon %d",cl.m_nSignonState); return false;
@@ -248,6 +252,9 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     g_ClientGlobalVariables.interpolation_amount=tickRemainder/host_state.interval_per_tick;
     CL_RunPrediction(PREDICTION_NORMAL);
     ClientDLL_Update();
+    // SIGNONSTATE_FULL can arrive in the reconnect packet pump. The client
+    // entities are only ready for rendering after the normal frame update.
+    clientFrameReady=true;
     IOSPortalPlayer player={};
     if (!playerReader || !playerReader(1,&player)) { snprintf(detail,capacity,"Portal live player unavailable"); return false; }
     snprintf(detail,capacity,"Portal LIVE: server tick %d; command %d/%d; player %.1f %.1f %.1f; yaw %.1f; move %.0f/%.0f; flags %x",
@@ -256,7 +263,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
 }
 extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t capacity) {
     if (!playing || !g_ClientDLL || width<1 || height<1) return false;
-    if (!cl.IsActive()) { EngineVGui()->Simulate(); return true; }
+    if (!cl.IsActive() || !clientFrameReady) { EngineVGui()->Simulate(); return true; }
     if (videomode->GetModeWidth()!=width || videomode->GetModeHeight()!=height)
         SourceIOSUpdateVideoMode();
     EngineVGui()->Simulate();

@@ -1977,8 +1977,8 @@ simulation tick counter or a GPU benchmark.
 
 SDL keyboard events now reach engine button events and native bindings. The
 simulator also has a transparent UIKit key responder without a touch hit region
-or software keyboard. Enable **Capture Keyboard** in Device Hub (already enabled
-for this session), and focus the simulator window. Default bindings are:
+or software keyboard. Enable **Capture Keyboard** in Device Hub and focus the
+simulator window when testing keyboard input. Default bindings are:
 
 - W/A/S/D: movement; arrows: look; Space: jump; E: use; left Ctrl: crouch.
 - F/G: primary/secondary fire; F5: quicksave; F9: quickload; Escape: game menu.
@@ -1988,4 +1988,29 @@ releases held keyboard and touch controls. Client input/codec regression checks
 pass for simultaneous movement/look, stationary-finger camera, left free-screen
 look, WASD and key release; the client lifecycle and live game startup pass.
 Native Device Hub W/S presses changed player position, and the watched simulator
-shows the FPS panel and only the left stick. The v7 IPA needs hardware testing.
+shows the FPS panel and only the left stick. The user confirmed simulator keyboard
+input and improved touch controls on hardware, targeting and mostly reaching 60 FPS
+with v7. The third elevator exposed a next-map transition crash.
+
+
+### Next-map player transmission
+
+A retained CGameClient connection updated its edict pointer in SpawnServer but
+kept the previous map's pointer in m_PackInfo.m_pClientEnt. When the new map's
+edict allocation moved, CheckTransmit found no recipient player and sent empty
+snapshots. The client reached signon FULL without a local player, and Portal's
+viewmodel renderer dereferenced that missing player. SpawnServer now refreshes
+both pointers. The UIKit loop also waits for the client player entity and a
+normal client frame update before rendering after reconnection.
+
+Simulator verification uses the original elevator trigger's ChangeLevel input
+after placing the player in its transition volume. With a fresh writable save
+root and the Mac installation's save search paths excluded, testchmb_a_00
+transitions to testchmb_a_01, signon FULL, client entities present, player
+(920, 64, -252), and visible elevator rendering at approximately 60 FPS with
+GL error 0. Existing Mac saves and legacy uppercase sidecars in the old simulator
+write root contaminated earlier attempts, so those runs do not validate a clean
+transition. Device ARM64 v8 builds and IPA/signature checks pass. A fresh save in the
+second map also reloads in the simulator and resumes live frames. The user
+confirmed multiple subsequent levels load on iPhone with v8 and saved-game
+loading continues to work.
