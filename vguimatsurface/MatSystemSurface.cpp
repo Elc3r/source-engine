@@ -48,12 +48,15 @@ ILauncherMgr *g_pLauncherMgr = NULL;
 #include "mathlib/vmatrix.h"
 #include <tier0/vprof.h>
 #include "materialsystem/itexture.h"
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>
 #endif
 #include "../vgui2/src/VPanel.h"
+#ifdef IOS
+#include "../vgui2/src/vgui_internal.h"
+#endif
 #include <vgui/IInputInternal.h>
 #if defined( _X360 )
 #include "xbox/xbox_win32stubs.h"
@@ -146,7 +149,7 @@ CMatSystemSurface g_MatSystemSurface;
 EXPOSE_SINGLE_INTERFACE_GLOBALVAR( CMatSystemSurface, ISurface, 
 						VGUI_SURFACE_INTERFACE_VERSION, g_MatSystemSurface );
 
-#if defined(LINUX) || defined(OSX) || defined(PLATFORM_BSD)
+#if defined(LINUX) || defined(OSX) || defined(PLATFORM_BSD) || defined(IOS)
 CUtlDict< CMatSystemSurface::font_entry, unsigned short > CMatSystemSurface::m_FontData;
 #endif
 
@@ -267,6 +270,10 @@ bool CMatSystemSurface::Connect( CreateInterfaceFn factory )
 
 	Assert( g_pVGuiSurface == this );
 
+
+#ifdef IOS
+	if ( !vgui::VGui_InternalLoadInterfaces( &factory, 1 ) ) return false;
+#endif
 	// initialize vgui_control interfaces
 	if ( !vgui::VGui_InitInterfacesList( "MATSURFACE", &factory, 1 ) )
 		return false;
@@ -407,7 +414,7 @@ InitReturnVal_t CMatSystemSurface::Init( void )
 		FontManager().SetLanguage( "english" );
 	}
 
-#if defined(LINUX) || defined(OSX) || defined(PLATFORM_BSD)
+#if defined(LINUX) || defined(OSX) || defined(PLATFORM_BSD) || defined(IOS)
 	FontManager().SetFontDataHelper( &CMatSystemSurface::FontDataHelper );
 #endif
 
@@ -425,6 +432,17 @@ InitReturnVal_t CMatSystemSurface::Init( void )
 //-----------------------------------------------------------------------------
 void CMatSystemSurface::Shutdown( void )
 {
+#ifdef IOS
+    // Release host-owned UI state while IVGui and the material system are alive.
+    delete m_pDefaultEmbeddedPanel;
+    m_pDefaultEmbeddedPanel = NULL;
+    m_pEmbeddedPanel = 0;
+    g_FontTextureCache.Clear();
+    FontManager().ClearAllFonts();
+    for (int i=m_FontData.First();i!=m_FontData.InvalidIndex();i=m_FontData.Next(i))
+        free(m_FontData[i].data);
+    m_FontData.RemoveAll();
+#endif
 	for ( int i = m_FileTypeImages.First(); i != m_FileTypeImages.InvalidIndex(); i = m_FileTypeImages.Next( i ) )
 	{
 		delete m_FileTypeImages[ i ];
@@ -1907,7 +1925,7 @@ bool CMatSystemSurface::AddCustomFontFile( const char *fontName, const char *fon
 	}
 	Assert( success );
 	return success;
-#elif defined(LINUX) || defined(OSX) || defined(PLATFORM_BSD)
+#elif defined(LINUX) || defined(OSX) || defined(PLATFORM_BSD) || defined(IOS)
 
 	int size;
 	if ( CMatSystemSurface::FontDataHelper( fontName, size, fontFileName ) )
@@ -1921,7 +1939,7 @@ bool CMatSystemSurface::AddCustomFontFile( const char *fontName, const char *fon
 #endif
 }
 
-#if defined(LINUX) || defined(OSX) || defined(PLATFORM_BSD)
+#if defined(LINUX) || defined(OSX) || defined(PLATFORM_BSD) || defined(IOS)
 
 static void RemoveSpaces( CUtlString &str )
 {
@@ -2603,6 +2621,12 @@ void CMatSystemSurface::OnScreenSizeChanged( int nOldWidth, int nOldHeight )
 
 	// clear font texture cache
 	ResetFontCaches();
+#if defined(IOS)
+	// Scheme fonts need the resized panels above. Native-size custom fonts
+	// must then be recreated after ClearAllFonts has emptied their handles.
+	ivgui()->PostMessage(panel, new KeyValues("OnScreenSizeChanged", "oldwide", nOldWidth, "oldtall", nOldHeight), NULL);
+	ivgui()->RunFrame();
+#endif
 }
 
 // Causes fonts to get reloaded, etc.

@@ -168,7 +168,9 @@ void CGameUI::Initialize( CreateInterfaceFn factory )
 	enginesound = (IEngineSound *)factory(IENGINESOUND_CLIENT_INTERFACE_VERSION, NULL);
 	engine = (IVEngineClient *)factory( VENGINE_CLIENT_INTERFACE_VERSION, NULL );
 
+	#ifndef NO_STEAM
 	steamapicontext->Init();
+	#endif
 
 	ConVarRef var( "gameui_xbox" );
 	m_bIsConsoleUI = var.IsValid() && var.GetBool();
@@ -520,6 +522,11 @@ void CGameUI::Start()
 	if ( !FindPlatformDirectory( m_szPlatformDir, sizeof( m_szPlatformDir ) ) )
 		return;
 
+#if defined(IOS)
+    // CONFIG is the UIKit sandbox; PLATFORM remains a read-only asset path.
+    g_pFullFileSystem->CreateDirHierarchy("", "CONFIG");
+    vgui::system()->SetUserConfigFile("InGameDialogConfig.vdf", "CONFIG");
+#else
 	if ( IsPC() )
 	{
 		// setup config file directory
@@ -538,6 +545,7 @@ void CGameUI::Start()
 		g_pFullFileSystem->AddSearchPath( "platform", "PLATFORM" );
 	}
 
+#endif
 	// localization
 	g_pVGuiLocalize->AddFile( "Resource/platform_%language%.txt");
 	g_pVGuiLocalize->AddFile( "Resource/vgui_%language%.txt");
@@ -620,6 +628,9 @@ void CGameUI::ValidateCDKey()
 //-----------------------------------------------------------------------------
 bool CGameUI::FindPlatformDirectory(char *platformDir, int bufferSize)
 {
+#if defined(IOS)
+    return g_pFullFileSystem->GetSearchPath("PLATFORM",false,platformDir,bufferSize)>0;
+#endif
 	platformDir[0] = '\0';
 
 	if ( platformDir[0] == '\0' )

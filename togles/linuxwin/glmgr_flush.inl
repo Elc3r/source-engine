@@ -480,6 +480,23 @@ FORCEINLINE void GLMContext::FlushDrawStates( uint nStartIndex, uint nEndIndex, 
 	}
 
 
+	if ( !m_caps.m_hasGammaWrites && m_pBoundPair->m_locFragmentFakeSRGBEnable >= 0 )
+	{
+		float enabled = m_FakeBlendEnableSRGB ? 1.0f : 0.0f;
+#ifdef IOS
+		const CGLMTex *target = m_drawingFBO ? m_drawingFBO->m_attach[kAttColor0].m_tex : NULL;
+		if ( target && (target->m_layout->m_key.m_texFlags & kGLMTexSRGB) )
+			// Hardware encodes after linear-space blending. For raw D3D
+			// writes, decode the shader output to cancel that encoding.
+			enabled = m_FakeBlendEnableSRGB ? 0.0f : -1.0f;
+#endif
+		if ( enabled != m_pBoundPair->m_fakeSRGBEnableValue )
+		{
+			gGL->glUniform1f( m_pBoundPair->m_locFragmentFakeSRGBEnable, enabled );
+			m_pBoundPair->m_fakeSRGBEnableValue = enabled;
+		}
+	}
+
 	if( !gGL->m_bHave_GL_QCOM_alpha_test && m_pBoundPair->m_locAlphaRef != -1 )
 	{
 		if( !m_AlphaTestEnable.GetData().enable )

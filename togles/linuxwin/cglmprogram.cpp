@@ -705,7 +705,7 @@ CGLMShaderPair::CGLMShaderPair( GLMContext *ctx  )
 	m_locFragmentParams = -1;
 	
 	m_locFragmentFakeSRGBEnable = -1;
-	m_fakeSRGBEnableValue = -1.0f;
+	m_fakeSRGBEnableValue = -999.0f;
 	
 	memset( m_locSamplers, 0xFF, sizeof( m_locSamplers ) );
 	
@@ -850,7 +850,7 @@ bool CGLMShaderPair::ValidateProgramPair()
 			}
 
 			m_locFragmentFakeSRGBEnable = gGL->glGetUniformLocation( m_program, "flSRGBWrite" );
-			m_fakeSRGBEnableValue = -1.0f;
+			m_fakeSRGBEnableValue = -999.0f;
 
 			for (int sampler = 0; sampler < 16; sampler++)
 			{
@@ -986,7 +986,7 @@ bool CGLMShaderPair::SetProgramPair( CGLMProgram *vp, CGLMProgram *fp )
 		if(isLinked == GL_FALSE)
 		{
 			GLint maxLength = 0;
-			gGL->glGetShaderiv(m_program, GL_INFO_LOG_LENGTH, &maxLength);
+			gGL->glGetProgramiv(m_program, GL_INFO_LOG_LENGTH, &maxLength);
 
 			GLchar  log[4096];
 			gGL->glGetProgramInfoLog( m_program, sizeof(log), &maxLength, log );

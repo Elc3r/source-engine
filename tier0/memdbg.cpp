@@ -10,7 +10,7 @@
 
 #if !defined(STEAM) && !defined(NO_MALLOC_OVERRIDE)
 
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>
@@ -22,7 +22,7 @@
 #ifdef _WIN32
 #include <crtdbg.h>
 #endif
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #include <mach/mach.h>
 #include <stdlib.h>
@@ -281,13 +281,13 @@ struct DbgMemHeader_t
 
 #if defined( _DEBUG ) && !defined( POSIX )
 #define GetCrtDbgMemHeader( pMem ) ((CrtDbgMemHeader_t*)((DbgMemHeader_t*)pMem - 1) - 1)
-#elif defined( OSX )
+#elif defined(OSX) || defined(IOS)
 DbgMemHeader_t *GetCrtDbgMemHeader( void *pMem );
 #else
 #define GetCrtDbgMemHeader( pMem ) ((DbgMemHeader_t*)pMem - 1)
 #endif
 
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 DbgMemHeader_t *GetCrtDbgMemHeader( void *pMem )
 {
 	size_t msize = malloc_size( pMem );
@@ -297,7 +297,7 @@ DbgMemHeader_t *GetCrtDbgMemHeader( void *pMem )
 
 inline void *InternalMalloc( size_t nSize, const char *pFileName, int nLine )
 {
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 	void *pAllocedMem = malloc_zone_malloc( malloc_default_zone(), nSize + sizeof(DbgMemHeader_t) );
 	if (!pAllocedMem)
 	{
@@ -336,7 +336,7 @@ inline void *InternalRealloc( void *pMem, size_t nNewSize, const char *pFileName
 	if ( !pMem )
 		return InternalMalloc( nNewSize, pFileName, nLine );
 
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 	void *pNewAllocedMem = NULL;
 
 	pNewAllocedMem = (void *)malloc_zone_realloc( malloc_default_zone(), pMem, nNewSize + sizeof(DbgMemHeader_t) );
@@ -370,7 +370,7 @@ inline void InternalFree( void *pMem )
 
 	DbgMemHeader_t *pInternalMem = (DbgMemHeader_t *)pMem - 1;
 #if !defined( _DEBUG ) || defined( POSIX )
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 	malloc_zone_free( malloc_default_zone(), pMem );
 #elif LINUX
 	free( pInternalMem );
@@ -1734,7 +1734,7 @@ void (*__MALLOC_HOOK_VOLATILE __malloc_initialize_hook)(void) __attribute__((vis
 #endif // LINUX
 
 
-#if defined( OSX ) && !defined( NO_HOOK_MALLOC )
+#if (defined(OSX) || defined(IOS)) && !defined( NO_HOOK_MALLOC )
 //
 // pointers to the osx versions of these functions
 static void *osx_malloc_hook = NULL;

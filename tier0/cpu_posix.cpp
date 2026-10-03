@@ -51,7 +51,7 @@ static inline uint64 diff(uint64 v1, uint64 v2)
 		return -d;
 }
 
-#if defined(OSX) || defined(PLATFORM_BSD)
+#if defined(OSX) || defined(IOS) || defined(PLATFORM_BSD)
 
 // Mac or BSD
 uint64 GetCPUFreqFromPROC()

@@ -23,7 +23,7 @@ extern ConVar default_fov;
 
 extern IMatSystemSurface *g_pMatSystemSurface;
 
-#ifdef ANDROID
+#if defined(ANDROID) || defined(IOS)
 #define TOUCH_DEFAULT "1"
 #else
 #define TOUCH_DEFAULT "0"
@@ -89,6 +89,9 @@ void CTouchPanel::OnScreenSizeChanged(int iOldWide, int iOldTall)
 	w = ScreenWidth();
 	h = ScreenHeight();
 	gTouch.screen_w = ScreenWidth(); gTouch.screen_h = h;
+#if defined(IOS)
+	gTouch.UpdateIOSLayout();
+#endif
 
 	SetBounds( 0, 0, w, h );
 }
@@ -101,6 +104,9 @@ void CTouchPanel::ApplySchemeSettings(vgui::IScheme *pScheme)
 	w = ScreenWidth();
 	h = ScreenHeight();
 	gTouch.screen_w = ScreenWidth(); gTouch.screen_h = h;
+#if defined(IOS)
+	gTouch.UpdateIOSLayout();
+#endif
 
 	SetBounds( 0, 0, w, h );
 }
@@ -356,6 +362,10 @@ void CTouchControls::Init()
 	screen_w = w; screen_h = h;
 
 	touchTextureID = 0;
+#if defined(IOS)
+	fallbackFont = 0;
+	fallbackFontSize = 0;
+#endif
 	configchanged = false;
 	config_loaded = false;
 	btns.EnsureCapacity( 64 );
@@ -423,6 +433,9 @@ void CTouchControls::Init()
 	m_flHideTouch = 0.f;
 
 	initialized = true;
+#if defined(IOS)
+	UpdateIOSLayout();
+#endif
 }
 
 void CTouchControls::LevelInit()
@@ -625,6 +638,45 @@ void CTouchControls::IN_Look()
 {
 }
 
+#if defined(IOS)
+void CTouchControls::UpdateIOSLayout()
+{
+	if (!initialized || screen_w <= 0 || screen_h <= 0) return;
+	// Release held commands before changing hit regions on rotation.
+	for (int finger = 0; finger < 10; ++finger) {
+		touch_event_t event = {}; event.type = IE_FingerUp; event.fingerid = finger;
+		FingerPress(&event);
+	}
+	forward = side = yaw = pitch = 0;
+	float unit = min(screen_w, screen_h), radius = unit * .14f;
+	float margin = unit * (screen_w > screen_h ? .15f : .08f), button = unit * .13f, gap = unit * .035f;
+	float bottom = screen_h - margin - radius;
+	for (auto it = btns.begin(); it != btns.end(); ++it) {
+		CTouchButton *btn = *it;
+		float x, y, w = button, h = button;
+		if (btn->type == touch_look) {
+			x = y = 0; w = screen_w; h = screen_h;
+		} else if (btn->type == touch_move) {
+			x = margin;
+			y = bottom - radius; w = h = radius * 2;
+		} else if (!Q_strcmp(btn->command, "gameui_activate")) {
+			x = margin; y = screen_w > screen_h ? margin : unit * .18f;
+		} else if (!Q_strcmp(btn->command, "+jump") || !Q_strcmp(btn->command, "+use") ||
+		           !Q_strcmp(btn->command, "+attack") || !Q_strcmp(btn->command, "+attack2") ||
+		           !Q_strcmp(btn->command, "+duck")) {
+			bool left = !Q_strcmp(btn->command, "+use") || !Q_strcmp(btn->command, "+attack2");
+			int row = !Q_strcmp(btn->command, "+jump") || !Q_strcmp(btn->command, "+use") ? 0 :
+			          !Q_strcmp(btn->command, "+duck") ? 2 : 1;
+			x = screen_w - margin - button - (left ? button + gap : 0);
+			y = bottom - radius - gap - button - row * (button + gap);
+		} else { btn->flags |= TOUCH_FL_HIDE; continue; }
+		btn->flags &= ~TOUCH_FL_HIDE;
+		btn->x1 = x / screen_w; btn->x2 = (x + w) / screen_w;
+		btn->y1 = y / screen_h; btn->y2 = (y + h) / screen_h;
+	}
+}
+#endif
+
 void CTouchControls::Frame()
 {
 	if (!initialized)
@@ -693,6 +745,79 @@ void CTouchControls::Paint()
 		}
 	}
 
+#if defined(IOS)
+	// Desktop game data need not contain Android's touch icon pack. Keep valid
+	// icons, and draw missing ones as readable controls through VGUI itself.
+	// Surface drawing also respects the panel's clipping and translation.
+	vgui::ISurface *surface = vgui::surface();
+	int radius = min(screen_w, screen_h) * .14f;
+	for (it = btns.begin(); it != btns.end(); ++it) {
+		CTouchButton *btn = *it;
+		if (btn->type != touch_move) continue;
+		int cx = (btn->x1 + btn->x2) * screen_w / 2, cy = (btn->y1 + btn->y2) * screen_h / 2;
+		surface->DrawSetTexture(0);
+		surface->DrawSetColor(190, 225, 235, 140);
+		surface->DrawOutlinedCircle(cx, cy, radius, 48);
+		float dx = -side;
+		float dy = -forward;
+		float length = sqrtf(dx * dx + dy * dy);
+		if (length > 1) { dx /= length; dy /= length; }
+		int kx = cx + dx * radius * .65f, ky = cy + dy * radius * .65f;
+		surface->DrawOutlinedCircle(kx, ky, radius / 3, 32);
+	}
+	int fontSize = max(12, int(screen_w / 40));
+	if (!fallbackFont) fallbackFont = surface->CreateFont();
+	if (fallbackFontSize != fontSize) {
+		surface->SetFontGlyphSet(fallbackFont, "Helvetica", fontSize, 600, 0, 0, vgui::ISurface::FONTFLAG_ANTIALIAS);
+		fallbackFontSize = fontSize;
+	}
+	for (it = btns.begin(); it != btns.end(); ++it) {
+		CTouchButton *btn = *it;
+		if (!btn->texture || (btn->flags & TOUCH_FL_HIDE)) continue;
+		CTouchTexture *t = btn->texture;
+		if (!t->textureID) {
+			t->textureID = surface->CreateNewTextureID();
+			surface->DrawSetTextureFile(t->textureID, t->szName, true, false);
+		}
+		int x1 = btn->x1 * screen_w, y1 = btn->y1 * screen_h;
+		int x2 = btn->x2 * screen_w, y2 = btn->y2 * screen_h;
+		int alpha = btn->color.a > MIN_ALPHA_IN_CUTSCENE ? max(MIN_ALPHA_IN_CUTSCENE, btn->color.a - m_AlphaDiff) : btn->color.a;
+		IMaterial *material = g_pMatSystemSurface->DrawGetTextureMaterial(t->textureID);
+		if (material && !material->IsErrorMaterial()) {
+			surface->DrawSetColor(btn->color.r, btn->color.g, btn->color.b, alpha);
+			surface->DrawSetTexture(t->textureID);
+			surface->DrawTexturedRect(x1, y1, x2, y2);
+			continue;
+		}
+		surface->DrawSetColor(12, 22, 28, alpha * 2 / 3);
+		surface->DrawFilledRect(x1, y1, x2, y2);
+		surface->DrawSetColor(190, 225, 235, alpha);
+		surface->DrawOutlinedRect(x1, y1, x2, y2);
+		const char *caption = btn->name;
+		if (!Q_strcmp(btn->command, "+attack")) caption = "FIRE";
+		else if (!Q_strcmp(btn->command, "+attack2")) caption = "ALT";
+		else if (!Q_strcmp(btn->command, ";+duck")) caption = "DUCK";
+		else if (!Q_strcmp(btn->command, "+speed")) caption = "RUN";
+		else if (!Q_strcmp(btn->command, "load quick")) caption = "LOAD";
+		else if (!Q_strcmp(btn->command, "save quick")) caption = "SAVE";
+		else if (!Q_strcmp(btn->command, "impulse 100")) caption = "LIGHT";
+		else if (!Q_strcmp(btn->command, "invprev")) caption = "PREV";
+		else if (!Q_strcmp(btn->command, "invnext")) caption = "NEXT";
+		wchar_t text[32] = {};
+		for (int i = 0; caption[i] && i < 31; ++i) text[i] = towupper((unsigned char)caption[i]);
+		int textWidth, textHeight;
+		surface->GetTextSize(fallbackFont, text, textWidth, textHeight);
+		int textLength = wcslen(text);
+		while (textLength > 1 && textWidth > x2 - x1 - 4) {
+			text[--textLength] = 0;
+			surface->GetTextSize(fallbackFont, text, textWidth, textHeight);
+		}
+		surface->DrawSetTextFont(fallbackFont);
+		surface->DrawSetTextColor(225, 245, 250, alpha);
+		surface->DrawSetTextPos((x1 + x2 - textWidth) / 2, (y1 + y2 - textHeight) / 2);
+		surface->DrawPrintText(text, wcslen(text));
+	}
+#else
 	CMatRenderContextPtr pRenderContext( g_pMaterialSystem );
 	int meshCount = 0;
 
@@ -784,8 +909,7 @@ void CTouchControls::Paint()
 
 	meshBuilder.End();
 	m_pMesh->Draw();
-
-
+#endif
 	if( m_flHideTouch < gpGlobals->curtime )
 	{
 		if( m_bCutScene && m_AlphaDiff < 255-MIN_ALPHA_IN_CUTSCENE )
@@ -806,10 +930,17 @@ void CTouchControls::AddButton( const char *name, const char *texturefile, const
 	Q_strncpy( btn->texturefile, texturefile, sizeof(btn->texturefile) );
 	Q_strncpy( btn->command, command, sizeof(btn->command) );
 
+    if( Q_strcmp(command, "_look") == 0 )
+        type = touch_look;
+    else if( Q_strcmp(command, "_move") == 0 )
+        type = touch_move;
+
 	if( round )
 		IN_CheckCoords(&x1, &y1, &x2, &y2);
 
-	if( round == round_aspect )
+    // Invisible move/look regions use normalized screen bounds. Preserving
+    // an icon aspect ratio would shrink those regions on a portrait display.
+	if( round == round_aspect && type == touch_command )
 		y2 = y1 + ( x2 - x1 ) * (((float)screen_w)/screen_h) * aspect;
 
 	btn->x1 = x1;
@@ -819,11 +950,6 @@ void CTouchControls::AddButton( const char *name, const char *texturefile, const
 	btn->flags = flags;
 
 	//IN_CheckCoords(&btn->x1, &btn->y1, &btn->x2, &btn->y2);
-
-	if( Q_strcmp(command, "_look") == 0 )
-		type = touch_look;
-	else if( Q_strcmp(command, "_move") == 0 )
-		type = touch_move;
 
 	btn->color = color;
 	btn->type = type;
@@ -1025,8 +1151,14 @@ void CTouchControls::FingerMotion(touch_event_t *ev) // finger in my ass
 		{
 			if( btn->type == touch_move )
 			{
+#if defined(IOS)
+				float radius = min(screen_w, screen_h) * .14f;
+				f = (move_start_y - y) * screen_h / radius;
+				s = (move_start_x - x) * screen_w / radius;
+#else
 				f = ( move_start_y - y ) / touch_forwardzone.GetFloat();
 				s = ( move_start_x - x ) / touch_sidezone.GetFloat();
+#endif
 				forward = bound( -1, f, 1 );
 				side = bound( -1, s, 1 );
 			}
@@ -1056,6 +1188,18 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 				if( btn->flags & TOUCH_FL_HIDE )
 					continue;
 
+#if defined(IOS)
+				if (btn->type == touch_look) {
+					bool controlHit = false;
+					for (auto other = btns.begin(); other != btns.end(); ++other) {
+						CTouchButton *control = *other;
+						if (control->type != touch_look && !(control->flags & TOUCH_FL_HIDE) &&
+						    x > control->x1 && x < control->x2 && y > control->y1 && y < control->y2)
+							controlHit = true;
+					}
+					if (controlHit) continue;
+				}
+#endif
 				btn->finger = ev->fingerid;
 				if( btn->type == touch_move  )
 				{
@@ -1063,6 +1207,10 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 					{
 						move_start_x = x;
 						move_start_y = y;
+#if defined(IOS)
+						move_start_x = (btn->x1 + btn->x2) / 2;
+						move_start_y = (btn->y1 + btn->y2) / 2;
+#endif
 						move_finger = ev->fingerid;
 					}
 					else
@@ -1070,8 +1218,9 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 				}
 				else if( btn->type == touch_look )
 				{
-					if( look_finger == -1 )
+					if( look_finger == -1 ) {
 						look_finger = ev->fingerid;
+					}
 					else
 						btn->finger = look_finger;
 				}
@@ -1098,8 +1247,9 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 					forward = side = 0;
 					move_finger = -1;
 				}
-				else if( btn->type == touch_look )
+				else if( btn->type == touch_look ) {
 					look_finger = -1;
+				}
 				else if( btn->command[0] == '+' )
 				{
 					char cmd[256];

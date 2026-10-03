@@ -23,14 +23,40 @@ int TouchSDLWatcher( void *userInfo, SDL_Event *event )
 	if( !event || !pInputSystem ) return 1;
 
 	switch ( event->type ) {
+#if defined(IOS)
+	case SDL_KEYDOWN:
+	case SDL_KEYUP:
+		pInputSystem->SDLKeyboardEvent(event->key.keysym.scancode, event->type == SDL_KEYDOWN, event->key.repeat != 0);
+		break;
+#endif
+	case SDL_APP_WILLENTERBACKGROUND:
+	case SDL_APP_TERMINATING:
+		pInputSystem->CancelTouch();
+#if defined(IOS)
+		pInputSystem->ResetInputState();
+#endif
+		break;
+	case SDL_WINDOWEVENT:
+		if ( event->window.event == SDL_WINDOWEVENT_FOCUS_LOST
+#if defined(IOS)
+		     || event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED
+#endif
+		   )
+		{
+			pInputSystem->CancelTouch();
+#if defined(IOS)
+			pInputSystem->ResetInputState();
+#endif
+		}
+		break;
 	case SDL_FINGERDOWN:
-		pInputSystem->FingerEvent( IE_FingerDown, event->tfinger.fingerId, event->tfinger.x, event->tfinger.y, event->tfinger.dx, event->tfinger.dy );
+		pInputSystem->SDLFingerEvent( IE_FingerDown, event->tfinger.touchId, event->tfinger.fingerId, event->tfinger.x, event->tfinger.y, event->tfinger.dx, event->tfinger.dy );
 		break;
 	case SDL_FINGERUP:
-		pInputSystem->FingerEvent( IE_FingerUp, event->tfinger.fingerId, event->tfinger.x, event->tfinger.y, event->tfinger.dx, event->tfinger.dy );
+		pInputSystem->SDLFingerEvent( IE_FingerUp, event->tfinger.touchId, event->tfinger.fingerId, event->tfinger.x, event->tfinger.y, event->tfinger.dx, event->tfinger.dy );
 		break;
 	case SDL_FINGERMOTION:
-		pInputSystem->FingerEvent( IE_FingerMotion ,event->tfinger.fingerId, event->tfinger.x, event->tfinger.y, event->tfinger.dx, event->tfinger.dy );
+		pInputSystem->SDLFingerEvent( IE_FingerMotion ,event->tfinger.touchId, event->tfinger.fingerId, event->tfinger.x, event->tfinger.y, event->tfinger.dx, event->tfinger.dy );
 		break;
 	}
 
@@ -38,7 +64,7 @@ int TouchSDLWatcher( void *userInfo, SDL_Event *event )
 }
 
 //-----------------------------------------------------------------------------
-// Initialize all joysticks
+// Initialize touch input
 //-----------------------------------------------------------------------------
 void CInputSystem::InitializeTouch( void )
 {
@@ -51,7 +77,8 @@ void CInputSystem::InitializeTouch( void )
 	memset( m_touchAccumX, 0, sizeof(m_touchAccumX) );
 	memset( m_touchAccumY, 0, sizeof(m_touchAccumY) );
 
-	m_bJoystickInitialized = true;
+	memset( m_touchContacts, 0, sizeof(m_touchContacts) );
+	m_bTouchInitialized = true;
 	SDL_AddEventWatch(TouchSDLWatcher, this);
 }
 
@@ -61,11 +88,15 @@ void CInputSystem::ShutdownTouch()
 		return;
 
 	SDL_DelEventWatch( TouchSDLWatcher, this );
+	CancelTouch();
 	m_bTouchInitialized = false;
 }
 
 bool CInputSystem::GetTouchAccumulators( int fingerId, float &dx, float &dy )
 {
+	dx = dy = 0.f;
+	if ( fingerId < 0 || fingerId >= TOUCH_FINGER_MAX_COUNT )
+		return false;
 	dx = m_touchAccumX[fingerId];
 	dy = m_touchAccumY[fingerId];
 
@@ -76,7 +107,7 @@ bool CInputSystem::GetTouchAccumulators( int fingerId, float &dx, float &dy )
 
 void CInputSystem::FingerEvent(int eventType, int fingerId, float x, float y, float dx, float dy)
 {
-	if( fingerId >= TOUCH_FINGER_MAX_COUNT )
+	if( fingerId < 0 || fingerId >= TOUCH_FINGER_MAX_COUNT )
 		return;
 
 	if( eventType == IE_FingerUp )
@@ -96,3 +127,46 @@ void CInputSystem::FingerEvent(int eventType, int fingerId, float x, float y, fl
 	PostEvent(eventType, m_nLastSampleTick, fingerId, _x, _y);
 }
 
+
+// SDL identifiers are arbitrary 64-bit values, unique only within a touch device.
+// Keep the engine's small contact indices stable until the corresponding release.
+void CInputSystem::SDLFingerEvent( int eventType, int64 deviceId, int64 fingerId,
+    float x, float y, float dx, float dy )
+{
+    if ( !m_bTouchInitialized ) return;
+    int slot = -1, freeSlot = -1;
+    for ( int i = 0; i < TOUCH_FINGER_MAX_COUNT; ++i )
+    {
+        const TouchContact &contact = m_touchContacts[i];
+        if ( contact.active && contact.deviceId == deviceId && contact.fingerId == fingerId )
+            slot = i;
+        if ( !contact.active && freeSlot < 0 ) freeSlot = i;
+    }
+    if ( eventType == IE_FingerDown )
+    {
+        if ( slot >= 0 ) return; // Ignore duplicate downs; never reset a held control.
+        slot = freeSlot;
+        if ( slot < 0 ) return; // Excess contacts remain ignored until a new down.
+        TouchContact &contact = m_touchContacts[slot];
+        contact.deviceId = deviceId;
+        contact.fingerId = fingerId;
+        contact.active = true;
+    }
+    if ( slot < 0 ) return; // A motion after cancellation must not re-press controls.
+    m_touchContacts[slot].x = x;
+    m_touchContacts[slot].y = y;
+    FingerEvent( eventType, slot, x, y, dx, dy );
+    if ( eventType == IE_FingerUp ) m_touchContacts[slot].active = false;
+}
+
+void CInputSystem::CancelTouch()
+{
+    for ( int i = 0; i < TOUCH_FINGER_MAX_COUNT; ++i )
+    {
+        TouchContact &contact = m_touchContacts[i];
+        if ( contact.active )
+            FingerEvent( IE_FingerUp, i, contact.x, contact.y, 0.f, 0.f );
+        contact.active = false;
+        m_touchAccumX[i] = m_touchAccumY[i] = 0.f;
+    }
+}

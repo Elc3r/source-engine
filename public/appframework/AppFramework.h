@@ -54,6 +54,10 @@ void AppShutdown( CAppSystemGroup *pAppSystemGroup );
 	{																							\
 		return AppMain( hInstance, hPrevInstance, lpCmdLine, nCmdShow, &_globalVarName );		\
 	}
+#elif defined( IOS )
+// UIKit supplies the iOS entry point; desktop application macros cannot own it.
+#define DEFINE_WINDOWED_APPLICATION_OBJECT_GLOBALVAR( _globalVarName ) \
+	static_assert( false, "iOS windowed applications require a UIKit entry point" );
 #elif defined( OSX )
 #define DEFINE_WINDOWED_APPLICATION_OBJECT_GLOBALVAR( _globalVarName ) \
 	int main( int argc, char **argv )										\

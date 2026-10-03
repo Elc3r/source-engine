@@ -335,6 +335,11 @@ public:
 	void JoystickButtonRelease( int joystickId, int button ); // same as above.
 	void JoystickAxisMotion( int joystickId, int axis, int value );
 
+	void SDLFingerEvent( int eventType, int64 deviceId, int64 fingerId, float x, float y, float dx, float dy );
+	void CancelTouch();
+#if defined(IOS)
+	void SDLKeyboardEvent(int scancode, bool pressed, bool repeat);
+#endif
 	void FingerEvent( int eventType, int fingerId, float x, float y, float dx, float dy );	
 	
 	// Steam Controller
@@ -460,6 +465,8 @@ public:
 	bool m_bRawInputSupported;
 	int	 m_mouseRawAccumX, m_mouseRawAccumY;
 
+	struct TouchContact { int64 deviceId, fingerId; float x, y; bool active; };
+	TouchContact m_touchContacts[TOUCH_FINGER_MAX_COUNT];
 	float m_touchAccumX[TOUCH_FINGER_MAX_COUNT], m_touchAccumY[TOUCH_FINGER_MAX_COUNT];
 
 	// For the 'SleepUntilInput' feature

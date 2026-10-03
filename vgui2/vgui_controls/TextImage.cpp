@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <assert.h>
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

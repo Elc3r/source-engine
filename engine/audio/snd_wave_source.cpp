@@ -2454,6 +2454,15 @@ CAudioSourceCache::SearchPathCache *CAudioSourceCache::CreateCacheForSearchPath(
 		eOutOfDateMethod = UTL_CACHED_FILE_USE_TIMESTAMP;
 	}
 
+#if defined( IOS )
+	// Keep generated caches in the app's writable MOD root, never alongside
+	// the externally supplied game archives. Identify each source path uniquely.
+	CRC32_t pathCRC;
+	CRC32_Init( &pathCRC );
+	CRC32_ProcessBuffer( &pathCRC, szSearchPath, V_strlen( szSearchPath ) );
+	CRC32_Final( &pathCRC );
+	V_snprintf( szCacheName, sizeof( szCacheName ), "sound/ios-%08x.cache", pathCRC );
+#endif
 	return new SearchPathCache( szCacheName, szSearchPath, eOutOfDateMethod );
 }
 
@@ -2613,6 +2622,13 @@ CAudioSourceCachedInfo *CAudioSourceCache::GetInfo( int audiosourcetype, bool so
 		return NULL;
 
 	info = pCache->Get( fn );
+#if defined( IOS )
+	// An empty metadata entry must not suppress a valid sound indefinitely.
+	// Rebuild lazily once its archive is available.
+	if ( info && info->Type() == CAudioSource::AUDIO_SOURCE_UNK &&
+		g_pFullFileSystem->FileExists( fn, "GAME" ) )
+		info = pCache->RebuildItem( fn );
+#endif
 
 // Is this applicable anymore now that we have a cache per search path?
 //	if ( info && info->Format() == 0 )

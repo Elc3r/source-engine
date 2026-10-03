@@ -26,7 +26,9 @@
 
 GL_FUNC(OpenGL,true,GLenum,glGetError,(void),())
 GL_FUNC_VOID(OpenGL,true,glActiveTexture,(GLenum a),(a))
+#ifndef IOS // Not part of GLES 3.0; unused by the programmable renderer.
 GL_FUNC_VOID(OpenGL,true,glAlphaFunc,(GLenum a,GLclampf b),(a,b))
+#endif
 GL_FUNC_VOID(OpenGL,true,glAttachShader,(GLuint a, GLuint b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glBindAttribLocation,(GLuint a,GLuint b,const GLchar *c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glBindBuffer,(GLenum a,GLuint b),(a,b))
@@ -67,7 +69,7 @@ GL_FUNC_VOID(OpenGL,true,glDeleteSync,(GLsync a),(a))
 GL_FUNC(OpenGL,true,GLsync,glFenceSync,(GLenum a, GLbitfield b),(a,b))
 
 #if 1 //ifndef OSX // 10.6/GL 2.1 compatability
-GL_FUNC_VOID(OpenGL,true,glDrawRangeElementsBaseVertex,(GLenum a,GLuint b,GLuint c,GLsizei d,GLenum e,const GLvoid *f, GLenum g),(a,b,c,d,e,f,g))
+GL_FUNC_VOID(OpenGL,true,glDrawRangeElementsBaseVertex,(GLenum a,GLuint b,GLuint c,GLsizei d,GLenum e,const GLvoid *f, GLint g),(a,b,c,d,e,f,g))
 #endif
 GL_FUNC_VOID(OpenGL,true,glEnable,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,true,glEnableVertexAttribArray,(GLuint a),(a))
@@ -103,10 +105,14 @@ GL_FUNC(OpenGL,true,GLboolean,glUnmapBuffer,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,true,glUseProgram,(GLuint a),(a))
 GL_FUNC_VOID(OpenGL,true,glVertexAttribPointer,(GLuint a,GLint b,GLenum c,GLboolean d,GLsizei e,const GLvoid *f),(a,b,c,d,e,f))
 GL_FUNC_VOID(OpenGL,true,glViewport,(GLint a,GLint b,GLsizei c,GLsizei d),(a,b,c,d))
+#ifndef IOS // Not part of GLES 3.0; unused by the programmable renderer.
 GL_FUNC_VOID(OpenGL,true,glClientActiveTexture,(GLenum a),(a))
+#endif
 GL_FUNC_VOID(OpenGL,true,glStencilOpSeparate,(GLenum a,GLenum b,GLenum c,GLenum d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,true,glStencilFuncSeparate,(GLenum a,GLenum b,GLint c,GLuint d),(a,b,c,d))
+#ifndef IOS // Not part of GLES 3.0; unused by the programmable renderer.
 GL_FUNC_VOID(OpenGL,true,glGetTexLevelParameteriv,(GLenum a,GLint b,GLenum c,GLint *d),(a,b,c,d))
+#endif
 GL_EXT(GL_EXT_framebuffer_object,-1,-1)
 GL_EXT(GL_EXT_framebuffer_blit,-1,-1)
 GL_EXT(GL_APPLE_fence,-1,-1)
@@ -167,7 +173,9 @@ GL_FUNC(OpenGL,false,GLenum,glCheckFramebufferStatus,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,false,glDeleteRenderbuffers,(GLsizei a,const GLuint *b),(a,b))
 GL_FUNC_VOID(OpenGL,false,glFramebufferRenderbuffer,(GLenum a,GLenum b,GLenum c,GLuint d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,false,glFramebufferTexture2D,(GLenum a,GLenum b,GLenum c,GLuint d,GLint e),(a,b,c,d,e))
+#ifndef IOS // GLES uses framebuffer texture layers instead; this entry is unused.
 GL_FUNC_VOID(OpenGL,false,glFramebufferTexture3D,(GLenum a,GLenum b,GLenum c,GLuint d,GLint e,GLint f),(a,b,c,d,e,f))
+#endif
 GL_FUNC_VOID(OpenGL,true,glGenFramebuffers,(GLsizei a,GLuint *b),(a,b))
 GL_FUNC_VOID(OpenGL,false,glGenRenderbuffers,(GLsizei a,GLuint *b),(a,b))
 GL_FUNC_VOID(OpenGL,false,glDeleteFramebuffers,(GLsizei a,const GLuint *b),(a,b))
@@ -217,6 +225,10 @@ GL_EXT(GL_QCOM_alpha_test,-1,-1)
 
 
 GL_EXT(GL_EXT_texture_sRGB_decode,-1,-1)
+GL_EXT(GL_EXT_sRGB_write_control,-1,-1)
+GL_EXT(GL_EXT_texture_border_clamp,-1,-1)
+GL_EXT(GL_OES_texture_border_clamp,-1,-1)
+GL_EXT(GL_EXT_texture_filter_anisotropic,-1,-1)
 GL_EXT(GL_NVX_gpu_memory_info,-1,-1)
 GL_EXT(GL_ATI_meminfo,-1,-1)
 GL_EXT(GL_EXT_texture_compression_s3tc,-1,-1)
@@ -243,10 +255,12 @@ GL_FUNC_VOID(OpenGL,true,glPolygonOffset,(GLfloat a,GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glTexParameterfv,(GLenum a,GLenum b,const GLfloat *c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glUniform1f,(GLint a,GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glUniform4fv,(GLint a,GLsizei b,const GLfloat *c),(a,b,c))
+#ifndef IOS // Not part of GLES 3.0; unused by the programmable renderer.
 GL_FUNC_VOID(OpenGL,true,glColor4f,(GLfloat a,GLfloat b,GLfloat c,GLfloat d),(a,b,c,d))
+#endif
 GL_FUNC_VOID(OpenGL,true,glSamplerParameterf,(GLuint a, GLenum b, GLfloat c), (a, b, c))
 GL_FUNC_VOID(OpenGL,true,glSamplerParameterfv,(GLuint a, GLenum b, const GLfloat *c), (a, b, c))
-GL_FUNC_VOID(OpenGL,false,glAlphaFuncQCOM,(GLenum a, GLfloat b),(a,b))
+GL_FUNC_VOID(GL_QCOM_alpha_test,false,glAlphaFuncQCOM,(GLenum a, GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glClearDepthf,(GLfloat a),(a))
 GL_FUNC_VOID(OpenGL,true,glDepthRangef,(GLfloat a,GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glGetFramebufferAttachmentParameteriv,(GLenum a,GLenum b,GLenum c,GLint *d),(a,b,c,d))

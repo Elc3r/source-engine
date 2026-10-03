@@ -448,7 +448,6 @@ extern bool gfBackground;
 
 static bool host_checkheap = false;
 
-CCommonHostState host_state;
 
 
 //-----------------------------------------------------------------------------
@@ -580,6 +579,11 @@ unsigned int host_jitterhistorypos = 0;
 int			host_framecount;
 static int	host_hunklevel;
 
+void Host_SetHunkLevel( int mark )
+{
+	host_hunklevel = mark;
+}
+
 CGameClient	*host_client;			// current client
 
 jmp_buf 	host_abortserver;
@@ -685,18 +689,6 @@ bool GetFileFromRemoteStorage( ISteamRemoteStorage *pRemoteStorage, const char *
 }
 
 
-void CCommonHostState::SetWorldModel( model_t *pModel )
-{
-	worldmodel = pModel;
-	if ( pModel )
-	{
-		worldbrush = pModel->brush.pShared;
-	}
-	else
-	{
-		worldbrush = NULL;
-	}
-}
 
 void Host_DefaultMapFileName( const char *pFullMapName, /* out */ char *pDiskName, unsigned int nDiskNameSize )
 {
@@ -1606,8 +1598,12 @@ void Host_ReadConfiguration()
 
 	bool saveconfig = false;
 
+#if defined( NO_STEAM )
+	ISteamRemoteStorage *pRemoteStorage = NULL;
+#else
 	ISteamRemoteStorage *pRemoteStorage = SteamClient()?(ISteamRemoteStorage *)SteamClient()->GetISteamGenericInterface(
 		SteamAPI_GetHSteamUser(), SteamAPI_GetHSteamPipe(), STEAMREMOTESTORAGE_INTERFACE_VERSION ):NULL;
+#endif
 	
 	if ( pRemoteStorage )
 	{
@@ -2981,6 +2977,7 @@ S_API int SteamGameServer_GetIPCCallCount() { return 0; }
 #endif
 void Host_ShowIPCCallCount()
 {
+#if !defined( NO_STEAM )
 	// If set to 0 then get out.
 	if ( host_ShowIPCCallCount.GetInt() == 0 )
 		return;
@@ -3025,6 +3022,7 @@ void Host_ShowIPCCallCount()
 		s_nLastTick = host_tickcount;
 		s_nLastFrame = host_framecount;
 	}
+#endif
 }
 
 void Host_SetClientInSimulation( bool bInSimulation )
@@ -3949,7 +3947,10 @@ void HLTV_Shutdown()
 // Check with steam to see if the requested file (requires full path) is a valid, signed binary
 bool DLL_LOCAL Host_IsValidSignature( const char *pFilename, bool bAllowUnknown )
 {
-#if defined( SWDS ) || defined(_X360)
+#if defined( NO_STEAM )
+	// No Steam signature service is available.
+	return false;
+#elif defined( SWDS ) || defined(_X360)
 	return true;
 #else
 	if ( sv.IsDedicated() || IsOSX() || IsLinux() || IsBSD() )
@@ -4003,8 +4004,8 @@ bool DLL_LOCAL Host_IsValidSignature( const char *pFilename, bool bAllowUnknown 
 // This keeps legitimate users with modified binaries from getting VAC banned because of them
 bool DLL_LOCAL Host_AllowLoadModule( const char *pFilename, const char *pPathID, bool bAllowUnknown, bool bIsServerOnly /* = false */ )
 {
-#if defined( SWDS ) || defined ( OSX ) || defined( LINUX )
-	// dedicated servers and Mac and Linux binaries don't check signatures
+#if defined( SWDS ) || defined ( OSX ) || defined( LINUX ) || defined( IOS )
+	// These platforms load local modules without Steam signature checks.
 	return true;
 #else
 

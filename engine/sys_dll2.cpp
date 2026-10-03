@@ -373,7 +373,9 @@ public:
 				// Bump up the number and report the crash. This should be something
 				//  like 232251 (instead of 232250). 232251 is for the TF2 Windows client,
 				//  but we actually report those crashes under ID 440, so this should be ok.
+#if !defined(IOS)
 				SteamAPI_SetBreakpadAppID( AppId + 1 );
+#endif
 			}
 		}
 
@@ -873,7 +875,7 @@ static eSteamInfoInit Sys_TryInitSteamInfo( void *pvAPI, SteamInfVersionInfo_t& 
 	// Update minidump info if we have more information than before
 	//
 
-#ifndef NO_STEAM
+#if !defined(NO_STEAM) && !defined(IOS)
 	// If -nobreakpad was specified or we found metamod or sourcemod, don't register breakpad.
 	bool bUseBreakpad = !CommandLine()->FindParm( "-nobreakpad" ) && ( !bDedicated || !IsSourceModLoaded() );
 	AppId_t BreakpadAppId = bDedicated ? VerInfo.ServerAppID : VerInfo.AppID;

@@ -16,7 +16,7 @@
 #include <characterset.h>
 #include <bitbuf.h>
 #include "common.h"
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>
@@ -766,7 +766,12 @@ void COM_StringFree(const char *in)
 void COM_SetupLogDir( const char *mapname )
 {
 	char gameDir[MAX_OSPATH];
+#if defined(IOS)
+    // Game assets are mounted read-only; logs belong to the UIKit sandbox.
+    if (!g_pFileSystem->GetSearchPath("DEFAULT_WRITE_PATH",false,gameDir,sizeof(gameDir))) return;
+#else
 	COM_GetGameDir( gameDir, sizeof( gameDir ) );
+#endif
 
 	// Blat out the all directories in the LOGDIR path
 	g_pFileSystem->RemoveSearchPath( NULL, "LOGDIR" );
@@ -779,7 +784,11 @@ void COM_SetupLogDir( const char *mapname )
 		for ( i = 0; i < MAX_LOG_DIRECTORIES; i++ )
 		{
 			Q_snprintf( sRelativeLogDir, sizeof( sRelativeLogDir ), "logs/%s/%04i", mapname, i );
+			#if defined(IOS)
+			if ( !g_pFileSystem->IsDirectory( sRelativeLogDir, "DEFAULT_WRITE_PATH" ) )
+#else
 			if ( !g_pFileSystem->IsDirectory( sRelativeLogDir, "GAME" ) )
+#endif
 				break;
 		}
 
@@ -791,7 +800,11 @@ void COM_SetupLogDir( const char *mapname )
 		}
 
 		// Make sure the directories we need exist.
-		g_pFileSystem->CreateDirHierarchy( sRelativeLogDir, "GAME" );	
+#if defined(IOS)
+        g_pFileSystem->CreateDirHierarchy( sRelativeLogDir, "DEFAULT_WRITE_PATH" );
+#else
+		g_pFileSystem->CreateDirHierarchy( sRelativeLogDir, "GAME" );
+#endif
 
 		{
 			static bool pathsetup = false;

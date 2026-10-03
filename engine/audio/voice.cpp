@@ -600,6 +600,14 @@ bool Voice_Init( const char *pCodecName, int nSampleRate )
 
 	Voice_Deinit();
 
+#if defined( NO_STEAM )
+	if ( bSteam )
+	{
+		Msg( "Voice_Init: Steam voice is unavailable in this build\n" );
+		return false;
+	}
+#endif
+
 	g_bVoiceAtLeastPartiallyInitted = true;
 	V_strncpy( g_szVoiceCodec, pCodecName, sizeof(g_szVoiceCodec) );
 	g_nVoiceRequestedSampleRate = nSampleRate;
@@ -609,7 +617,9 @@ bool Voice_Init( const char *pCodecName, int nSampleRate )
 	if ( !steamapicontext )
 	{
 		steamapicontext = &g_SteamAPIContext;
+#if !defined( NO_STEAM )
 		steamapicontext->Init();
+#endif
 	}
 
 	if ( g_bUsingSteamVoice )

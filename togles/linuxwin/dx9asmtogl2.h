@@ -261,7 +261,8 @@ private:
 public:
 	D3DToGL();
 
-	int TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bool *bVertexShader, uint32 options, int32 nShadowDepthSamplerMask, uint32 nCentroidMask, char *debugLabel );
+	// Device capability is explicit so translation does not depend on a live GL manager.
+	int TranslateShader( uint32* code, CUtlBuffer *pBufDisassembledCode, bool *bVertexShader, uint32 options, int32 nShadowDepthSamplerMask, uint32 nCentroidMask, char *debugLabel, bool nativeAlphaTest );
 };
 
 

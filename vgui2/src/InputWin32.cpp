@@ -998,6 +998,14 @@ void CInputSystem::UpdateMouseFocus(int x, int y)
 
 	InputContext_t *pContext = GetInputContext( m_hContext );
 
+#if defined(IOS)
+    // A touch still needs a modal hit target when restricted painting hides
+    // the desktop cursor. Resolve it directly within the active modal panel.
+    if (pContext->_appModalPanel) {
+        focus = (VPanel *)pContext->_appModalPanel->Client()->IsWithinTraverse(x, y, true);
+    }
+    else
+#endif
 	if (g_pSurface->IsCursorVisible() && g_pSurface->IsWithin(x, y))
 	{
 		// faster version of code below

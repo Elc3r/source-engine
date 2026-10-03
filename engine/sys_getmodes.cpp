@@ -7,6 +7,9 @@
 #if defined( USE_SDL )
 #undef PROTECTED_THINGS_ENABLE
 #include "SDL.h"
+#if defined(IOS)
+#include "SDL_metal.h"
+#endif
 #include "SDL_syswm.h"
 #endif
 
@@ -516,6 +519,14 @@ int CVideoMode_Common::FindVideoMode( int nDesiredWidth, int nDesiredHeight, boo
 //-----------------------------------------------------------------------------
 void CVideoMode_Common::ResetCurrentModeForNewResolution( int nWidth, int nHeight, bool bWindowed )
 {
+#if defined(IOS)
+    m_bWindowed = true;
+    m_nModeWidth = m_nUIWidth = m_nStereoWidth = m_nRenderWidth = nWidth;
+    m_nModeHeight = m_nUIHeight = m_nStereoHeight = m_nRenderHeight = nHeight;
+    DefaultVideoMode().width = nWidth;
+    DefaultVideoMode().height = nHeight;
+    return;
+#endif
     // Fill in vid structure for the mode
     int nGameMode = FindVideoMode( nWidth, nHeight, bWindowed );
     vmode_t *pMode = GetMode( nGameMode );
@@ -1160,17 +1171,6 @@ typedef struct tagRGBQUAD {
 #define BI_RLE4       2L
 #define BI_BITFIELDS  3L
 
-#if 0
-typedef struct _GUID
-{
-    unsigned long Data1;
-    unsigned short Data2;
-    unsigned short Data3;
-    unsigned char Data4[8];
-} GUID;
-
-#endif
-typedef GUID UUID;
 
 #endif //WIN32
 //-----------------------------------------------------------------------------
@@ -1369,7 +1369,12 @@ void CVideoMode_Common::AdjustWindow( int nWidth, int nHeight, int nBPP, bool bW
 	// Use Change Display Settings to go full screen
 	ChangeDisplaySettingsToFullscreen( nWidth, nHeight, nBPP );
 
+#if defined(USE_SDL)
+	// SDL window sizing does not need Win32 RECT declarations.
+	struct { int top, left, right, bottom; } WindowRect;
+#else
 	RECT WindowRect;
+#endif
 	WindowRect.top      = 0;
 	WindowRect.left     = 0;
 	WindowRect.right    = nWidth;
@@ -2273,6 +2278,9 @@ static void VideoMode_AdjustForModeChange( void )
 {
     ( ( CVideoMode_MaterialSystem * )videomode )->AdjustForModeChange();
 }
+#if defined(IOS)
+extern "C" void SourceIOSUpdateVideoMode() { VideoMode_AdjustForModeChange(); }
+#endif
 
 
 //-----------------------------------------------------------------------------
@@ -2294,6 +2302,25 @@ CVideoMode_MaterialSystem::CVideoMode_MaterialSystem( )
 //-----------------------------------------------------------------------------
 bool CVideoMode_MaterialSystem::Init( )
 {
+#if defined(IOS)
+    // UIKit/SDL already created the native window and renderer. Adopt its
+    // drawable dimensions without desktop enumeration or a second window.
+    SDL_Window *window = SDL_GetKeyboardFocus();
+    if (!window) return false;
+    SDL_Metal_GetDrawableSize(window, &m_nModeWidth, &m_nModeHeight);
+    if (m_nModeWidth <= 0 || m_nModeHeight <= 0) return false;
+    m_nStereoWidth = m_nUIWidth = m_nRenderWidth = m_nModeWidth;
+    m_nStereoHeight = m_nUIHeight = m_nRenderHeight = m_nModeHeight;
+    m_bWindowed = true;
+    m_bSetModeOnce = true;
+    m_bPlayedStartupVideo = false;
+    DefaultVideoMode().width = m_nModeWidth;
+    DefaultVideoMode().height = m_nModeHeight;
+    m_bClientViewRectDirty = true;
+    m_bInitialized = true;
+    return true;
+#endif
+
     m_bSetModeOnce = false;
     m_bPlayedStartupVideo = false;
 
@@ -2479,7 +2506,9 @@ void CVideoMode_MaterialSystem::AdjustForModeChange( void )
     CMatRenderContextPtr pRenderContext( materials );
 
     ResetCurrentModeForNewResolution( nNewWidth, nNewHeight, bWindowed );
+#if !defined(IOS)
     AdjustWindow( GetModeWidth(), GetModeHeight(), GetModeBPP(), IsWindowedMode() );
+#endif
     MarkClientViewRectDirty();
     pRenderContext->Viewport( 0, 0, GetModeStereoWidth(), GetModeStereoHeight() );
 

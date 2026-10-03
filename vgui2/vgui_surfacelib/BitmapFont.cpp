@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

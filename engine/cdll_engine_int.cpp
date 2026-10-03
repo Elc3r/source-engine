@@ -662,6 +662,11 @@ bool CEngineClient::CopyLocalFile( const char *source, const char *destination )
 
 void CEngineClient::GetScreenSize( int& w, int &h )
 {
+#if defined(IOS)
+    // UIKit's UI size is available before the first backbuffer resize. During
+    // startup the graphics probe still owns an 8x8 validation backbuffer.
+    if (videomode) { w=videomode->GetModeUIWidth(); h=videomode->GetModeUIHeight(); return; }
+#endif
 	CMatRenderContextPtr pRenderContext( materials );
 	pRenderContext->GetWindowSize( w, h );
 }

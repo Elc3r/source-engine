@@ -182,7 +182,14 @@ void DrawRefract_DX9( CBaseVSShader *pShader, IMaterialVar** params, IShaderDyna
 		SET_STATIC_VERTEX_SHADER( refract_vs20 );
 
 		// We have to do this in the shader on R500 or Leopard
+		// Hosted GLES can use linear render targets with shader-encoded sRGB
+		// writes. The copied framebuffer then needs decoding in this shader,
+		// because the render-target texture cannot perform an sRGB read.
+#if defined( IOS ) && defined( TOGLES )
+		bool bShaderSRGBConvert = !g_pHardwareConfig->CanDoSRGBReadFromRTs();
+#else
 		bool bShaderSRGBConvert = IsOSX() && ( g_pHardwareConfig->FakeSRGBWrite() || !g_pHardwareConfig->CanDoSRGBReadFromRTs() );
+#endif
 		if ( g_pHardwareConfig->SupportsPixelShaders_2_b() || g_pHardwareConfig->ShouldAlwaysUseShaderModel2bShaders() ) // always send OpenGL down the ps2b path
 		{
 			DECLARE_STATIC_PIXEL_SHADER( refract_ps20b );
@@ -295,4 +302,3 @@ void DrawRefract_DX9( CBaseVSShader *pShader, IMaterialVar** params, IShaderDyna
 	}
 	pShader->Draw();
 }
-

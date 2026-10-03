@@ -14,7 +14,7 @@
 #include "filesystem.h"
 #include "filesystem_engine.h"
 #include "materialsystem/imaterial.h"
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

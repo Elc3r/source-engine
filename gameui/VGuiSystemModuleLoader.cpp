@@ -66,7 +66,12 @@ CVGuiSystemModuleLoader::~CVGuiSystemModuleLoader()
 //-----------------------------------------------------------------------------
 bool CVGuiSystemModuleLoader::IsPlatformReady()
 {
+#if defined(IOS)
+    // The mobile host has no desktop Steam platform modules to load.
+    return true;
+#else
 	return m_bModulesInitialized;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -125,6 +130,10 @@ bool CVGuiSystemModuleLoader::InitializeAllModules(CreateInterfaceFn *factorylis
 //-----------------------------------------------------------------------------
 bool CVGuiSystemModuleLoader::LoadPlatformModules(CreateInterfaceFn *factorylist, int factorycount, bool useSteamModules)
 {
+#if defined(IOS)
+	// Desktop Steam platform modules are not part of the UIKit application.
+	return false;
+#endif
 	if ( IsX360() )
 	{
 		// not valid for 360

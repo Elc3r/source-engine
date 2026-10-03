@@ -26,7 +26,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

@@ -17,8 +17,15 @@
 
 #if defined( DX_TO_GL_ABSTRACTION )
 
+#if defined( IOS ) && defined( TOGLES )
+// The launcher interface only uses opaque context/display pointers. Avoid
+// pulling desktop GL types into GLES clients before their graphics headers.
+typedef void *PseudoGLContextPtr;
+struct GLMRendererInfoFields;
+#else
 #include "togl/linuxwin/glmgrbasics.h"
 #include "togl/linuxwin/glmdisplay.h"
+#endif
 
 class GLMDisplayDB;
 class CShowPixelsParams;

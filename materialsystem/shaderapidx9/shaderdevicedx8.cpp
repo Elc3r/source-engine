@@ -26,7 +26,8 @@
 #include "winutils.h"
 #include "tier0/vprof_telemetry.h"
 
-#if defined ( DX_TO_GL_ABSTRACTION )
+#if defined ( DX_TO_GL_ABSTRACTION ) && !defined( TOGLES )
+// ToGLES owns gGL in its entry-point module.
 // Placed here so inlines placed in dxabstract.h can access gGL
 COpenGLEntryPoints *gGL = NULL;
 #endif
@@ -143,7 +144,10 @@ bool CShaderDeviceMgrDx8::Connect( CreateInterfaceFn factory )
 	if ( !BaseClass::Connect( factory ) )
 		return false;
 
-#if defined ( DX_TO_GL_ABSTRACTION )
+#if defined(IOS) && defined(TOGLES)
+	// The application owns the initialized GLES backend and its service bindings.
+	if ( !gGL ) return false;
+#elif defined ( DX_TO_GL_ABSTRACTION )
 	gGL = ToGLConnectLibraries( factory );
 #endif
 
@@ -189,7 +193,9 @@ bool CShaderDeviceMgrDx8::Connect( CreateInterfaceFn factory )
 	
 	mat_supports_d3d9ex.SetValue( bD3D9ExAvailable ? 1 : 0 );
 #else
-	#if defined( DO_DX9_HOOK )
+	#if defined( IOS ) && defined( TOGLES )
+		m_pD3D = ToGLESCreateD3D9(D3D_SDK_VERSION, factory);
+	#elif defined( DO_DX9_HOOK )
 		m_pD3D = Direct3DCreate9Hook(D3D_SDK_VERSION);
 	#else
 		m_pD3D = Direct3DCreate9(D3D_SDK_VERSION);
@@ -251,7 +257,7 @@ void CShaderDeviceMgrDx8::Disconnect()
 		m_pD3D = 0;
 	}
 
-#if defined ( DX_TO_GL_ABSTRACTION )
+#if defined ( DX_TO_GL_ABSTRACTION ) && !(defined(IOS) && defined(TOGLES))
 	ToGLDisconnectLibraries();
 #endif
 
@@ -354,6 +360,13 @@ void CShaderDeviceMgrDx8::InitAdapterInfo()
 //--------------------------------------------------------------------------------
 void CShaderDeviceMgrDx8::CheckBorderColorSupport( HardwareCaps_t *pCaps, int nAdapter )
 {
+#if defined( IOS ) && defined( TOGLES )
+    // GLES border addressing is optional; let Source select its non-border
+    // materials when neither extension is present.
+    pCaps->m_bSupportsBorderColor = gGL && (gGL->m_bHave_GL_EXT_texture_border_clamp ||
+        gGL->m_bHave_GL_OES_texture_border_clamp);
+    return;
+#endif
 #ifdef DX_TO_GL_ABSTRACTION
 	if( true )
 #else

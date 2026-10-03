@@ -2561,6 +2561,9 @@ bool CGameServer::SpawnServer( const char *szMapName, const char *szMapFile, con
 
 		// edict for a player is slot + 1, world = 0
 		pClient->edict = edicts + i + 1;
+		// The new map can allocate its edicts at a different hunk address.
+		// Existing connections retain PackInfo across a level transition.
+		pClient->m_PackInfo.m_pClientEnt = pClient->edict;
 	
 		// Setup up the edict
 		InitializeEntityDLLFields( pClient->edict );
@@ -2711,6 +2714,8 @@ bool CGameServer::SpawnServer( const char *szMapName, const char *szMapFile, con
 		event->SetString( "os", "WIN32" );
 #elif defined ( LINUX )
 		event->SetString( "os", "LINUX" );
+#elif defined ( IOS )
+		event->SetString( "os", "IOS" );
 #elif defined ( OSX )
 		event->SetString( "os", "OSX" );
 #elif defined(PLATFORM_BSD)

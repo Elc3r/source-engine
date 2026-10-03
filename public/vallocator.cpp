@@ -8,7 +8,7 @@
 
 #if !defined(_STATIC_LINKED) || defined(_SHARED_LIB)
 
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>

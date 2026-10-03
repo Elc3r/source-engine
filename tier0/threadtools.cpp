@@ -26,7 +26,7 @@
 	#include <sys/time.h>
 	#define GetLastError() errno
 	typedef void *LPVOID;
-#if !defined(OSX)
+#if !(defined(OSX) || defined(IOS))
         #include <fcntl.h>
         #include <unistd.h>
 	#define sem_unlink( arg )
@@ -1627,7 +1627,7 @@ bool CThreadFullMutex::Release()
 //
 //-----------------------------------------------------------------------------
 
-#if defined( WIN32 ) || defined( _PS3 ) || defined( _OSX ) || defined (_LINUX) || defined(PLATFORM_BSD)
+#if defined( WIN32 ) || defined( _PS3 ) || defined(_OSX) || defined(IOS) || defined (_LINUX) || defined(PLATFORM_BSD)
 #if !defined(_PS3)
 namespace GenericThreadLocals
 {
@@ -1855,7 +1855,7 @@ bool ThreadInterlockedAssignIf128( volatile int128 *pDest, const int128 &value, 
 
 #elif defined(GNUC)
 
-#ifdef OSX
+#if defined(OSX) || defined(IOS)
 #include <libkern/OSAtomic.h>
 #endif
 

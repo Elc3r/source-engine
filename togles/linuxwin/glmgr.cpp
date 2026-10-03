@@ -26,6 +26,7 @@
 //
 //===============================================================================
 #include "togles/rendermechanism.h"
+#include "texture_upload.h"
 
 #include "tier0/icommandline.h"
 
@@ -74,7 +75,6 @@ const int kGLMHighWaterUndeleted = 2048;
 const int kDeletedTextureDim = 4;
 const uint32 g_garbageTextureBits[ 4 * kDeletedTextureDim * kDeletedTextureDim ] = { 0 };
 
-extern void CompressedTexImage2D(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid *data);
 extern void convert_texture( GLenum &internalformat, GLsizei width, GLsizei height, GLenum &format, GLenum &type, void *data );
 
 char g_nullFragmentProgramText [] =
@@ -443,6 +443,8 @@ void	GLMgr::DelGLMgr( void )
 
 // GLMgr class methods
 
+static thread_local GLMContext *s_HostedCurrentContext = NULL;
+
 GLMgr::GLMgr()
 {
 }	
@@ -454,11 +456,14 @@ GLMgr::~GLMgr()
 
 //===============================================================================
 
-GLMContext *GLMgr::NewContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
+GLMContext *GLMgr::NewContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, const GLMContextHost *host )
 {
-	// this now becomes really simple.  We just pass through the params.
-	
-	return new GLMContext( pDevice, params );
+	// GLState members write defaults before the constructor body runs.
+	// Bind a borrowed context before constructing any of those members.
+	if ( host && ( !host->context || !host->makeCurrent || !host->displayedSize ||
+		!host->showPixels || !host->makeCurrent( host->userData, host->context ) ) )
+		return NULL;
+	return new GLMContext( pDevice, params, host );
 }
 
 void GLMgr::DelContext( GLMContext *context )
@@ -468,6 +473,7 @@ void GLMgr::DelContext( GLMContext *context )
 
 void GLMgr::SetCurrentContext( GLMContext *context )
 {
+	if ( context->m_host ) { context->MakeCurrent( true ); return; }
 #if defined( USE_SDL )
 	context->m_nCurOwnerThreadId = ThreadGetCurrentId();
 	if ( !MakeContextCurrent( context->m_ctx ) )
@@ -481,8 +487,9 @@ void GLMgr::SetCurrentContext( GLMContext *context )
 
 GLMContext *GLMgr::GetCurrentContext( void )
 {
+	if ( s_HostedCurrentContext ) return s_HostedCurrentContext;
 #if defined( USE_SDL )
-	PseudoGLContextPtr context = GetMainContext();
+	PseudoGLContextPtr context = g_pLauncherMgr ? GetMainContext() : NULL;
 	return (GLMContext*) context;
 #else
 	Assert( 0 );
@@ -496,6 +503,27 @@ GLMContext *GLMgr::GetCurrentContext( void )
 
 //===============================================================================
 // GLMContext public methods
+bool GLMContext::BindNativeContext(void *context)
+{
+    if (!m_host) return MakeContextCurrent(context);
+    if (!m_host->makeCurrent(m_host->userData, context)) return false;
+    s_HostedCurrentContext = context ? this : NULL;
+    return true;
+}
+
+bool GLMContext::HostShowPixels(CShowPixelsParams *params)
+{
+    if (m_host) return m_host->showPixels && m_host->showPixels(m_host->userData, params);
+    ShowPixels(params);
+    return true;
+}
+
+void GLMContext::HostDisplayedSize(uint &width, uint &height)
+{
+    if (m_host) m_host->displayedSize(m_host->userData,width,height);
+    else DisplayedSize(width,height);
+}
+
 void GLMContext::MakeCurrent( bool bRenderThread )
 {
 	tmZone( TELEMETRY_LEVEL0, 0, "GLMContext::MakeCurrent" );
@@ -508,7 +536,7 @@ void GLMContext::MakeCurrent( bool bRenderThread )
 	{
 //		Msg( "********************************************  %08x Acquiring Context\n", ThreadGetCurrentId() );
 		m_nCurOwnerThreadId = ThreadGetCurrentId();
-		bool bSuccess = MakeContextCurrent( m_ctx );
+		bool bSuccess = BindNativeContext( m_ctx );
 		if ( !bSuccess )
 		{
 			Assert( 0 );
@@ -521,13 +549,13 @@ void GLMContext::MakeCurrent( bool bRenderThread )
 	{
 		m_nCurOwnerThreadId = ThreadGetCurrentId();
 		m_dwRenderThreadId = dwThreadId;
-		MakeContextCurrent( m_ctx );
+		BindNativeContext( m_ctx );
 		m_bIsThreading = true;
 	}
 	else if ( !m_bIsThreading )
 	{
 		m_nCurOwnerThreadId = ThreadGetCurrentId();
-		MakeContextCurrent( m_ctx );
+		BindNativeContext( m_ctx );
 	}
 	else
 	{
@@ -554,12 +582,12 @@ void GLMContext::ReleaseCurrent( bool bRenderThread )
 //		Msg( "********************************************  %08x Releasing Context\n", ThreadGetCurrentId() );
 		m_nCurOwnerThreadId = 0;
 		m_nThreadOwnershipReleaseCounter++;
-		MakeContextCurrent( NULL );
+		BindNativeContext( NULL );
 	}
 #else
 	m_nCurOwnerThreadId = 0;
 	m_nThreadOwnershipReleaseCounter++;
-	MakeContextCurrent( NULL );
+	BindNativeContext( NULL );
 	if ( bRenderThread )
 	{
 		m_bIsThreading = false;
@@ -1961,6 +1989,17 @@ void GLMContext::Clear( bool color, unsigned long colorValue, bool depth, float 
 			clearcol.b =	((colorValue      ) & 0xFF) / 255.0f;	//B
 			clearcol.a =	((colorValue >> 24) & 0xFF) / 255.0f;	//A
 
+#ifdef IOS
+			const CGLMTex *target = m_drawingFBO ? m_drawingFBO->m_attach[kAttColor0].m_tex : NULL;
+			if ( !m_caps.m_hasGammaWrites && target && (target->m_layout->m_key.m_texFlags & kGLMTexSRGB) )
+			{
+				clearcol.r = SrgbGammaToLinear(clearcol.r);
+				clearcol.g = SrgbGammaToLinear(clearcol.g);
+				clearcol.b = SrgbGammaToLinear(clearcol.b);
+			}
+#endif
+
+
 			m_ClearColor.Write( &clearcol );	// no check, no wait
 			mask |= GL_COLOR_BUFFER_BIT;
 			
@@ -2110,7 +2149,9 @@ void GLMContext::BeginFrame( void )
 	m_lastKnownVertexAttribMask = 0;
 	m_nNumSetVertexAttributes = 0;
 	
-	//FIXME should we also zap the m_lastKnownAttribs array ? (worst case it just sets them all again on first batch)
+	// BeginFrame disabled the arrays even when the next draw uses the same
+	// declaration and streams. Force FlushDrawStates to enable them again.
+	ClearCurAttribs();
 
 	BindBufferToCtx( kGLMVertexBuffer, NULL, true );
 	BindBufferToCtx( kGLMIndexBuffer, NULL, true );
@@ -2200,9 +2241,84 @@ ConVar glm_literefresh_capslock( "glm_literefresh_capslock", "0" );
 
 extern ConVar gl_blitmode;
 
-void GLMContext::Present( CGLMTex *tex )
+#ifdef IOS
+// Present linear-light rendering through the host's encoded-byte window surface.
+// Sampling decodes the sRGB color target; encode exactly once for the window.
+bool GLMContext::PresentSRGBTexture(CGLMTex *texture, uint width, uint height)
+{
+    if (!m_srgbPresentProgram) {
+        const char *sources[]={
+            "#version 300 es\nprecision highp float;\nout vec2 uv;\n"
+            "void main(){ vec2 p=vec2((gl_VertexID==1)?3.0:-1.0,(gl_VertexID==2)?3.0:-1.0);"
+            "gl_Position=vec4(p,0,1);uv=vec2((p.x+1.0)*0.5,(1.0-p.y)*0.5);}",
+            "#version 300 es\nprecision highp float;\nin vec2 uv;uniform sampler2D source;out vec4 color;\n"
+            "void main(){vec4 c=texture(source,uv);vec3 v=max(c.rgb,vec3(0));"
+            "color=vec4(mix(v*12.92,1.055*pow(v,vec3(1.0/2.4))-0.055,"
+            "greaterThan(v,vec3(0.0031308))),c.a);}"};
+        GLuint shaders[2]={};
+        bool valid=true;
+        for (int i=0;i<2;++i) {
+            shaders[i]=gGL->glCreateShader(i ? GL_FRAGMENT_SHADER : GL_VERTEX_SHADER);
+            gGL->glShaderSource(shaders[i],1,&sources[i],NULL);
+            gGL->glCompileShader(shaders[i]);
+            GLint compiled=0;gGL->glGetShaderiv(shaders[i],GL_COMPILE_STATUS,&compiled);
+            valid=valid && compiled;
+        }
+        GLuint program=gGL->glCreateProgram();
+        for (int i=0;i<2;++i) gGL->glAttachShader(program,shaders[i]);
+        gGL->glLinkProgram(program);
+        GLint linked=0;gGL->glGetProgramiv(program,GL_LINK_STATUS,&linked);
+        for (int i=0;i<2;++i) gGL->glDeleteShader(shaders[i]);
+        if (!valid || !linked) { gGL->glDeleteProgram(program); return false; }
+        m_srgbPresentProgram=program;
+        gGL->glGenVertexArrays(1,&m_srgbPresentVAO);
+        gGL->glGenSamplers(1,&m_srgbPresentSampler);
+        gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_MIN_FILTER,GL_LINEAR);
+        gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+        gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_WRAP_S,GL_CLAMP_TO_EDGE);
+        gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_WRAP_T,GL_CLAMP_TO_EDGE);
+        if (gGL->m_bHave_GL_EXT_texture_sRGB_decode)
+            gGL->glSamplerParameteri(m_srgbPresentSampler,GL_TEXTURE_SRGB_DECODE_EXT,GL_DECODE_EXT);
+    }
+    GLint program=0,vao=0,active=0,binding=0,sampler=0,viewport[4]={};
+    GLboolean mask[4]={};
+    gGL->glGetIntegerv(GL_CURRENT_PROGRAM,&program);
+    gGL->glGetIntegerv(GL_VERTEX_ARRAY_BINDING,&vao);
+    gGL->glGetIntegerv(GL_ACTIVE_TEXTURE,&active);
+    gGL->glGetIntegerv(GL_VIEWPORT,viewport);
+    gGL->glGetBooleanv(GL_COLOR_WRITEMASK,mask);
+    gGL->glActiveTexture(GL_TEXTURE0);
+    gGL->glGetIntegerv(GL_TEXTURE_BINDING_2D,&binding);
+    gGL->glGetIntegerv(GL_SAMPLER_BINDING,&sampler);
+    const GLenum states[]={GL_BLEND,GL_DEPTH_TEST,GL_STENCIL_TEST,GL_CULL_FACE,GL_SCISSOR_TEST};
+    GLboolean enabled[5];
+    for (int i=0;i<5;++i) {enabled[i]=gGL->glIsEnabled(states[i]);gGL->glDisable(states[i]);}
+    BindFBOToCtx(NULL,GL_FRAMEBUFFER);
+    gGL->glViewport(0,0,width,height);
+    gGL->glColorMask(GL_TRUE,GL_TRUE,GL_TRUE,GL_TRUE);
+    gGL->glUseProgram(m_srgbPresentProgram);
+    gGL->glUniform1i(gGL->glGetUniformLocation(m_srgbPresentProgram,"source"),0);
+    gGL->glBindVertexArray(m_srgbPresentVAO);
+    gGL->glBindTexture(GL_TEXTURE_2D,texture->m_texName);
+    gGL->glBindSampler(0,m_srgbPresentSampler);
+    gGL->glDrawArrays(GL_TRIANGLES,0,3);
+    gGL->glBindSampler(0,sampler);
+    gGL->glBindTexture(GL_TEXTURE_2D,binding);
+    gGL->glActiveTexture(active);
+    gGL->glBindVertexArray(vao);
+    gGL->glUseProgram(program);
+    gGL->glViewport(viewport[0],viewport[1],viewport[2],viewport[3]);
+    gGL->glColorMask(mask[0],mask[1],mask[2],mask[3]);
+    for (int i=0;i<5;++i) if (enabled[i]) gGL->glEnable(states[i]);
+    BindFBOToCtx(m_drawingFBO,GL_FRAMEBUFFER);
+    return true;
+}
+#endif
+
+bool GLMContext::Present( CGLMTex *tex )
 {
 	GLM_FUNC;
+	bool presented = true;
 	
 	{
 #if GL_TELEMETRY_GPU_ZONES
@@ -2218,7 +2334,7 @@ void GLMContext::Present( CGLMTex *tex )
 		// old school, do the resolve, had the tex down to cocoamgr to actually blit.
 		// that way is required if you are not in one-context mode (10.5.8)
 
-		if ( (gl_blitmode.GetInt() != 0) )
+		if ( m_host || (gl_blitmode.GetInt() != 0) )
 		{
 			newRefreshMode = true;
 		}
@@ -2236,7 +2352,7 @@ void GLMContext::Present( CGLMTex *tex )
 
 		// we call showpixels once with the "only sync view" arg set, so we know what the latest surface size is, before trying to do our own blit !
 		showparams.m_onlySyncView = true;
-		ShowPixels(&showparams);	// doesn't actually show anything, just syncs window/fs state (would make a useful separate call)
+		if ( !HostShowPixels(&showparams) ) return false;
 		showparams.m_onlySyncView = false;
 	
 		bool refresh = true;
@@ -2266,7 +2382,8 @@ void GLMContext::Present( CGLMTex *tex )
 				GLMRect	srcRect, dstRect;
 			
 				uint dstWidth,dstHeight;
-				DisplayedSize( dstWidth,dstHeight );
+				HostDisplayedSize( dstWidth,dstHeight );
+				if ( !dstWidth || !dstHeight ) return false;
 
 				srcRect.xmin	=	0;
 				srcRect.ymin	=	0;
@@ -2281,6 +2398,12 @@ void GLMContext::Present( CGLMTex *tex )
 				// do not ask for LINEAR if blit is unscaled
 				// NULL means targeting GL_BACK.  Blit2 will break it down into two steps if needed, and will handle resolve, scale, flip.
 				bool blitScales	=	(showparams.m_width != static_cast<int>(dstWidth)) || (showparams.m_height != static_cast<int>(dstHeight));
+#ifdef IOS
+                if (m_host && !m_caps.m_hasGammaWrites && (tex->m_layout->m_key.m_texFlags & kGLMTexSRGB)) {
+                    ResolveTex(tex,true);
+                    if (!PresentSRGBTexture(tex,dstWidth,dstHeight)) return false;
+                } else
+#endif
 				Blit2(	tex, &srcRect, 0,0,
 								NULL, &dstRect, 0,0,
 								blitScales ? GL_LINEAR : GL_NEAREST );
@@ -2299,7 +2422,7 @@ void GLMContext::Present( CGLMTex *tex )
 				// showparams.m_noBlit is left set to 0.  CocoaMgr does the blit.
 			}
 
-			ShowPixels(&showparams);
+			presented = HostShowPixels(&showparams);
 		}
 
 		//	put the original FB back in place (both read and draw)
@@ -2318,6 +2441,7 @@ void GLMContext::Present( CGLMTex *tex )
 	tmMessage( TELEMETRY_LEVEL2, TMMF_ICON_EXCLAMATION, "VS Uniform Calls: %u, VS Uniforms: %u|VS Uniform Bone Calls: %u, VS Bone Uniforms: %u|PS Uniform Calls: %u, PS Uniforms: %u", m_nTotalVSUniformCalls, m_nTotalVSUniformsSet, m_nTotalVSUniformBoneCalls, m_nTotalVSUniformsBoneSet, m_nTotalPSUniformCalls, m_nTotalPSUniformsSet );
 	m_nTotalVSUniformCalls = 0, m_nTotalVSUniformBoneCalls = 0, m_nTotalVSUniformsSet = 0, m_nTotalVSUniformsBoneSet = 0, m_nTotalPSUniformCalls = 0, m_nTotalPSUniformsSet = 0;
 #endif
+	return presented;
 }
 
 //===============================================================================
@@ -2357,8 +2481,10 @@ static uint gPersistentBufferSize[kGLMNumBufferTypes] =
 	0,					// kGLMPixelBuffer
 };
 
-GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
+GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, const GLMContextHost *host )
 {
+	m_host = host;
+	m_FakeBlendEnableSRGB = false;
 	m_nNumDirtySamplers = 0;
 
 	if( gGL->m_nDriverProvider == cGLDriverProviderARM )
@@ -2443,16 +2569,24 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 	uint					selWords	=	0;
 
 	memset( &m_caps, 0, sizeof( m_caps ) );
-	GetDesiredPixelFormatAttribsAndRendererInfo( (uint**)&selAttribs, &selWords, &m_caps );
+	if (m_host) m_caps = m_host->caps;
+    else GetDesiredPixelFormatAttribsAndRendererInfo( (uint**)&selAttribs, &selWords, &m_caps );
+#ifdef IOS
+	// ES3 supports sRGB attachments even without optional write control.
+	// Keep them so blending decodes the destination before combining colors.
+	// The shader suffix compensates for writes which D3D wants unencoded.
+	m_caps.m_hasGammaWrites = gGL->m_bHave_GL_EXT_sRGB_write_control;
+	m_caps.m_cantAttachSRGB = false;
+#endif
 	uint selBytes = selWords * sizeof( uint ); selBytes;
 
 #if defined( USE_SDL )
-	m_ctx = (SDL_GLContext)GetGLContextForWindow( params ? (void*)params->m_focusWindow : NULL );
+	m_ctx = m_host ? m_host->context : (SDL_GLContext)GetGLContextForWindow( params ? (void*)params->m_focusWindow : NULL );
 	MakeCurrent( true );
 #else
 #error
 #endif
-	IncrementWindowRefCount();
+	if (!m_host) IncrementWindowRefCount();
 
 	// If we're using GL_ARB_debug_output, go ahead and setup the callback here.
 	if ( CommandLine()->FindParm( "-gl_debug" ) ) 
@@ -2730,10 +2864,18 @@ void GLMContext::Reset()
 
 GLMContext::~GLMContext	()
 {
+#ifdef IOS
+    if (m_srgbPresentProgram) gGL->glDeleteProgram(m_srgbPresentProgram);
+    if (m_srgbPresentVAO) gGL->glDeleteVertexArrays(1,&m_srgbPresentVAO);
+    if (m_srgbPresentSampler) gGL->glDeleteSamplers(1,&m_srgbPresentSampler);
+#endif
+
 	if (m_debugFontTex)
 	{
 		DelTex( m_debugFontTex );
 		m_debugFontTex = NULL;
+		DelBuffer( m_debugFontIndices );
+		DelBuffer( m_debugFontVertices );
 	}
 
 	ProcessTextureDeletes();
@@ -2744,13 +2886,14 @@ GLMContext::~GLMContext	()
 		m_pNullFragmentProgram = NULL;
 	}
 	
-	// walk m_fboTable and free them up..
-	FOR_EACH_VEC( m_fboTable, i )
-	{
-		CGLMFBO *fbo = m_fboTable[i];
-		DelFBO( fbo );
-	}
-	m_fboTable.SetSize( 0 );
+	DelProgram( m_preloadTexVertexProgram );
+	DelProgram( m_preload2DTexFragmentProgram );
+	DelProgram( m_preload3DTexFragmentProgram );
+	DelProgram( m_preloadCubeTexFragmentProgram );
+
+	// DelFBO removes its entry; iterating forward would skip half the objects.
+	while ( m_fboTable.Count() )
+		DelFBO( m_fboTable.Tail() );
 
 	if (m_pairCache)
 	{
@@ -2760,13 +2903,23 @@ GLMContext::~GLMContext	()
 	
 	// we need a m_texTable I think..
 
-	// m_texLayoutTable can be scrubbed once we know that all the tex are freed
+	delete m_texLayoutTable;
+	m_texLayoutTable = NULL;
+
+#ifndef OSX
+	if ( m_bUseSamplerObjects )
+	{
+		for ( uint i = 0; i < cSamplerObjectHashSize; ++i )
+			gGL->glDeleteSamplers( 1, &m_samplerObjectHash[i].m_samplerObject );
+	}
+#endif
 
 	gGL->glDeleteBuffers( 1, &m_destroyPBO );
 
 	PurgeTexCache();
 
-	DecrementWindowRefCount();
+	if (!m_host) DecrementWindowRefCount();
+	if ( s_HostedCurrentContext == this ) s_HostedCurrentContext = NULL;
 }
 
 // This method must call SelectTMU()/glActiveTexture() (it's expected as a side effect).

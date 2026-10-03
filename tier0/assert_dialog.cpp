@@ -357,19 +357,6 @@ DBG_INTERFACE void SetAllAssertsDisabled( bool bAssertsDisabled )
 	g_bAssertsEnabled = !bAssertsDisabled;
 }
 
-#if defined( USE_SDL )
-SDL_Window *g_SDLWindow = NULL;
-
-DBG_INTERFACE void SetAssertDialogParent( struct SDL_Window *window )
-{
-	g_SDLWindow = window;
-}
-
-DBG_INTERFACE struct SDL_Window * GetAssertDialogParent()
-{
-	return g_SDLWindow;
-}
-#endif
 
 DBG_INTERFACE bool ShouldUseNewAssertDialog()
 {

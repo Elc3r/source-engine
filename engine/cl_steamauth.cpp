@@ -109,7 +109,11 @@ void CSteam3Client::Activate()
 void CSteam3Client::GetAuthSessionTicket( void *pTicket, int cbMaxTicket, uint32 *pcbTicket, uint32 unIP, uint16 usPort, uint64 unGSSteamID,  bool bSecure )
 {
 #ifdef NO_STEAM
-	m_bGSSecure = bSecure;
+	*pcbTicket = 0;
+	m_nTicketSize = 0;
+	m_hAuthTicket = k_HAuthTicketInvalid;
+	m_bGSSecure = false;
+	Warning( "Steam authentication is unavailable in this build\n" );
 #else
 	CSteamID steamIDGS( unGSSteamID );
 

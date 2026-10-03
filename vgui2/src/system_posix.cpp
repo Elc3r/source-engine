@@ -28,7 +28,7 @@
 #include "vgui_key_translation.h"
 #include "filesystem.h"
 
-#if defined(OSX) || defined(PLATFORM_BSD)
+#if defined(OSX) || defined(PLATFORM_BSD) || defined(IOS)
 #include <sys/param.h>
 #include <sys/mount.h>
 #elif defined(LINUX)
@@ -42,6 +42,9 @@
 #ifdef USE_SDL
 #include "SDL_clipboard.h"
 #include "SDL_error.h"
+#ifdef IOS
+#include "SDL_misc.h"
+#endif
 #endif
 
 #define PROTECTED_THINGS_DISABLE
@@ -276,6 +279,10 @@ long CSystem::GetTimeMillis()
 //-----------------------------------------------------------------------------
 void CSystem::ShellExecute(const char *command, const char *file)
 {
+#ifdef IOS
+	if (command && file && !V_strcmp(command,"open")) SDL_OpenURL(file);
+	return;
+#else
 	if ( V_strcmp( command, "open" ) != 0 )
 	{
 		// Nope
@@ -315,6 +322,7 @@ void CSystem::ShellExecute(const char *command, const char *file)
 		execlp( szCommand, szCommand, file, (char *)0 );
 		Assert( !"execlp failed" );
 	}
+#endif
 }
 
 void CSystem::ShellExecuteEx( const char *command, const char *file, const char *pParams )

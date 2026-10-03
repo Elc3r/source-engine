@@ -20,6 +20,7 @@ def configure(conf):
 def build(bld):
 	source = [
 		'assert_dialog.cpp',
+		'assert_sdl.cpp',
 		'commandline.cpp',
 		'cpu.cpp',
 		'cpumonitoring.cpp',

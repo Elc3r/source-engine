@@ -194,6 +194,9 @@ int SortInfoToLightmapPage( int sortID );
 void BuildMSurfaceVerts( const struct worldbrushdata_t *pBrushData, SurfaceHandle_t surfID, Vector *verts, Vector2D *texCoords, Vector2D lightCoords[][4] );
 void BuildMSurfacePrimVerts( worldbrushdata_t *pBrushData, mprimitive_t *prim, CMeshBuilder &builder, SurfaceHandle_t surfID );
 void BuildMSurfacePrimIndices( worldbrushdata_t *pBrushData, mprimitive_t *prim, CMeshBuilder &builder );
+bool TangentSpaceSurfaceSetup( SurfaceHandle_t surfID, Vector &tVect );
+void TangentSpaceComputeBasis( Vector& tangentS, Vector& tangentT, const Vector& normal, const Vector& tVect, bool negateTangent );
+
 void BuildBrushModelVertexArray(worldbrushdata_t *pBrushData, SurfaceHandle_t surfID, BrushVertex_t* pVerts );
 
 // Used for debugging - force it to release and restore all material system objects.

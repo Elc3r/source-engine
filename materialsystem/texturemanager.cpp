@@ -1478,8 +1478,8 @@ CTextureManager::CTextureManager( void )
 	m_pIdentityLightWarp = NULL;
 	m_pFullScreenDepthTexture = NULL;
 	m_pDebugLuxels2D = NULL;
-	m_pAsyncLoader = new AsyncLoader;
-	m_pAsyncReader = new AsyncReader;
+	m_pAsyncLoader = NULL;
+	m_pAsyncReader = NULL;
 	m_iSuspendTextureStreaming = 0;
 }
 
@@ -1489,6 +1489,10 @@ CTextureManager::CTextureManager( void )
 //-----------------------------------------------------------------------------
 void CTextureManager::Init( int nFlags )
 {
+	// Loading the module must not start workers that outlive a Connect-only cycle.
+	// Shutdown owns their teardown; recreate them for every Init/Shutdown cycle.
+	m_pAsyncLoader = new AsyncLoader;
+	m_pAsyncReader = new AsyncReader;
 	m_nFlags = nFlags;
 	color32 color, color2;
 	m_iNextTexID = 4096;

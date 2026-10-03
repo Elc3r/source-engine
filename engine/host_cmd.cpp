@@ -270,6 +270,9 @@ CON_COMMAND( quit_x360, "" )
 Host_Quit_f
 ==================
 */
+#if defined(IOS)
+extern "C" void SourceIOSRequestQuit();
+#endif
 void Host_Quit_f( const CCommand &args )
 {
 #if !defined(SWDS)
@@ -293,7 +296,12 @@ void Host_Quit_f( const CCommand &args )
 		g_GameEventManager.FireEventClientSide( event );
 	}
 
+#if defined(IOS)
+    // UIKit owns the outer loop; there is no desktop CEngine shutdown pump.
+    SourceIOSRequestQuit();
+#else
 	HostState_Shutdown();
+#endif
 }
 
 //-----------------------------------------------------------------------------

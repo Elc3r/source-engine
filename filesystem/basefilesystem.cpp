@@ -521,6 +521,15 @@ void CBaseFileSystem::Shutdown()
 //-----------------------------------------------------------------------------
 inline void CBaseFileSystem::ComputeFullWritePath( char* pDest, int maxlen, const char *pRelativePath, const char *pWritePathID )
 {
+#if defined(IOS)
+	// Loose-file reads use lowercase logical names. iOS storage is case
+	// sensitive, so writes, renames and removals must use the same names.
+	// Preserve the case of the absolute container/search-path prefix.
+	char relativePath[MAX_FILEPATH];
+	V_strncpy( relativePath, pRelativePath, sizeof(relativePath) );
+	V_strlower( relativePath );
+	pRelativePath = relativePath;
+#endif
 	Q_strncpy( pDest, GetWritePath( pRelativePath, pWritePathID ), maxlen );
 	Q_strncat( pDest, pRelativePath, maxlen, COPY_ALL_CHARACTERS );
 	Q_FixSlashes( pDest );

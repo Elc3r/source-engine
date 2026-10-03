@@ -38,7 +38,7 @@
 
 #include "glmgr_flush.inl"
 
-#if defined(PLATFORM_BSD) || defined(OSX) || defined(LINUX) || (defined (WIN32) && defined( DX_TO_GL_ABSTRACTION ))
+#if defined(PLATFORM_BSD) || defined(OSX) || defined(IOS) || defined(LINUX) || (defined (WIN32) && defined( DX_TO_GL_ABSTRACTION ))
 	#include "appframework/ilaunchermgr.h"
 	extern ILauncherMgr *g_pLauncherMgr;
 #endif
@@ -1096,9 +1096,10 @@ IDirect3D9::~IDirect3D9()
 }
 
 UINT IDirect3D9::GetAdapterCount()
-{	
+{
 	GL_BATCH_PERF_CALL_TIMER;
 	GLMgr::NewGLMgr();				// init GL manager
+	if ( m_host ) return 1;
 
 	GLMDisplayDB *db = GetDisplayDB();
 	int dxAdapterCount = db->GetFakeAdapterCount();
@@ -1210,8 +1211,39 @@ static void FillD3DCaps9( const GLMRendererInfoFields &glmRendererInfo, D3DCAPS9
 #endif
 }
 
+// Hosted queries use the same live GLES context as device creation.
+static bool BindD3DHost( const GLMContextHost *host )
+{
+	return host->context && host->makeCurrent && host->displayedSize && host->showPixels
+		&& host->makeCurrent( host->userData, host->context );
+}
+
+static void FillHostedD3DCaps9( const GLMContextHost *host, D3DCAPS9 *caps )
+{
+	FillD3DCaps9( host->caps, caps );
+	GLint limit = 0;
+	gGL->glGetIntegerv( GL_MAX_TEXTURE_SIZE, &limit );
+	caps->MaxTextureWidth = caps->MaxTextureHeight = limit;
+	gGL->glGetIntegerv( GL_MAX_3D_TEXTURE_SIZE, &limit );
+	caps->MaxVolumeExtent = limit;
+	caps->MaxUserClipPlanes = 0;
+	caps->FakeSRGBWrite = !gGL->m_bHave_GL_EXT_sRGB_write_control;
+	caps->CanDoSRGBReadFromRTs = true; // ES3 sRGB textures decode on sampling.
+	if ( caps->MaxAnisotropy <= 1 )
+	{
+		caps->MaxAnisotropy = 1;
+		caps->TextureFilterCaps = 0;
+	}
+}
+
 HRESULT IDirect3D9::GetDeviceCaps(UINT Adapter, D3DDEVTYPE DeviceType, D3DCAPS9* pCaps)
 {
+	if ( m_host )
+	{
+		if ( Adapter || DeviceType != D3DDEVTYPE_HAL || !pCaps || !BindD3DHost( m_host ) ) return D3DERR_INVALIDCALL;
+		FillHostedD3DCaps9( m_host, pCaps );
+		return S_OK;
+	}
 	GL_BATCH_PERF_CALL_TIMER;
 	// Generally called from "CShaderDeviceMgrDx8::ComputeCapsFromD3D" in ShaderDeviceDX8.cpp
 
@@ -1234,6 +1266,14 @@ HRESULT IDirect3D9::GetDeviceCaps(UINT Adapter, D3DDEVTYPE DeviceType, D3DCAPS9*
 
 HRESULT IDirect3D9::GetAdapterIdentifier( UINT Adapter, DWORD Flags, D3DADAPTER_IDENTIFIER9* pIdentifier )
 {
+	if ( m_host )
+	{
+		if ( Adapter || !pIdentifier || !BindD3DHost( m_host ) ) return D3DERR_INVALIDCALL;
+		Q_memset( pIdentifier, 0, sizeof(*pIdentifier) );
+		Q_snprintf( pIdentifier->Driver, sizeof(pIdentifier->Driver), "%s", gGL->glGetString( GL_VERSION ) );
+		Q_snprintf( pIdentifier->Description, sizeof(pIdentifier->Description), "%s", gGL->glGetString( GL_RENDERER ) );
+		return S_OK;
+	}
 	GL_BATCH_PERF_CALL_TIMER;
 	// Generally called from "CShaderDeviceMgrDx8::ComputeCapsFromD3D" in ShaderDeviceDX8.cpp
 
@@ -1326,15 +1366,26 @@ HRESULT IDirect3D9::CheckDeviceFormat(UINT Adapter,D3DDEVTYPE DeviceType,D3DFORM
 	// FramebufferSRGB stuff.
 	// basically a format is only allowed to have SRGB usage for writing, if you have the framebuffer SRGB extension.
 	// so, check for that capability with GLM adapter db, and if it's not there, don't mark that bit as usable in any of our formats.
-	GLMDisplayDB *db = GetDisplayDB();
-	int glmRendererIndex = -1;
-	int glmDisplayIndex = -1;
-	
-	GLMRendererInfoFields	glmRendererInfo;
-	GLMDisplayInfoFields	glmDisplayInfo;
-	
-	bool dbresult = db->GetFakeAdapterInfo( Adapter, &glmRendererIndex, &glmDisplayIndex, &glmRendererInfo, &glmDisplayInfo ); (void)dbresult;
-	Assert (!dbresult);
+	GLMRendererInfoFields glmRendererInfo;
+	if ( m_host )
+	{
+		if ( Adapter || DeviceType != D3DDEVTYPE_HAL || !BindD3DHost( m_host ) ) return D3DERR_INVALIDCALL;
+		glmRendererInfo = m_host->caps;
+		glmRendererInfo.m_hasGammaWrites = gGL->m_bHave_GL_EXT_sRGB_write_control;
+		glmRendererInfo.m_cantAttachSRGB = !glmRendererInfo.m_hasGammaWrites;
+	}
+	else
+	{
+		GLMDisplayDB *db = GetDisplayDB();
+		int glmRendererIndex = -1;
+		int glmDisplayIndex = -1;
+
+		GLMDisplayInfoFields	glmDisplayInfo;
+
+		bool dbresult = db->GetFakeAdapterInfo( Adapter, &glmRendererIndex, &glmDisplayIndex, &glmRendererInfo, &glmDisplayInfo ); (void)dbresult;
+		Assert (!dbresult);
+
+	}
 
 	Assert ((Usage & knownUsageMask) == Usage);
 
@@ -1520,6 +1571,7 @@ HRESULT IDirect3D9::CheckDeviceFormat(UINT Adapter,D3DDEVTYPE DeviceType,D3DFORM
 
 UINT IDirect3D9::GetAdapterModeCount(UINT Adapter,D3DFORMAT Format)
 {
+	if ( m_host ) return !Adapter && Format == D3DFMT_X8R8G8B8 ? 1 : 0;
 	GL_BATCH_PERF_CALL_TIMER;
 	GLMPRINTF(( "-X- IDirect3D9::GetAdapterModeCount: Adapter=%d || Format=%8x:%s", Adapter, Format, GLMDecode(eD3D_FORMAT, Format) ));
 
@@ -1544,6 +1596,11 @@ UINT IDirect3D9::GetAdapterModeCount(UINT Adapter,D3DFORMAT Format)
 
 HRESULT IDirect3D9::EnumAdapterModes(UINT Adapter,D3DFORMAT Format,UINT Mode,D3DDISPLAYMODE* pMode)
 {
+	if ( m_host )
+	{
+		if ( Mode || Format != D3DFMT_X8R8G8B8 ) return D3DERR_INVALIDCALL;
+		return GetAdapterDisplayMode( Adapter, pMode );
+	}
 	GL_BATCH_PERF_CALL_TIMER;
 	GLMPRINTF(( "-X- IDirect3D9::EnumAdapterModes:    Adapter=%d || Format=%8x:%s || Mode=%d", Adapter, Format, GLMDecode(eD3D_FORMAT, Format), Mode ));
 
@@ -1578,6 +1635,8 @@ HRESULT IDirect3D9::EnumAdapterModes(UINT Adapter,D3DFORMAT Format,UINT Mode,D3D
 
 HRESULT IDirect3D9::CheckDeviceType(UINT Adapter,D3DDEVTYPE DevType,D3DFORMAT AdapterFormat,D3DFORMAT BackBufferFormat,BOOL bWindowed)
 {
+	if ( m_host ) return !Adapter && DevType == D3DDEVTYPE_HAL && bWindowed
+		&& AdapterFormat == D3DFMT_X8R8G8B8 && BackBufferFormat == D3DFMT_A8R8G8B8 ? S_OK : D3DERR_NOTAVAILABLE;
 	GL_BATCH_PERF_CALL_TIMER;
 	//FIXME: we just say "OK" on any query
 
@@ -1593,6 +1652,14 @@ HRESULT IDirect3D9::CheckDeviceType(UINT Adapter,D3DDEVTYPE DevType,D3DFORMAT Ad
 
 HRESULT IDirect3D9::GetAdapterDisplayMode(UINT Adapter,D3DDISPLAYMODE* pMode)
 {
+	if ( m_host )
+	{
+		if ( Adapter || !pMode || !m_host->displayedSize ) return D3DERR_INVALIDCALL;
+		Q_memset( pMode, 0, sizeof(*pMode) );
+		m_host->displayedSize( m_host->userData, pMode->Width, pMode->Height );
+		pMode->Format = D3DFMT_X8R8G8B8;
+		return pMode->Width && pMode->Height ? S_OK : D3DERR_NOTAVAILABLE;
+	}
 	GL_BATCH_PERF_CALL_TIMER;
 	// asking what the current mode is
 	GLMPRINTF(("-X- IDirect3D9::GetAdapterDisplayMode: Adapter=%d", Adapter ));
@@ -1627,6 +1694,7 @@ HRESULT IDirect3D9::GetAdapterDisplayMode(UINT Adapter,D3DDISPLAYMODE* pMode)
 
 HRESULT IDirect3D9::CheckDepthStencilMatch(UINT Adapter,D3DDEVTYPE DeviceType,D3DFORMAT AdapterFormat,D3DFORMAT RenderTargetFormat,D3DFORMAT DepthStencilFormat)
 {
+	if ( m_host && (Adapter || DeviceType != D3DDEVTYPE_HAL) ) return D3DERR_INVALIDCALL;
 	GL_BATCH_PERF_CALL_TIMER;
 	GLMPRINTF(("-X- IDirect3D9::CheckDepthStencilMatch:    Adapter=%d || DevType=%d:%s || AdapterFormat=%d:%s || RenderTargetFormat=%d:%s || DepthStencilFormat=%d:%s",
 		Adapter,
@@ -1660,6 +1728,16 @@ HRESULT IDirect3D9::CheckDepthStencilMatch(UINT Adapter,D3DDEVTYPE DeviceType,D3
 
 HRESULT IDirect3D9::CheckDeviceMultiSampleType( UINT Adapter,D3DDEVTYPE DeviceType,D3DFORMAT SurfaceFormat,BOOL Windowed,D3DMULTISAMPLE_TYPE MultiSampleType,DWORD* pQualityLevels )
 {
+	if ( m_host )
+	{
+		if ( pQualityLevels ) *pQualityLevels = 0;
+		if ( Adapter || DeviceType != D3DDEVTYPE_HAL ) return D3DERR_INVALIDCALL;
+		// Only advertise the single-sample hosted path validated by the probe.
+		if ( !Windowed || MultiSampleType != D3DMULTISAMPLE_NONE ||
+			(SurfaceFormat != D3DFMT_A8R8G8B8 && SurfaceFormat != D3DFMT_D24S8) ) return D3DERR_NOTAVAILABLE;
+		if ( pQualityLevels ) *pQualityLevels = 1;
+		return S_OK;
+	}
 	GL_BATCH_PERF_CALL_TIMER;
 	GLMDisplayDB *db = GetDisplayDB();
 
@@ -1732,6 +1810,17 @@ HRESULT IDirect3D9::CheckDeviceMultiSampleType( UINT Adapter,D3DDEVTYPE DeviceTy
 
 HRESULT IDirect3D9::CreateDevice(UINT Adapter,D3DDEVTYPE DeviceType,VD3DHWND hFocusWindow,DWORD BehaviorFlags,D3DPRESENT_PARAMETERS* pPresentationParameters,IDirect3DDevice9** ppReturnedDeviceInterface)
 {
+	if ( !ppReturnedDeviceInterface ) return D3DERR_INVALIDCALL;
+	*ppReturnedDeviceInterface = NULL;
+	if ( !pPresentationParameters ) return D3DERR_INVALIDCALL;
+	if ( m_host && ( Adapter || DeviceType != D3DDEVTYPE_HAL || !BindD3DHost( m_host ) ||
+		!pPresentationParameters->Windowed || !pPresentationParameters->BackBufferWidth ||
+		!pPresentationParameters->BackBufferHeight || pPresentationParameters->BackBufferCount != 1 ||
+		pPresentationParameters->BackBufferFormat != D3DFMT_A8R8G8B8 ||
+		pPresentationParameters->MultiSampleType != D3DMULTISAMPLE_NONE ||
+		!pPresentationParameters->EnableAutoDepthStencil ||
+		pPresentationParameters->AutoDepthStencilFormat != D3DFMT_D24S8 ) ) return D3DERR_INVALIDCALL;
+	if ( m_host ) GLMgr::NewGLMgr();
 	GL_BATCH_PERF_CALL_TIMER;
 
 #if GLMDEBUG
@@ -1795,12 +1884,13 @@ HRESULT IDirect3D9::CreateDevice(UINT Adapter,D3DDEVTYPE DeviceType,VD3DHWND hFo
 
 		IDirect3DDevice9 *dev = new IDirect3DDevice9;
 		
-		result = dev->Create( &devparams );
+		result = dev->Create( &devparams, m_host );
 		
 		if ( result == S_OK )
 		{
 			*ppReturnedDeviceInterface = dev;
 		}
+		else dev->Release();
 		
 		g_bNullD3DDevice = ( DeviceType == D3DDEVTYPE_NULLREF );
 	}
@@ -2297,7 +2387,7 @@ void	ConvertPresentationParamsToGLMDisplayParams( D3DPRESENT_PARAMETERS *d3dp, G
 
 void	UnpackD3DRSITable( void );
 
-HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params )
+HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params, const GLMContextHost *host )
 {
 	g_pD3D_Device = this;
 
@@ -2376,7 +2466,7 @@ HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params )
 				// glmParams.m_modeIndex  hmmmmm, client doesn't give us a mode number, just a resolution..
 		#endif
 	
-	m_ctx = GLMgr::aGLMgr()->NewContext( this, &glmParams );
+	m_ctx = GLMgr::aGLMgr()->NewContext( this, &glmParams, host );
 	if (!m_ctx)
 	{
 		GLMPRINTF(("<-X- IDirect3DDevice9::Create (error out)"));
@@ -2496,7 +2586,7 @@ HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params )
 
 	// so GetClientRect can return sane answers
 	//uint width, height;		
-	RenderedSize( m_params.m_presentationParameters.BackBufferWidth, m_params.m_presentationParameters.BackBufferHeight, true );	// true = set
+	if ( !host ) RenderedSize( m_params.m_presentationParameters.BackBufferWidth, m_params.m_presentationParameters.BackBufferHeight, true );	// true = set
 			
 #if GL_TELEMETRY_GPU_ZONES
 	g_TelemetryGPUStats.Clear();
@@ -2524,6 +2614,12 @@ HRESULT	IDirect3DDevice9::Create( IDirect3DDevice9Params *params )
 IDirect3DDevice9::IDirect3DDevice9() :
 	m_nValidMarker( D3D_DEVICE_VALID_MARKER )
 {
+	m_ctx = NULL;
+	m_pFBOs = NULL;
+	m_pDummy_vtx_buffer = NULL;
+	m_pDefaultColorSurface = m_pDefaultDepthStencilSurface = NULL;
+	m_pDepthStencil = NULL;
+	memset( m_pRenderTargets, 0, sizeof(m_pRenderTargets) );
 }
 IDirect3DDevice9::~IDirect3DDevice9()
 {
@@ -2532,6 +2628,12 @@ IDirect3DDevice9::~IDirect3DDevice9()
 	delete m_pBatch_vis_bitmap;
 #endif
 	
+	if ( !m_ctx )
+	{
+		if ( g_pD3D_Device == this ) g_pD3D_Device = NULL;
+		m_nValidMarker = 0xDEADBEEF;
+		return;
+	}
 	delete m_pDummy_vtx_buffer;
 	for ( int i = 0; i < 4; i++ )
 		SetRenderTarget( i, NULL );
@@ -2549,7 +2651,9 @@ IDirect3DDevice9::~IDirect3DDevice9()
 	
 	if ( m_pFBOs )
 	{
-	ResetFBOMap();
+		ResetFBOMap();
+		delete m_pFBOs;
+		m_pFBOs = NULL;
 	}
 
 	GLMPRINTF(( "-D- IDirect3DDevice9::~IDirect3DDevice9 signpost" ));	// want to know when this is called, if ever
@@ -2725,11 +2829,11 @@ HRESULT IDirect3DDevice9::Reset(D3DPRESENT_PARAMETERS* pPresentationParameters)
 
 	// steal back previously sent focus window...
 	glmParams.m_focusWindow = m_ctx->m_displayParams.m_focusWindow;
-	Assert( glmParams.m_focusWindow != NULL );
+	Assert( m_ctx->m_host || glmParams.m_focusWindow != NULL );
 
 	// so GetClientRect can return sane answers
 	//uint width, height;		
-	RenderedSize( pPresentationParameters->BackBufferWidth, pPresentationParameters->BackBufferHeight, true );	// true = set
+	if ( !m_ctx->m_host ) RenderedSize( pPresentationParameters->BackBufferWidth, pPresentationParameters->BackBufferHeight, true );	// true = set
 
 	m_ctx->Reset();
 		
@@ -2955,11 +3059,11 @@ HRESULT IDirect3DDevice9::Present(CONST RECT* pSourceRect,CONST RECT* pDestRect,
 	tm.Start();
 #endif
 
-	m_ctx->Present( m_pDefaultColorSurface->m_tex );
+	if ( !m_ctx->Present( m_pDefaultColorSurface->m_tex ) ) return D3DERR_DEVICELOST;
 		
 #if GL_BATCH_PERF_ANALYSIS
 	double flPresentTime = tm.GetDurationInProgress().GetMillisecondsF();
-	double flGLSwapWindowTime = g_pLauncherMgr->GetPrevGLSwapWindowTime();
+	double flGLSwapWindowTime = m_ctx->m_host ? 0.0 : g_pLauncherMgr->GetPrevGLSwapWindowTime();
 
 	m_flOverallPresentTime += flPresentTime;
 	m_flOverallPresentTimeSquared += flPresentTime * flPresentTime;
@@ -3583,6 +3687,19 @@ HRESULT IDirect3DDevice9::GetRenderTargetData(IDirect3DSurface9* pRenderTarget,I
 {
 	GL_BATCH_PERF_CALL_TIMER;
 	GL_PUBLIC_ENTRYPOINT_CHECKS( this );
+#ifdef IOS
+	// D3D readback copies stored bytes, not linearized colors. Match the
+	// temporary destination encoding so GLES blits do not decode the copy.
+	CGLMTex *source = pRenderTarget->m_tex, *destination = pDestSurface->m_tex;
+	if ( source->IsSRGB() != destination->IsSRGB() )
+	{
+		GLMTexLayoutKey key = destination->m_layout->m_key;
+		key.m_texFlags &= ~kGLMTexSRGB;
+		if ( source->IsSRGB() ) key.m_texFlags |= kGLMTexSRGB;
+		pDestSurface->m_tex = m_ctx->NewTex( &key, 1, "ios-readback" );
+		m_ctx->DelTex( destination );
+	}
+#endif
 	// is it just a blit ?
 
 	this->StretchRect( pRenderTarget, NULL, pDestSurface, NULL, D3DTEXF_NONE ); // is this good enough ???
@@ -3904,7 +4021,7 @@ HRESULT IDirect3DDevice9::CreatePixelShader(CONST DWORD* pFunction,IDirect3DPixe
 			}
 		}
 
-		g_D3DToOpenGLTranslatorGLSL.TranslateShader( (uint32 *) pFunction, &tempbuf, &bVertexShader, glslPixelShaderOptions, nShadowDepthSamplerMask, nCentroidMask, pDebugLabel );
+		g_D3DToOpenGLTranslatorGLSL.TranslateShader( (uint32 *) pFunction, &tempbuf, &bVertexShader, glslPixelShaderOptions, nShadowDepthSamplerMask, nCentroidMask, pDebugLabel, gGL->m_bHave_GL_QCOM_alpha_test );
 			
 		transbuf.PutString( (char*)tempbuf.Base() );
 		transbuf.PutString( "\n\n" );	// whitespace
@@ -4186,7 +4303,7 @@ HRESULT IDirect3DDevice9::CreateVertexShader(CONST DWORD* pFunction, IDirect3DVe
 			glslVertexShaderOptions |= D3DToGL_OptionGenerateBoneUniformBuffer;
 		}
 
-		g_D3DToOpenGLTranslatorGLSL.TranslateShader( (uint32 *) pFunction, &tempbuf, &bVertexShader, glslVertexShaderOptions, -1, nCentroidMask, pDebugLabel );
+		g_D3DToOpenGLTranslatorGLSL.TranslateShader( (uint32 *) pFunction, &tempbuf, &bVertexShader, glslVertexShaderOptions, -1, nCentroidMask, pDebugLabel, gGL->m_bHave_GL_QCOM_alpha_test );
 			
 		transbuf.PutString( (char*)tempbuf.Base() );
 		transbuf.PutString( "\n\n" );	// whitespace
@@ -5803,6 +5920,13 @@ HRESULT IDirect3DDevice9::SetScissorRect(CONST RECT* pRect)
 
 HRESULT IDirect3DDevice9::GetDeviceCaps(D3DCAPS9* pCaps)
 {
+	if ( m_ctx && m_ctx->m_host )
+	{
+		if ( !pCaps ) return D3DERR_INVALIDCALL;
+		m_ctx->MakeCurrent();
+		FillHostedD3DCaps9( m_ctx->m_host, pCaps );
+		return S_OK;
+	}
 	GL_BATCH_PERF_CALL_TIMER;
 	GL_PUBLIC_ENTRYPOINT_CHECKS( this );
 	
@@ -6792,6 +6916,15 @@ D3DXPLANE* D3DXPlaneTransform( D3DXPLANE *pOut, CONST D3DXPLANE *pP, CONST D3DXM
 
 // ------------------------------------------------------------------------------------------------------------------------------ //
 
+IDirect3D9 *ToGLESCreateD3D9(UINT SDKVersion, CreateInterfaceFn factory)
+{
+	if ( SDKVersion != D3D_SDK_VERSION || !factory || !gGL ) return NULL;
+	const GLMContextHost *host = static_cast<const GLMContextHost *>(
+		factory( TOGLES_CONTEXT_HOST_INTERFACE_VERSION, NULL ) );
+	if ( !host || !BindD3DHost( host ) ) return NULL;
+	return new IDirect3D9( host );
+}
+
 IDirect3D9 *Direct3DCreate9(UINT SDKVersion)
 {
 	GLMPRINTF(( "-X- Direct3DCreate9: %d", SDKVersion ));
@@ -6830,8 +6963,10 @@ void toglGetClientRect( void *hWnd, RECT *destRect )
 	// so, see if a D3D device is up and running, and if so,
 	// dig in and find out its backbuffer size and use that.
 
-	uint width, height;	
-	g_pLauncherMgr->RenderedSize( width, height, false );	// false = get them, don't set them
+	uint width = 0, height = 0;
+	GLMContext *context = gGL && GLMgr::aGLMgr() ? GLMgr::aGLMgr()->GetCurrentContext() : NULL;
+	if ( !( context && context->GetHostedBackBufferSize( width, height ) ) && g_pLauncherMgr )
+		g_pLauncherMgr->RenderedSize( width, height, false );
 	Assert( width!=0 && height!=0 );
 
 	destRect->left = 0;

@@ -242,7 +242,9 @@ void CAudioDeviceSDLAudio::OpenWaveOut( void )
 	desired.samples = 2048;
 	desired.callback = &CAudioDeviceSDLAudio::AudioCallbackEntry;
 	desired.userdata = this;
-	m_devId = SDL_OpenAudioDevice(NULL, 0, &desired, &obtained, SDL_AUDIO_ALLOW_ANY_CHANGE);
+	// The mixer/ring buffer produces fixed 44.1 kHz stereo S16 samples. Let
+	// SDL convert to the hardware format rather than changing that contract.
+	m_devId = SDL_OpenAudioDevice(NULL, 0, &desired, &obtained, 0);
 
 	if (!m_devId)
 		SDLAUDIO_FAIL("SDL_OpenAudioDevice()");

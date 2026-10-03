@@ -18,7 +18,7 @@
 // Matched with the memdbgoff at end of header
 #include "memdbgon.h"
 
-#if defined( OSX )
+#if defined( OSX ) || defined(IOS)
 #ifndef wcsdup
 // The mem override tools may provide a copy of this if active, otherwise it is not available in OS X's libc due to
 // being introduced in POSIX-20008

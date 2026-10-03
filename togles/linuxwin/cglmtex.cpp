@@ -27,6 +27,7 @@
 //===============================================================================
 
 #include "togles/rendermechanism.h"
+#include "texture_upload.h"
 
 extern "C" {
 #include "decompress.h"
@@ -675,6 +676,17 @@ GLMTexLayout *CGLMTexLayoutTable::NewLayoutRef( GLMTexLayoutKey *pDesiredKey )
 	}
 }
 
+CGLMTexLayoutTable::~CGLMTexLayoutTable()
+{
+	FOR_EACH_MAP( m_layoutMap, i )
+	{
+		GLMTexLayout *layout = m_layoutMap[i];
+		Assert( layout->m_refCount == 0 );
+		free( layout->m_layoutSummary );
+		free( layout );
+	}
+}
+
 void CGLMTexLayoutTable::DelLayoutRef( GLMTexLayout *layout )
 {
 	// locate layout in hash, drop refcount
@@ -771,6 +783,10 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 	m_mapped = NULL;
 	m_pbo = 0;
 
+	// iOS uses CPU backing for dynamic textures too. The legacy PBO path
+	// uploads packed rows from offset zero and bypasses D3D-to-RGBA conversion;
+	// lightmap atlas subrectangles require the normal stride-aware upload path.
+#ifndef IOS
 	if( m_layout->m_key.m_texFlags & kGLMTexDynamic )
 	{
 		gGL->glGenBuffers(1, &m_pbo);
@@ -778,6 +794,8 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 		gGL->glBufferData(GL_PIXEL_UNPACK_BUFFER, m_layout->m_storageTotalSize, 0, GL_DYNAMIC_DRAW);
 		gGL->glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 	}
+
+#endif
 
 	// Sense whether to try and apply client storage upon teximage/subimage.
 	//  This should only be true if we're running on OSX 10.6 or it was explicitly
@@ -1183,6 +1201,20 @@ GLubyte *CGLMTex::ReadTexels( GLMTexLockDesc *desc, bool readWholeSlice, bool re
 
 					convert_texture(fmt, 0, 0, fmt, dataType, NULL);
 					gGL->glReadPixels(0, 0, m_layout->m_slices[ desc->m_sliceIndex ].m_xSize, m_layout->m_slices[ desc->m_sliceIndex ].m_ySize, fmt, dataType, data);
+					// GLES reads RGBA bytes; the D3D surface lock exposes BGRA bytes.
+					if ( format->m_glDataFormat == GL_BGRA && dataType == GL_UNSIGNED_BYTE )
+					{
+						const int pixels = m_layout->m_slices[desc->m_sliceIndex].m_xSize
+							* m_layout->m_slices[desc->m_sliceIndex].m_ySize;
+						for ( int i = 0; i < pixels; ++i )
+						{
+							GLubyte red = data[4*i];
+							data[4*i] = data[4*i+2];
+							data[4*i+2] = red;
+							if ( format->m_d3dFormat == D3DFMT_X8R8G8B8 ) data[4*i+3] = 255;
+						}
+					}
+
 
 					gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER, Rfbo);
 					gGL->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, Dfbo);
@@ -3332,6 +3364,10 @@ void convert_texture( GLenum &internalformat, GLsizei width, GLsizei height, GLe
 	if( format == GL_BGRA ) format = GL_RGBA;
 	if( format == GL_BGR ) format = GL_RGB;
 
+	// GLES requires matching component counts for sized storage and upload formats.
+	if( internalformat == GL_RGB8 && format == GL_RGBA )
+		internalformat = GL_RGBA8;
+
 	if( internalformat == GL_SRGB8 && format == GL_RGBA )
 		internalformat = GL_SRGB8_ALPHA8;
 
@@ -3364,140 +3400,6 @@ void convert_texture( GLenum &internalformat, GLsizei width, GLsizei height, GLe
 
 	if( type == GL_UNSIGNED_INT_8_8_8_8_REV )
 		type = GL_UNSIGNED_BYTE;
-}
-
-GLboolean isDXTc(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-GLboolean isDXTcSRGB(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-static GLboolean isDXTcAlpha(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-GLvoid *uncompressDXTc(GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, int transparent0, int* simpleAlpha, int* complexAlpha, const GLvoid *data) {
-    // uncompress a DXTc image
-    // get pixel size of uncompressed image => fixed RGBA
-    int pixelsize = 4;
-    if (format == GL_COMPRESSED_RGB_S3TC_DXT1_EXT || format == GL_COMPRESSED_SRGB_S3TC_DXT1_EXT)
-        pixelsize = 3;
-    // check with the size of the input data stream if the stream is in fact uncompressed
-    if (imageSize == width*height*pixelsize || data==NULL) {
-        // uncompressed stream
-        return (GLvoid*)data;
-    }
-    // alloc memory
-    GLvoid *pixels = malloc(((width+3)&~3)*((height+3)&~3)*pixelsize);
-    // uncompress loop
-    int blocksize;
-    switch (format) {
-        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-            blocksize = 8;
-            break;
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            blocksize = 16;
-            break;
-    }
-    uintptr_t src = (uintptr_t) data;
-    for (int y=0; y<height; y+=4) {
-        for (int x=0; x<width; x+=4) {
-            switch(format) {
-                case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-                    DecompressBlockDXT1(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-                case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-                    DecompressBlockDXT3(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-                case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-                    DecompressBlockDXT5(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-            }
-            src+=blocksize;
-        }
-    }
-    return pixels;
-}
-
-void CompressedTexImage2D(GLenum target, GLint level, GLenum internalformat,
-                            GLsizei width, GLsizei height, GLint border,
-                            GLsizei imageSize, const GLvoid *data) 
-{
-    if (internalformat==GL_RGBA8)
-        internalformat = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
-
-	if ((width<=0) || (height<=0)) {
-        return;
-    }
-
-	bool hasAlpha = (internalformat != GL_COMPRESSED_RGB_S3TC_DXT1_EXT) && (internalformat != GL_COMPRESSED_SRGB_S3TC_DXT1_EXT);
-
-   	GLenum format = hasAlpha ? GL_RGBA : GL_RGB;
-	GLenum intformat = hasAlpha ? GL_RGBA8 : GL_RGB8;
-	GLenum type = GL_UNSIGNED_BYTE;
-	GLvoid *pixels = NULL;
-
-    if (isDXTc(internalformat))
-    {
-        int srgb = isDXTcSRGB(internalformat);
-        int simpleAlpha = 0;
-        int complexAlpha = 0;
-        int transparent0 = (internalformat==GL_COMPRESSED_RGBA_S3TC_DXT1_EXT || internalformat==GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT)?1:0;
-        if (data) {
-            pixels = uncompressDXTc(width, height, internalformat, imageSize, transparent0, &simpleAlpha, &complexAlpha, data);
-        } else {
-            if(isDXTcAlpha(internalformat)) {
-                simpleAlpha = complexAlpha = 1;
-            }
-        }
-
-		if( srgb )
-			intformat = hasAlpha ? GL_SRGB8_ALPHA8 : GL_SRGB8;
-	}
-
-	gGL->glTexImage2D(target, level, intformat, width, height, border, format, type, pixels);
-	if( data != pixels )
-		free(pixels);
 }
 
 // TexSubImage should work properly on every driver stack and GPU--enabling by default.
@@ -3549,6 +3451,9 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 	GLMTexFormatDesc *format = m_layout->m_format;
 	
 	GLenum target		= m_layout->m_key.m_texGLTarget;
+	// XRGB uses RGBA storage on GLES; preserve its implicit opaque alpha.
+	if ( format->m_d3dFormat == D3DFMT_X8R8G8B8 )
+		gGL->glTexParameteri( target, GL_TEXTURE_SWIZZLE_A, GL_ONE );
 	GLenum glDataFormat	= format->m_glDataFormat;				// this could change if expansion kicks in 
 	GLenum glDataType	= format->m_glDataType;
 	
@@ -3560,6 +3465,29 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 		sliceAddress = m_mapped;
 	else if( m_backing )
 		sliceAddress = m_backing + slice->m_storageOffset;
+
+	// The CPU backing store retains D3D byte order. GLES uploads use RGBA, so
+	// convert into scratch storage rather than swapping the source in place
+	// (a later partial update or re-upload must see the same original bytes).
+	CUtlMemory<unsigned char> rgbUpload;
+	GLint unpackAlignment = 0;
+	const int uploadStride = glDataFormat == GL_BGRA && glDataType == GL_UNSIGNED_INT_8_8_8_8_REV ? 4
+		: glDataFormat == GL_BGR && glDataType == GL_UNSIGNED_BYTE ? 3 : 0;
+	if ( !m_mapped && !noDataWrite && sliceAddress && uploadStride )
+	{
+		rgbUpload.EnsureCapacity( slice->m_storageSize );
+		const unsigned char *source = static_cast<const unsigned char *>(sliceAddress);
+		for ( int i = 0; i < slice->m_storageSize; i += uploadStride )
+		{
+			rgbUpload[i] = source[i+2];
+			rgbUpload[i+1] = source[i+1];
+			rgbUpload[i+2] = source[i];
+			if ( uploadStride == 4 ) rgbUpload[i+3] = source[i+3];
+		}
+		sliceAddress = rgbUpload.Base();
+		gGL->glGetIntegerv( GL_UNPACK_ALIGNMENT, &unpackAlignment );
+		gGL->glPixelStorei( GL_UNPACK_ALIGNMENT, 1 );
+	}
 
 	// allow use of subimage if the target is texture2D and it has already been teximage'd
 	bool mayUseSubImage = false;
@@ -3779,6 +3707,8 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 		break;
 	}
 
+	if ( unpackAlignment ) gGL->glPixelStorei( GL_UNPACK_ALIGNMENT, unpackAlignment );
+
 	if ( expandTemp )
 	{
 		free( expandTemp );
@@ -3828,7 +3758,7 @@ void CGLMTex::Lock( GLMTexLockParams *params, char** addressOut, int* yStrideOut
 	// d - the params of the lock request have been saved in the lock table (in the context)
 	
 	// so step 1 is unambiguous.  If there's no backing storage, make some.
-	if (!m_backing && !(m_layout->m_key.m_texFlags & kGLMTexDynamic))
+	if (!m_backing && !m_pbo)
 	{
 		if ( gl_pow2_tempmem.GetBool() )
 		{
@@ -3940,11 +3870,14 @@ void CGLMTex::Lock( GLMTexLockParams *params, char** addressOut, int* yStrideOut
 
 	desc->m_sliceRegionOffset = offsetInSlice + desc->m_sliceBaseOffset;
 
-	if ( (m_layout->m_key.m_texFlags & kGLMTexDynamic) || (params->m_readonly && copyout) )
+	if ( m_pbo || (params->m_readonly && copyout) )
 	{
 		// read the whole slice
 		// (odds are we'll never request anything but a whole slice to be read..)
 		*addressOut = (char*)ReadTexels( desc, true, params->m_readonly );
+		// ReadTexels returns the start of the whole slice. A read-only
+		// subrectangle lock must expose its requested origin, not texel (0,0).
+		if ( params->m_readonly && *addressOut ) *addressOut += offsetInSlice;
 
 		if( params->m_readonly == false )
 			m_mapped = (GLubyte*)*addressOut;

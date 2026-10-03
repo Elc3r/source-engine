@@ -11689,6 +11689,18 @@ void CShaderAPIDx8::ClearColor4ub( unsigned char r, unsigned char g, unsigned ch
 D3DCOLOR CShaderAPIDx8::GetActualClearColor( D3DCOLOR clearColor )
 {
 	bool bConvert = !IsX360() && m_TransitionTable.CurrentState().m_bLinearColorSpaceFrameBufferEnable;
+#if defined( IOS ) && defined( TOGLES )
+	// The GLES backend preserves D3D clear bytes on an sRGB attachment. Do
+	// not also apply the legacy linear-framebuffer conversion here.
+	IDirect3DSurface9 *pColorTarget = NULL;
+	Dx9Device()->GetRenderTarget( 0, &pColorTarget );
+	if ( pColorTarget )
+	{
+		if ( pColorTarget->m_tex->IsSRGB() )
+			bConvert = false;
+		pColorTarget->Release();
+	}
+#endif
 
 #if defined( _X360 )
 	// The PC disables SRGBWrite when clearing so that the clear color won't get gamma converted
@@ -14349,4 +14361,3 @@ static void r_blocking_spew_threshold_callback( IConVar *var, const char *pOldVa
 
 ConVar r_blocking_spew_threshold( "r_blocking_spew_threshold", "-1", 0, "Enable spew of Direct3D Blocks. Specify the minimum blocking time in milliseconds before spewing a warning.", r_blocking_spew_threshold_callback );
 #endif
-

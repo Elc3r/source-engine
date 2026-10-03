@@ -160,6 +160,15 @@ void CGameMenuItem::ApplySchemeSettings(IScheme *pScheme)
 	{
 		SetFont( pScheme->GetFont( "MenuLarge", IsProportional() ) );
 	}
+#if defined(IOS)
+    // Native drawable pixels are denser than the desktop menu assumes.
+    int screenWide,screenTall; engine->GetScreenSize(screenWide,screenTall);
+    if (!m_iosMenuFont) m_iosMenuFont=surface()->CreateFont();
+    if (surface()->SetFontGlyphSet(m_iosMenuFont,"Helvetica",
+            MAX(24,int(MIN(screenWide,screenTall)*.045f)),500,0,0,
+            ISurface::FONTFLAG_ANTIALIAS))
+        SetFont(m_iosMenuFont);
+#endif
 	SetTextInset(0, 0);
 	SetArmedSound("UI/buttonrollover.wav");
 	SetDepressedSound("UI/buttonclick.wav");
@@ -343,6 +352,10 @@ public:
 		if( IsProportional() )
 			height = scheme()->GetProportionalScaledValue( height );
 
+#if defined(IOS)
+        int screenWide,screenTall; engine->GetScreenSize(screenWide,screenTall);
+        height=MAX(height,int(MIN(screenWide,screenTall)*.10f));
+#endif
 		// make fully transparent
 		SetMenuItemHeight(height);
 		SetBgColor(Color(0, 0, 0, 0));
@@ -846,6 +859,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	m_pGameLogo = NULL;
 	m_hMainMenuOverridePanel = NULL;
 
+	#ifndef NO_STEAM
 	if ( SteamClient() )
 	{
 		HSteamPipe steamPipe = SteamClient()->CreateSteamPipe();
@@ -858,6 +872,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 		SteamClient()->BReleaseSteamPipe( steamPipe );
 	}
 
+	#endif
 	CreateGameMenu();
 	CreateGameLogo();
 
@@ -1802,6 +1817,10 @@ void CBasePanel::PerformLayout()
 //-----------------------------------------------------------------------------
 void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 {
+#if defined(IOS)
+    // Title buttons reset their alpha when rotation reapplies their scheme.
+    m_bForceTitleTextUpdate = true;
+#endif
 	int i;
 	BaseClass::ApplySchemeSettings(pScheme);
 
@@ -2350,6 +2369,8 @@ void CBasePanel::RunMenuCommand(const char *command)
 				fprintf( fp, "%s\n", szSteamURL );
 			}
 			fclose( fp );
+#elif defined( IOS )
+			// UIKit owns application lifetime; desktop Steam relaunch is unavailable.
 #elif defined( _X360 )
 #else
 #error
@@ -2918,6 +2939,9 @@ class CSaveBeforeQuitQueryDialog : public vgui::Frame
 public:
 	CSaveBeforeQuitQueryDialog(vgui::Panel *parent, const char *name) : BaseClass(parent, name)
 	{
+#if defined(IOS)
+		SetFadeEffectDisableOverride(true);
+#endif
 		LoadControlSettings("resource/SaveBeforeQuitDialog.res");
 		SetDeleteSelfOnClose(true);
 		SetSizeable(false);
@@ -3016,7 +3040,25 @@ class CQuitQueryBox : public vgui::QueryBox
 public:
 	CQuitQueryBox(const char *title, const char *info, Panel *parent) : BaseClass( title, info, parent )
 	{
+#if defined(IOS)
+		// Close synchronously before releasing the restricted modal paint pass.
+		SetFadeEffectDisableOverride(true);
+#endif
 	}
+
+#if defined(IOS)
+	void OnCommand(const char *command) override
+	{
+		BaseClass::OnCommand(command);
+		if (!Q_stricmp(command, "Cancel") || !Q_stricmp(command, "OK"))
+		{
+			// MessageBox queues Close after releasing the modal input surface.
+			// Complete it in this dispatch so the touch host cannot leave it open.
+			Close();
+			SetVisible(false);
+		}
+	}
+#endif
 
 	void DoModal( Frame* pFrameOver )
 	{
@@ -3064,6 +3106,10 @@ public:
 //-----------------------------------------------------------------------------
 void CBasePanel::OnOpenQuitConfirmationDialog()
 {
+#if defined(IOS)
+	// A touch can queue the menu command again before modal focus settles.
+	if (vgui::input()->GetAppModalSurface()) return;
+#endif
 	if ( GameUI().IsConsoleUI() )
 	{
 		if ( !GameUI().HasSavedThisMenuSession() && GameUI().IsInLevel() && engine->GetMaxClients() == 1 )

@@ -215,6 +215,9 @@ struct TOGL_CLASS IDirect3DSurface9 : public IDirect3DResource9
 
 struct TOGL_CLASS IDirect3D9 : public IUnknown
 {
+	// Borrowed host must outlive this adapter and every device it creates.
+	explicit IDirect3D9( const GLMContextHost *host = NULL ) : m_host( host ) {}
+	const GLMContextHost *m_host;
 	virtual	~IDirect3D9();
 
 	UINT	TOGLMETHODCALLTYPE GetAdapterCount();
@@ -421,7 +424,7 @@ struct TOGL_CLASS IDirect3DDevice9 : public IUnknown
 	virtual	~IDirect3DDevice9();
 	
 	// Create call invoked from IDirect3D9
-	HRESULT	TOGLMETHODCALLTYPE Create( IDirect3DDevice9Params *params );
+	HRESULT	TOGLMETHODCALLTYPE Create( IDirect3DDevice9Params *params, const GLMContextHost *host = NULL );
 	
 	//
 	// Basics
@@ -1404,6 +1407,9 @@ TOGL_INTERFACE D3DXMATRIX* D3DXMatrixPerspectiveOffCenterRH( D3DXMATRIX *pOut, F
 TOGL_INTERFACE D3DXPLANE* D3DXPlaneTransform( D3DXPLANE *pOut, CONST D3DXPLANE *pP, CONST D3DXMATRIX *pM );
 
 TOGL_INTERFACE IDirect3D9 *Direct3DCreate9(UINT SDKVersion);
+// Requires a live GLMContextHost from the application factory; never falls back
+// to the desktop launcher when the host is missing or invalid.
+TOGL_INTERFACE IDirect3D9 *ToGLESCreateD3D9(UINT SDKVersion, CreateInterfaceFn factory);
 
 TOGL_INTERFACE void D3DPERF_SetOptions( DWORD dwOptions );
 
