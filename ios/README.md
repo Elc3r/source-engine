@@ -2150,3 +2150,22 @@ menu entries and the Portal title. Touch New Game after returning to landscape
 opens the original dialog. Native background rendering continues around 60 FPS.
 Simulator/device builds and v14 IPA ZIP/deep-signature checks pass. Physical
 rotation behavior remains to be confirmed on v14.
+
+### Quit Game and modal touch input (v15)
+
+On iOS, modal hit testing now resolves touches directly inside the active app
+modal panel even when restricted painting hides the desktop cursor. Quit dialogs
+close synchronously without fading, and an already active modal prevents another
+Quit confirmation from being opened over it.
+
+The native `quit` command requests exit from the UIKit host instead of entering
+the desktop engine shutdown state, whose outer loop is absent here. Before the
+host exits, it executes pending commands, finishes asynchronous saves, and shuts
+down audio. Desktop quit behavior is unchanged.
+
+Simulator verification: Quit -> Cancel removes the entire dialog and restores
+responsive menu input (New Game opened afterward); Quit -> Quit game terminates
+the application process and returns to the home screen. Simulator and device
+builds, IPA ZIP integrity, and deep/strict code-signature verification pass.
+Physical-device/LiveContainer exit and gameplay Save & Quit still need runtime
+verification. The v15 IPA also contains the v14 rotation fixes.

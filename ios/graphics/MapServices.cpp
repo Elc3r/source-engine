@@ -333,3 +333,10 @@ extern "C" void SetSourceGameAudioActive(int active) {
         reinterpret_cast<void *>(loaderModule),"SourceIOSSetPortalAudioActive")):NULL;
     if (setActive) setActive(active!=0);
 }
+
+extern "C" int FinishSourceGameQuit() {
+    typedef bool (*Finish)();
+    Finish finish=loaderModule?reinterpret_cast<Finish>(GetProcAddress(
+        reinterpret_cast<void *>(loaderModule),"SourceIOSFinishRequestedQuit")):NULL;
+    return finish && finish();
+}

@@ -2939,6 +2939,9 @@ class CSaveBeforeQuitQueryDialog : public vgui::Frame
 public:
 	CSaveBeforeQuitQueryDialog(vgui::Panel *parent, const char *name) : BaseClass(parent, name)
 	{
+#if defined(IOS)
+		SetFadeEffectDisableOverride(true);
+#endif
 		LoadControlSettings("resource/SaveBeforeQuitDialog.res");
 		SetDeleteSelfOnClose(true);
 		SetSizeable(false);
@@ -3037,7 +3040,25 @@ class CQuitQueryBox : public vgui::QueryBox
 public:
 	CQuitQueryBox(const char *title, const char *info, Panel *parent) : BaseClass( title, info, parent )
 	{
+#if defined(IOS)
+		// Close synchronously before releasing the restricted modal paint pass.
+		SetFadeEffectDisableOverride(true);
+#endif
 	}
+
+#if defined(IOS)
+	void OnCommand(const char *command) override
+	{
+		BaseClass::OnCommand(command);
+		if (!Q_stricmp(command, "Cancel") || !Q_stricmp(command, "OK"))
+		{
+			// MessageBox queues Close after releasing the modal input surface.
+			// Complete it in this dispatch so the touch host cannot leave it open.
+			Close();
+			SetVisible(false);
+		}
+	}
+#endif
 
 	void DoModal( Frame* pFrameOver )
 	{
@@ -3085,6 +3106,10 @@ public:
 //-----------------------------------------------------------------------------
 void CBasePanel::OnOpenQuitConfirmationDialog()
 {
+#if defined(IOS)
+	// A touch can queue the menu command again before modal focus settles.
+	if (vgui::input()->GetAppModalSurface()) return;
+#endif
 	if ( GameUI().IsConsoleUI() )
 	{
 		if ( !GameUI().HasSavedThisMenuSession() && GameUI().IsInLevel() && engine->GetMaxClients() == 1 )

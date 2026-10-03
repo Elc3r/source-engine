@@ -313,6 +313,9 @@ static void DrawFrame(void *unused)
             if (event.type == SDL_APP_WILLENTERBACKGROUND) paused = YES;
             if (event.type == SDL_APP_DIDENTERFOREGROUND) paused = NO;
         }
+#ifdef SOURCE_TOGLES_PROBE
+        if (FinishSourceGameQuit()) exit(0);
+#endif
         if (paused || renderFailed) return;
         EGLint width = 0, height = 0;
         if (!eglQuerySurface(display, surface, EGL_WIDTH, &width) ||

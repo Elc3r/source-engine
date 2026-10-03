@@ -52,7 +52,7 @@ extern "C" void SourceIOSSetSoundFocus(bool active);
 extern void S_BlockSound();
 extern void S_UnblockSound();
 namespace { bool serverStarted=false,gameStarted=false,levelStarted=false,networkStarted=false,renderStarted=false,saveStarted=false; int savedMark=0; bool playing=false,clientFrameReady=false; IOSReadPortalPlayer playerReader=NULL; double lastFrame=0,tickRemainder=0,reconnectStarted=0;
-bool audioStarted=false,audioPaused=false;
+bool audioStarted=false,audioPaused=false,quitRequested=false;
 }
 
 extern "C" void SourceIOSSetPortalAudioActive(bool active) {
@@ -341,5 +341,15 @@ extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t
     // View_Render publishes the original listener state via Host_SetAudioState.
     Host_UpdateSounds();
     saverestore->OnFrameRendered();
+    return true;
+}
+
+extern "C" void SourceIOSRequestQuit() { quitRequested=true; }
+extern "C" bool SourceIOSFinishRequestedQuit() {
+    if (!quitRequested) return false;
+    // Complete Save & Quit's queued native save before the UIKit host exits.
+    Cbuf_Execute();
+    if (saveStarted) saverestore->FinishAsyncSave();
+    if (audioStarted) { S_Shutdown(); audioStarted=false; }
     return true;
 }
