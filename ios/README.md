@@ -78,6 +78,10 @@ simulator keyboard input supports gameplay. Orientation changes resize the
 native drawable, renderer and VGUI font/layout state. Quit waits for pending save
 writes and exits through the UIKit host.
 
+Options dialogs scale to the available display area in both orientations.
+The main menu, dialogs and startup/frame counter respect UIKit safe-area insets
+to avoid the camera cutout and home indicator.
+
 Video quality settings use the original material system and persist in
 `videoconfig_ios.cfg` in the writable game directory. The application requests
 the display's maximum refresh rate and opts into ProMotion on supported iPhones.

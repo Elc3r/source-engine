@@ -136,6 +136,9 @@ public:
 	CGammaDialog( vgui::VPANEL hParent ) : BaseClass( NULL, "OptionsSubVideoGammaDlg" )
 	{
 		// parent is ignored, since we want look like we're steal focus from the parent (we'll become modal below)
+#ifdef IOS
+		SetProportional(true);
+#endif
 		SetTitle("#GameUI_AdjustGamma_Title", true);
 		SetSize( 400, 260 );
 		SetDeleteSelfOnClose( true );
@@ -792,6 +795,14 @@ public:
 			pFOV->ApplyChanges();
 		}
 	}
+
+#ifdef IOS
+	virtual void OnScreenSizeChanged(int oldWide, int oldTall)
+	{
+		BaseClass::OnScreenSizeChanged(oldWide, oldTall);
+		m_pMulticore->SetEnabled(false);
+	}
+#endif
 
 	virtual void OnResetData()
 	{
@@ -1639,6 +1650,15 @@ void COptionsSubVideo::PerformLayout()
 #endif
 	}
 }
+
+#ifdef IOS
+void COptionsSubVideo::OnScreenSizeChanged(int oldWide, int oldTall)
+{
+	BaseClass::OnScreenSizeChanged(oldWide, oldTall);
+	PrepareResolutionList();
+	EnableOrDisableWindowedForVR();
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: enables apply button on data changing

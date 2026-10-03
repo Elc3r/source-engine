@@ -8,6 +8,9 @@
 
 #include <stdio.h>
 #include <math.h>
+#ifdef IOS
+#include "ios_safearea.h"
+#endif
 
 #include <vgui/VGUI.h>
 #include <vgui/IScheme.h>
@@ -1133,6 +1136,12 @@ int CSchemeManager::GetProportionalScaledValue_( int rootWide, int rootTall, int
 	int proH, proW;
 	g_pSurface->GetProportionalBase( proW, proH );
 	double scale = (double)rootTall / (double)proH;
+#ifdef IOS
+	int left, top, right, bottom;
+	SourceIOSGetSafeArea(rootWide, rootTall, left, top, right, bottom);
+	scale = MIN(double(rootWide - left - right) / proW,
+		double(rootTall - top - bottom) / proH);
+#endif
 
 	return (int)( normalizedValue * scale );
 }
@@ -1142,6 +1151,12 @@ int CSchemeManager::GetProportionalNormalizedValue_( int rootWide, int rootTall,
 	int proH, proW;
 	g_pSurface->GetProportionalBase( proW, proH );
 	float scale = (float)rootTall / (float)proH;
+#ifdef IOS
+	int left, top, right, bottom;
+	SourceIOSGetSafeArea(rootWide, rootTall, left, top, right, bottom);
+	scale = MIN(float(rootWide - left - right) / proW,
+		float(rootTall - top - bottom) / proH);
+#endif
 
 	return (int)( scaledValue / scale );
 }

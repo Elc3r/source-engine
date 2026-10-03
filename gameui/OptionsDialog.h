@@ -27,6 +27,9 @@ public:
 
 	void Run();
 	virtual void Activate();
+#ifdef IOS
+	virtual void OnScreenSizeChanged(int oldWide, int oldTall);
+#endif
 
 	void OnKeyCodePressed( vgui::KeyCode code );
 

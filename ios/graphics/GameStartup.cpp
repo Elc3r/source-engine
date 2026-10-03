@@ -198,6 +198,14 @@ extern "C" bool SourceIOSInitializePortalClient(CSysModule *module,char *detail,
         }
         g_ClientDLL->PostInit();
         EngineVGui()->Connect(); EngineVGui()->PostInit();
+        // Schemes can load before their sizing panels have drawable bounds.
+        // Rebuild proportional fonts once the complete UI hierarchy exists.
+        int previousWidth, previousHeight;
+        g_pVGuiSurface->GetScreenSize(previousWidth, previousHeight);
+        bool previousOverride = g_pVGuiSurface->ForceScreenSizeOverride(true,
+            videomode->GetModeUIWidth(), videomode->GetModeUIHeight());
+        g_pVGuiSurface->OnScreenSizeChanged(previousWidth, previousHeight);
+        g_pVGuiSurface->ForceScreenSizeOverride(previousOverride, previousWidth, previousHeight);
         // Menu font handles can exist with no glyphs when resource platform
         // conditions discard every face. Check the real initialized UI scheme.
         auto uiScheme=g_pVGuiSchemeManager->GetIScheme(g_pVGuiSchemeManager->GetDefaultScheme());

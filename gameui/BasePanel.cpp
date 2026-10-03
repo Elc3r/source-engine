@@ -90,6 +90,9 @@ using namespace vgui;
 #ifdef ANDROID
 #include <SDL_misc.h>
 #endif
+#ifdef IOS
+#include "ios_safearea.h"
+#endif
 
 #undef MessageBox	// Windows helpfully #define's this to MessageBoxA, we're using vgui::MessageBox
 
@@ -1769,16 +1772,26 @@ void CBasePanel::PerformLayout()
 	// Get the screen size
 	int wide, tall;
 	vgui::surface()->GetScreenSize(wide, tall);
+	int menuX = m_iGameMenuPos.x;
+	int safeTop = 0, safeBottom = 0;
+	int titleOffsetX = 0;
+#ifdef IOS
+	int safeLeft, safeRight;
+	SourceIOSGetSafeArea(wide, tall, safeLeft, safeTop, safeRight, safeBottom);
+	menuX += safeLeft;
+	titleOffsetX = safeLeft;
+#endif
 
 	// Get the size of the menu
 	int menuWide, menuTall;
 	m_pGameMenu->GetSize( menuWide, menuTall );
 
 	int idealMenuY = m_iGameMenuPos.y;
-	if ( idealMenuY + menuTall + m_iGameMenuInset > tall )
+	if ( idealMenuY + menuTall + m_iGameMenuInset > tall - safeBottom )
 	{
-		idealMenuY = tall - menuTall - m_iGameMenuInset;
+		idealMenuY = tall - safeBottom - menuTall - m_iGameMenuInset;
 	}
+	idealMenuY = MAX(idealMenuY, safeTop);
 
 	int yDiff = idealMenuY - m_iGameMenuPos.y;
 
@@ -1790,14 +1803,14 @@ void CBasePanel::PerformLayout()
 		//vgui::surface()->GetTextSize( m_pGameMenuButtons[i]->GetFont(), ModInfo().GetGameTitle(), textWide, textTall );
 
 		// place menu buttons above middle of screen
-		m_pGameMenuButtons[i]->SetPos(m_iGameTitlePos[i].x, m_iGameTitlePos[i].y + yDiff);
+		m_pGameMenuButtons[i]->SetPos(m_iGameTitlePos[i].x + titleOffsetX, m_iGameTitlePos[i].y + yDiff);
 		//m_pGameMenuButtons[i]->SetSize(textWide + 4, textTall + 4);
 	}
 
 	if ( m_pGameLogo )
 	{
 		// move the logo to sit right on top of the menu
-		m_pGameLogo->SetPos( m_iGameMenuPos.x + m_pGameLogo->GetOffsetX(), idealMenuY - m_pGameLogo->GetTall() + m_pGameLogo->GetOffsetY() );
+		m_pGameLogo->SetPos( menuX + m_pGameLogo->GetOffsetX(), idealMenuY - m_pGameLogo->GetTall() + m_pGameLogo->GetOffsetY() );
 	}
 
 	// position self along middle of screen
@@ -1807,7 +1820,7 @@ void CBasePanel::PerformLayout()
 		m_pGameMenu->GetPos( posx, posy );
 		m_iGameMenuPos.x = posx;
 	}
-	m_pGameMenu->SetPos(m_iGameMenuPos.x, idealMenuY);
+	m_pGameMenu->SetPos(menuX, idealMenuY);
 
 	UpdateGameMenus();
 }

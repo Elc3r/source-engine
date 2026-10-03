@@ -562,6 +562,9 @@ void PropertySheet::SetSmallTabs( bool state )
 {
 	m_bSmallTabs = state;
 	m_tabFont = scheme()->GetIScheme( GetScheme() )->GetFont( m_bSmallTabs ? "DefaultVerySmall" : "Default" );
+#ifdef IOS
+	m_tabFont = scheme()->GetIScheme(GetScheme())->GetFont(m_bSmallTabs ? "DefaultVerySmall" : "Default", IsProportional());
+#endif
 	int c = m_PageTabs.Count();
 	for ( int i = 0; i < c ; ++i )
 	{
@@ -898,6 +901,9 @@ void PropertySheet::ApplySchemeSettings(IScheme *pScheme)
 	m_flPageTransitionEffectTime = atof(pScheme->GetResourceString("PropertySheet.TransitionEffectTime"));
 
 	m_tabFont = pScheme->GetFont( m_bSmallTabs ? "DefaultVerySmall" : "Default" );
+#ifdef IOS
+	m_tabFont = pScheme->GetFont(m_bSmallTabs ? "DefaultVerySmall" : "Default", IsProportional());
+#endif
 
 	if ( m_pTabKV )
 	{

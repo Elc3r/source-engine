@@ -12,6 +12,7 @@
 
 
 #include "ToGLESRuntime.h"
+#include "../../public/ios_safearea.h"
 
 #if TARGET_OS_SIMULATOR
 // A key responder with no hit region: touches continue through SDL's view.
@@ -67,26 +68,43 @@ static unsigned frames;
 static double fps, fpsStart;
 static unsigned fpsFrames;
 static NSString *renderer = @"unavailable", *version = @"unavailable";
+static BOOL compactStatus;
+
+static void LayoutStatus(void)
+{
+    UIView *view = label.superview;
+    if (!view) return;
+    UIEdgeInsets insets = view.safeAreaInsets;
+    CGRect safe = UIEdgeInsetsInsetRect(view.bounds, insets);
+    CGFloat margin = 10;
+    CGFloat width = compactStatus ? MIN(180, safe.size.width - 2 * margin) : safe.size.width - 2 * margin;
+    CGFloat height = compactStatus ? 36 : MIN(140, safe.size.height - 2 * margin);
+    if (renderFailed) height = MIN(240, safe.size.height - 2 * margin);
+    label.frame = CGRectMake(safe.origin.x + (safe.size.width - width) / 2, safe.origin.y + margin, width, height);
+    if (view.bounds.size.width > 0 && view.bounds.size.height > 0) {
+        char value[128];
+        snprintf(value, sizeof(value), "%f %f %f %f",
+            insets.left / view.bounds.size.width, insets.top / view.bounds.size.height,
+            insets.right / view.bounds.size.width, insets.bottom / view.bounds.size.height);
+        const char *previous = SDL_GetHint(SOURCE_IOS_SAFE_AREA_HINT);
+        if (!previous || strcmp(previous, value)) SDL_SetHint(SOURCE_IOS_SAFE_AREA_HINT, value);
+    }
+}
 
 static void UpdateStatus(BOOL passed, NSString *detail, NSDictionary *extra)
 {
     label.text = [NSString stringWithFormat:@"ToGLES + ANGLE: %@\n%@\nFrames: %u", passed ? @"PASS" : @"FAIL", detail, frames];
-    CGRect statusFrame = label.frame;
-    BOOL landscape = label.superview.bounds.size.width > label.superview.bounds.size.height;
-    statusFrame.origin.y = landscape ? 10 : 60;
-    statusFrame.size.height = passed ? (landscape ? 85 : 140) : 240;
-    label.frame = statusFrame;
+    compactStatus = NO;
     if (IsSourceWorldMapLoaded()) {
         BOOL live = getenv("SOURCE_IOS_GAME_STARTUP") &&
             (strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "play") == 0 || strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "menu") == 0);
         if (live && passed) {
             label.text = [NSString stringWithFormat:@"Portal • LIVE  %.1f FPS\nFrames: %u", fps, frames];
             label.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
-            CGFloat width = MIN(180, label.superview.bounds.size.width - 200);
-            label.frame = CGRectMake((label.superview.bounds.size.width-width)/2,
-                                     landscape ? 10 : 60, width, 36);
+            compactStatus = YES;
         }
     }
+    LayoutStatus();
     if (!passed) NSLog(@"Source iOS: %@", detail);
 }
 
@@ -134,6 +152,7 @@ static BOOL StartRenderer(void)
 static void DrawFrame(void *unused)
 {
     @autoreleasepool {
+        LayoutStatus();
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
 
@@ -236,20 +255,21 @@ static void StartGraphics(UIWindowScene *scene)
     if (!metalView) { UpdateStatus(NO, @(SDL_GetError()), @{}); return; }
     UIView *view = (__bridge UIView *)metalView;
     label = [[UILabel alloc] initWithFrame:CGRectMake(20, 60, view.bounds.size.width - 40, 140)];
-    label.frame = CGRectMake(20, 60, view.bounds.size.width - 40, 360);
-    label.autoresizingMask = UIViewAutoresizingFlexibleWidth;
     label.numberOfLines = 0;
     label.textColor = UIColor.whiteColor;
     label.backgroundColor = [UIColor.blackColor colorWithAlphaComponent:0.7];
     label.font = [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightMedium];
     label.text = @"SDL + ANGLE / Metal\nVerifying textured GLES output…";
     [view addSubview:label];
+    [view layoutIfNeeded];
+    LayoutStatus();
 #if TARGET_OS_SIMULATOR
     keyboardInput=[[SourceKeyboardInput alloc] initWithFrame:CGRectMake(0,0,0,0)];
     [view addSubview:keyboardInput];
     [keyboardInput becomeFirstResponder];
 #endif
     if (!StartRenderer()) return;
+    UpdateStatus(YES, @"Renderer initialized", @{});
     if (SDL_iPhoneSetAnimationCallback(window, 1, DrawFrame, NULL) != 0)
         UpdateStatus(NO, @(SDL_GetError()), @{});
 }

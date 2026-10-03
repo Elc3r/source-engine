@@ -34,6 +34,9 @@ public:
 	virtual void OnResetData();
 	virtual void OnApplyChanges();
 	virtual void PerformLayout();
+#ifdef IOS
+	virtual void OnScreenSizeChanged(int oldWide, int oldTall);
+#endif
 
 	virtual bool RequiresRestart();
 

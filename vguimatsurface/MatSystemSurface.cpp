@@ -56,6 +56,7 @@ ILauncherMgr *g_pLauncherMgr = NULL;
 #include "../vgui2/src/VPanel.h"
 #ifdef IOS
 #include "../vgui2/src/vgui_internal.h"
+#include "ios_safearea.h"
 #endif
 #include <vgui/IInputInternal.h>
 #if defined( _X360 )
@@ -2668,6 +2669,14 @@ void CMatSystemSurface::GetWorkspaceBounds(int &x, int &y, int &iWide, int &iTal
 
 	iWide -= m_WorkSpaceInsets[2];
 	iTall -= m_WorkSpaceInsets[3];
+#ifdef IOS
+	int left, top, right, bottom;
+	SourceIOSGetSafeArea(iWide, iTall, left, top, right, bottom);
+	x += left;
+	y += top;
+	iWide -= left + right;
+	iTall -= top + bottom;
+#endif
 }
 
 

@@ -23,6 +23,9 @@
 #include "vgui_controls/AnimationController.h"
 #include "vgui_controls/Controls.h"
 #include "vgui_controls/Frame.h"
+#ifdef IOS
+#include "vgui_controls/BuildGroup.h"
+#endif
 #include "vgui_controls/Button.h"
 #include "vgui_controls/Menu.h"
 #include "vgui_controls/MenuButton.h"
@@ -1017,6 +1020,9 @@ void Frame::MoveToCenterOfScreen()
 	int wx, wy, ww, wt;
 	surface()->GetWorkspaceBounds(wx, wy, ww, wt);
 	SetPos((ww - GetWide()) / 2, (wt - GetTall()) / 2);
+#ifdef IOS
+	SetPos(wx + (ww - GetWide()) / 2, wy + (wt - GetTall()) / 2);
+#endif
 }
 
 
@@ -1033,6 +1039,9 @@ void Frame::LayoutProportional( FrameButton *bt )
 		surface()->GetProportionalBase( proW, proH );
 
 		scale =	( (float)( screenH ) / (float)( proH ) );
+#ifdef IOS
+		scale = scheme()->GetProportionalScaledValueEx(GetScheme(), 10000) / 10000.0f;
+#endif
 	}
 
 	bt->SetSize( (int)( FrameButton::GetButtonSide( this ) * scale ), (int)( FrameButton::GetButtonSide( this ) * scale ) );
@@ -2303,7 +2312,16 @@ void Frame::OnScreenSizeChanged(int iOldWide, int iOldTall)
 	BaseClass::OnScreenSizeChanged(iOldWide, iOldTall);
 
 	if (IsProportional())
+	{
+#ifdef IOS
+		if (IsPopup())
+		{
+			GetBuildGroup()->ReapplyControlSettings();
+			MoveToCenterOfScreen();
+		}
+#endif
 		return;
+	}
 
 	// make sure we're completely on screen
 	int iNewWide, iNewTall;

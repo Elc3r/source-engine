@@ -54,6 +54,9 @@ public:
 
 	// Reload the control settings from file
 	void ReloadControlSettings();
+#ifdef IOS
+	void ReapplyControlSettings();
+#endif
 
 	// changes which control settings are currently loaded
 	void ChangeControlSettingsFile(const char *controlResourceName);

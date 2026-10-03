@@ -22,6 +22,9 @@
 #define PROTECTED_THINGS_DISABLE
 
 #include "utldict.h"
+#ifdef IOS
+#include "tier1/utlstring.h"
+#endif
 
 #include <vgui/KeyCode.h>
 #include <vgui/Cursor.h>
@@ -1135,6 +1138,17 @@ void BuildGroup::ReloadControlSettings()
 
 	ActivateBuildDialog();	
 }
+
+#ifdef IOS
+void BuildGroup::ReapplyControlSettings()
+{
+	if (!m_pResourceName) return;
+	// LoadControlSettings replaces these strings; retain copies for the call.
+	CUtlString resourceName(m_pResourceName);
+	CUtlString pathID(m_pResourcePathID ? m_pResourcePathID : "");
+	LoadControlSettings(resourceName.String(), pathID.IsEmpty() ? NULL : pathID.String());
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: changes which control settings are currently loaded

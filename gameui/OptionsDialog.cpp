@@ -11,6 +11,9 @@
 #include "vgui_controls/Button.h"
 #include "vgui_controls/CheckButton.h"
 #include "vgui_controls/PropertySheet.h"
+#ifdef IOS
+#include "vgui_controls/BuildGroup.h"
+#endif
 #include "vgui_controls/Label.h"
 #include "vgui_controls/QueryBox.h"
 
@@ -46,6 +49,9 @@ using namespace vgui;
 COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "OptionsDialog")
 {
 	SetDeleteSelfOnClose(true);
+#ifdef IOS
+	SetProportional(true);
+#endif
 
 	int w = 512;
 	int h = 406;
@@ -122,6 +128,21 @@ COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "Op
 COptionsDialog::~COptionsDialog()
 {
 }
+
+#ifdef IOS
+void COptionsDialog::OnScreenSizeChanged(int oldWide, int oldTall)
+{
+	BaseClass::OnScreenSizeChanged(oldWide, oldTall);
+	for (int i = 0; i < GetPropertySheet()->GetNumPages(); ++i)
+	{
+		EditablePanel *page = dynamic_cast<EditablePanel *>(GetPropertySheet()->GetPage(i));
+		if (page) page->GetBuildGroup()->ReapplyControlSettings();
+	}
+	SetSize(scheme()->GetProportionalScaledValueEx(GetScheme(), 512),
+		scheme()->GetProportionalScaledValueEx(GetScheme(), 406));
+	MoveToCenterOfScreen();
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Purpose: Brings the dialog to the fore
