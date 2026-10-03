@@ -12,6 +12,10 @@
 #include "tier0/icommandline.h"
 #include "vgui_controls/Button.h"
 #include "viewrender.h"
+#if defined(IOS)
+#include "inputsystem/iinputsystem.h"
+#include "cdll_client_int.h"
+#endif
 
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "stb_rect_pack.h"
@@ -706,6 +710,11 @@ void CTouchControls::Frame()
 
 void CTouchControls::Paint()
 {
+#if defined(IOS)
+	// Keep the touch profile intact so hot-unplug restores the overlay.
+	if (inputsystem && inputsystem->GetJoystickCount() > 0)
+		return;
+#endif
 	if (!initialized)
 		return;
 
