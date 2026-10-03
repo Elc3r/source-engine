@@ -139,7 +139,9 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
         host_initialized=true;
         playing=true; playerReader=readPlayer; lastFrame=Plat_FloatTime(); tickRemainder=0;
         EngineVGui()->ActivateGameUI();
-        snprintf(detail,capacity,"Portal main menu: PASS; waiting for New Game or Load Game");
+        // Use the original chapter selection and map_background startup path.
+        Cbuf_AddText("startupmenu\n");
+        snprintf(detail,capacity,"Portal main menu: PASS; loading native background map");
         return true;
     }
     Msg("iOS Portal GameInit: begin\n");
@@ -287,6 +289,8 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
         reconnectStarted=0; tickRemainder=0; lastFrame=Plat_FloatTime();
         Host_AllowQueuedMaterialSystem(false);
         SCR_EndLoadingPlaque();
+        // Background maps keep GameUI visible; this native call also unpauses
+        // the scene after signon activates the single-player menu.
         EngineVGui()->HideGameUI();
     }
     if (!sv.IsActive()) { snprintf(detail,capacity,"Portal server unavailable"); return false; }

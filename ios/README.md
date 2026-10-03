@@ -2114,3 +2114,20 @@ restarting into the menu, touch Load Game restored an existing save in
 testchmb_a_01 with visible rendering and approximately 60 FPS. Desktop dialogs
 retain their original compact layout. Device ARM64 v12 packaging passes;
 physical-device menu interaction still needs confirmation.
+
+
+### Animated main-menu background (v13)
+
+Menu startup now queues the original `startupmenu` command, selecting the
+chapter's native background map through ChapterBackgrounds.txt. After signon,
+the native HideGameUI path leaves GameUI visible for a background level and
+unpauses it. Reactivating GameUI here instead queued setpause and froze the
+camera before its scripted view entity took over.
+
+Simulator verification: background1 renders the original overhead camera with
+changing views and visible menu at approximately 60 FPS. LLDB found the scene
+unpaused at server tick 1045, client time 15.675 and view entity 33. The SDL
+mixer buffer contained 32,758 nonzero S16 samples in 64 KiB (peak 5,834). This
+verifies PCM output, not physical-device listening. Touch New Game → Start new
+game transitioned from the background map into visible testchmb_a_00 gameplay.
+Simulator/device builds, v13 IPA ZIP integrity and deep signature checks pass.
