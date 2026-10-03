@@ -3,7 +3,7 @@
 #include <EGL/egl.h>
 bool InitializeIOSMaterial(const GLMContextHost *,const char *,char *,size_t);
 namespace {
-struct HostSurface { EGLDisplay display; EGLSurface surface; };
+struct HostSurface { EGLDisplay display; EGLSurface surface; int swapInterval; };
 bool MakeCurrent(void *data, void *context)
 {
     HostSurface *host = static_cast<HostSurface *>(data);
@@ -37,6 +37,14 @@ bool ShowPixels(void *data, CShowPixelsParams *params)
         EGLint width=0;
         return eglQuerySurface(host->display,host->surface,EGL_WIDTH,&width)==EGL_TRUE;
     }
+    const int interval=params->m_vsyncEnable ? 1 : 0;
+    if (interval!=host->swapInterval) {
+        if (!eglSwapInterval(host->display,interval)) {
+            fprintf(stderr,"Unable to set EGL swap interval %d: 0x%x\n",interval,eglGetError());
+            return false;
+        }
+        host->swapInterval=interval;
+    }
     return eglSwapBuffers(host->display,host->surface)==EGL_TRUE;
 }
 
@@ -52,7 +60,7 @@ void StopToGLESLiveMaterial();
 int StartToGLESMaterialLoop(const char *modules, char *detail, size_t capacity)
 {
     if (liveStarted) return 1;
-    liveSurface={eglGetCurrentDisplay(),eglGetCurrentSurface(EGL_DRAW)};
+    liveSurface={eglGetCurrentDisplay(),eglGetCurrentSurface(EGL_DRAW),-1};
     liveHost={};
     livePrevious=eglGetCurrentContext();
     EGLint configID=0,count=0;

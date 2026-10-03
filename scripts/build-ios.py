@@ -107,6 +107,7 @@ def main():
             'MinimumOSVersion': args.min_version, 'UIDeviceFamily': [1, 2],
             'CFBundleSupportedPlatforms': ['iPhoneSimulator' if args.target == 'simulator' else 'iPhoneOS'],
             'NSBluetoothAlwaysUsageDescription': 'Portal uses Bluetooth to discover and connect compatible game controllers.',
+            'CADisableMinimumFrameDurationOnPhone': True,
             'UILaunchScreen': {},
             'UIApplicationSceneManifest': {'UIApplicationSupportsMultipleScenes': False},
             'UIFileSharingEnabled': True, 'LSSupportsOpeningDocumentsInPlace': True,

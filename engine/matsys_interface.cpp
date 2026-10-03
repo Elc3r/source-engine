@@ -247,7 +247,10 @@ static const char *s_pRegistryConVars[] =
 	""
 };
 
-#if defined( OSX )
+#if defined( IOS )
+	#define MOD_VIDEO_CONFIG_SETTINGS "videoconfig_ios.cfg"
+	#define USE_VIDEOCONFIG_FILE 1
+#elif defined( OSX )
 	#define MOD_VIDEO_CONFIG_SETTINGS "videoconfig_mac.cfg"
 	#define USE_VIDEOCONFIG_FILE 1
 #elif defined( ANDROID )
@@ -796,6 +799,10 @@ void InitMaterialSystemConfig( bool bInEditMode )
 
 	OverrideMaterialSystemConfigFromCommandLine( config );
 	OverrideMaterialSystemConfig( config );
+#if defined(IOS)
+    // The native host binds one EGL context on the UIKit render thread.
+    ConVarRef("mat_queue_mode").SetValue(0);
+#endif
 
 	// Force the convars to update -- need this due to threading
 	g_pCVar->ProcessQueuedMaterialThreadConVarSets();

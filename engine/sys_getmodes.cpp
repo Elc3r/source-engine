@@ -2316,6 +2316,12 @@ bool CVideoMode_MaterialSystem::Init( )
     m_bPlayedStartupVideo = false;
     DefaultVideoMode().width = m_nModeWidth;
     DefaultVideoMode().height = m_nModeHeight;
+    m_nNumModes = 1;
+    m_rgModeList[0] = DefaultVideoMode();
+    m_rgModeList[0].bpp = 32;
+    SDL_DisplayMode displayMode = {};
+    if (!SDL_GetCurrentDisplayMode(SDL_GetWindowDisplayIndex(window), &displayMode))
+        m_rgModeList[0].refreshRate = displayMode.refresh_rate;
     m_bClientViewRectDirty = true;
     m_bInitialized = true;
     return true;
@@ -2508,6 +2514,13 @@ void CVideoMode_MaterialSystem::AdjustForModeChange( void )
     ResetCurrentModeForNewResolution( nNewWidth, nNewHeight, bWindowed );
 #if !defined(IOS)
     AdjustWindow( GetModeWidth(), GetModeHeight(), GetModeBPP(), IsWindowedMode() );
+#endif
+#if defined(IOS)
+    // UIKit owns the output mode; expose the current drawable to GameUI.
+    m_nNumModes = 1;
+    m_rgModeList[0].width = nNewWidth;
+    m_rgModeList[0].height = nNewHeight;
+    m_rgModeList[0].bpp = 32;
 #endif
     MarkClientViewRectDirty();
     pRenderContext->Viewport( 0, 0, GetModeStereoWidth(), GetModeStereoHeight() );

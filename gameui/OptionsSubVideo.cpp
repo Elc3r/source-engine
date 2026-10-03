@@ -431,6 +431,10 @@ public:
 		SetSizeable( false );
 
 		m_pDXLevel->SetEnabled(false);
+#if defined(IOS)
+        // The UIKit/EGL host owns a single render-thread context.
+        m_pMulticore->SetEnabled(false);
+#endif
 		
 		m_pColorCorrection->SetEnabled( mat_dxlevel.GetInt() >= 90 );
 		m_pMotionBlur->SetEnabled( mat_dxlevel.GetInt() >= 90 );
@@ -771,8 +775,12 @@ public:
 
 		ApplyChangesToConVar( "mat_vsync", m_pVSync->GetActiveItem() );	 
 
+#if defined(IOS)
+        ApplyChangesToConVar( "mat_queue_mode", 0 );
+#else
 		int iMC = m_pMulticore->GetActiveItem();
-		ApplyChangesToConVar( "mat_queue_mode", (iMC == 0) ? 0 : -1 );	 
+		ApplyChangesToConVar( "mat_queue_mode", (iMC == 0) ? 0 : -1 );
+#endif
 
 		ApplyChangesToConVar( "mat_colorcorrection", m_pColorCorrection->GetActiveItem() );
 
@@ -891,7 +899,11 @@ public:
 		// We (Rick!) have now switched -2 to mean enabled. So this comment has been rendered obsolete:
 		//  -- For testing, we have -2, the legacy default setting as meaning multicore is disabled.
 		//  -- After that, we'll switch -2 to mean it's enabled.
+#if defined(IOS)
+        m_pMulticore->ActivateItem(0);
+#else
 		m_pMulticore->ActivateItem( (iMC == 0) ? 0 : 1 );
+#endif
 
 		m_pColorCorrection->ActivateItem( mat_colorcorrection.GetInt() );
 
@@ -929,6 +941,9 @@ public:
 			}
 
 			m_bUseChanges = true;
+#if defined(IOS)
+            PostMessage(GetParent(), new KeyValues("ApplyButtonEnable"));
+#endif
 			Close();
 		}
 		else
@@ -1306,6 +1321,11 @@ void COptionsSubVideo::PrepareResolutionList()
 		Q_snprintf( sz, ARRAYSIZE( sz ), "%d x %d", Width, Height );
 		m_pMode->SetText( sz );
 	}
+#if defined(IOS)
+    // The render target follows the native drawable, including rotation.
+    m_pMode->SetEnabled(false);
+    m_pAspectRatio->SetEnabled(false);
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1685,7 +1705,7 @@ void		COptionsSubVideo::EnableOrDisableWindowedForVR()
 	}
 	else
 	{
-#ifdef ANDROID
+#if defined(ANDROID) || defined(IOS)
 		m_pWindowed->SetEnabled( false );
 #else
 		m_pWindowed->SetEnabled( true );

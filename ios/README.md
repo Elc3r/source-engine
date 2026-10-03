@@ -78,6 +78,15 @@ simulator keyboard input supports gameplay. Orientation changes resize the
 native drawable, renderer and VGUI font/layout state. Quit waits for pending save
 writes and exits through the UIKit host.
 
+Video quality settings use the original material system and persist in
+`videoconfig_ios.cfg` in the writable game directory. The application requests
+the display's maximum refresh rate and opts into ProMotion on supported iPhones.
+V-sync controls the EGL swap interval; enabling it does not raise the display's
+refresh rate. Actual frame rate depends on rendering load and system scheduling.
+The output follows the native drawable resolution. Window mode, aspect ratio
+and multicore rendering are fixed by the UIKit/EGL host; MSAA is not currently
+supported by the hosted ToGLES device.
+
 ## Compatibility
 
 Requires iOS or iPadOS 16.0 or later on ARM64. Tested devices:

@@ -47,6 +47,8 @@ extern "C" void SourceIOSUpdateVideoMode();
 extern void ReleaseMaterialSystemObjects();
 extern void RestoreMaterialSystemObjects(int changeFlags);
 extern void Host_UpdateSounds();
+extern void InitMaterialSystemConfig(bool);
+extern void UpdateMaterialSystemConfig();
 extern "C" void SourceIOSSetSoundFocus(bool active);
 extern void S_BlockSound();
 extern void S_UnblockSound();
@@ -125,7 +127,7 @@ extern "C" bool SourceIOSStartGameSession(char *detail,size_t capacity) {
         g_AudioDevice->DeviceChannels(),g_AudioDevice->DeviceSampleBits());
     const char *mode=getenv("SOURCE_IOS_GAME_STARTUP");
     if (mode && !strcmp(mode,"menu")) {
-        g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
+        InitMaterialSystemConfig(false);
         InitStudioRender(); renderStarted=true;
         materials->AddReleaseFunc(ReleaseMaterialSystemObjects);
         materials->AddRestoreFunc(RestoreMaterialSystemObjects);
@@ -169,6 +171,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     // state machine before treating that temporary disconnect as a failure.
     HostState_FrameTransitions(host_frametime);
     Cbuf_Execute();
+    UpdateMaterialSystemConfig();
     if (!sv.IsActive() && cl.m_nSignonState==SIGNONSTATE_NONE) {
         reconnectStarted=0; tickRemainder=0;
         NET_RunFrame(now);

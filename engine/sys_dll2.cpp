@@ -2528,8 +2528,13 @@ public:
 
 	void GetDesktopResolution( int &width, int &height )
 	{
+#if defined(IOS)
+        width = videomode->GetModeWidth();
+        height = videomode->GetModeHeight();
+#else
 		int refreshrate;
 		game->GetDesktopInfo( width, height, refreshrate );
+#endif
 	}
 
 	virtual void SetFriendsID( uint friendsID, const char *friendsName )
