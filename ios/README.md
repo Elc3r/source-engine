@@ -2131,3 +2131,22 @@ mixer buffer contained 32,758 nonzero S16 samples in 64 KiB (peak 5,834). This
 verifies PCM output, not physical-device listening. Touch New Game → Start new
 game transitioned from the background map into visible testchmb_a_00 gameplay.
 Simulator/device builds, v13 IPA ZIP integrity and deep signature checks pass.
+
+
+### Rotation and native menu fonts (v14)
+
+Screen-size changes cleared all font glyph sets after panels had recreated their
+custom iOS menu fonts. Those handles then had no glyph metrics, reducing the
+menu width to 8 pixels and hiding its text. iOS now reapplies screen-size
+notifications after the font cache reset, retaining the original scheme-font
+reload after resizing while recreating custom fonts afterwards. GameUI also
+refreshes the title fade after scheme changes; title buttons otherwise reset
+their alpha to zero without another animation. Desktop behavior is unchanged.
+
+The user confirmed native menu audio on physical hardware with v13.
+
+Simulator verification: repeated portrait/landscape rotations retain all main
+menu entries and the Portal title. Touch New Game after returning to landscape
+opens the original dialog. Native background rendering continues around 60 FPS.
+Simulator/device builds and v14 IPA ZIP/deep-signature checks pass. Physical
+rotation behavior remains to be confirmed on v14.

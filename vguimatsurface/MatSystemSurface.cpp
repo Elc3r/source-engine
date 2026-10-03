@@ -2621,6 +2621,12 @@ void CMatSystemSurface::OnScreenSizeChanged( int nOldWidth, int nOldHeight )
 
 	// clear font texture cache
 	ResetFontCaches();
+#if defined(IOS)
+	// Scheme fonts need the resized panels above. Native-size custom fonts
+	// must then be recreated after ClearAllFonts has emptied their handles.
+	ivgui()->PostMessage(panel, new KeyValues("OnScreenSizeChanged", "oldwide", nOldWidth, "oldtall", nOldHeight), NULL);
+	ivgui()->RunFrame();
+#endif
 }
 
 // Causes fonts to get reloaded, etc.

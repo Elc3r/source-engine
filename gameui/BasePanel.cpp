@@ -1817,6 +1817,10 @@ void CBasePanel::PerformLayout()
 //-----------------------------------------------------------------------------
 void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 {
+#if defined(IOS)
+    // Title buttons reset their alpha when rotation reapplies their scheme.
+    m_bForceTitleTextUpdate = true;
+#endif
 	int i;
 	BaseClass::ApplySchemeSettings(pScheme);
 
