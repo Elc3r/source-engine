@@ -27,8 +27,8 @@ def main():
     mode.add_argument('--graphics', action='store_true', help='Build the independent SDL/Metal GPU probe')
     mode.add_argument('--angle', action='store_true', help='Build the SDL/ANGLE GLES texture probe (downloads pinned ANGLE)')
     mode.add_argument('--togles', action='store_true', help='Test engine shader translation and DXT decoding through ANGLE')
-    parser.add_argument('--game-startup', nargs='?', const='server', choices=['server','server-cycle','client','client-cycle','level-cycle','player-cycle','play'],
-                        help='Check Portal initialization/map lifecycle, or run continuous native gameplay with play (requires game modules/data)')
+    parser.add_argument('--game-startup', nargs='?', const='server', choices=['server','server-cycle','client','client-cycle','level-cycle','player-cycle','play','menu'],
+                        help='Check Portal initialization/map lifecycle, or run the native main menu with menu / immediate gameplay with play (requires game modules/data)')
     parser.add_argument('--game-modules', action='store_true', help='Build and verify actual Portal client/server factories (ToGLES only)')
     parser.add_argument('--world-loader-check', action='store_true',
                         help='Compile actual engine world-loading units and report link dependencies (ToGLES only)')
@@ -122,7 +122,7 @@ def main():
         # Only paths/settings are packaged, never the game's assets.
         with (app / 'ios-launch.plist').open('wb') as stream:
             plistlib.dump({'SOURCE_IOS_GAME_MODULE_CHECK': '1',
-                          'SOURCE_IOS_GAME_STARTUP': 'play',
+                          'SOURCE_IOS_GAME_STARTUP': 'menu',
                           'SOURCE_IOS_GAME_ROOT': '@documents/Portal-arm64' if args.device_game_data else str(args.portal_root),
                           'SOURCE_IOS_WORLD_MAP': args.world_map}, stream)
     libraries = []

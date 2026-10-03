@@ -188,7 +188,7 @@ extern "C" bool SourceIOSInitializePortalClient(CSysModule *module,char *detail,
     clientInitialized=started;
     if (started) {
         const char *mode=getenv("SOURCE_IOS_GAME_STARTUP");
-        if (mode && !strcmp(mode,"play")) {
+        if (mode && (!strcmp(mode,"play") || !strcmp(mode,"menu"))) {
             g_pClientRenderTargets=static_cast<IClientRenderTargets *>(gameFactory(CLIENTRENDERTARGETS_INTERFACE_VERSION,NULL));
             if (!g_pClientRenderTargets) { snprintf(detail,capacity,"Portal client render targets unavailable"); return false; }
             materials->BeginRenderTargetAllocation();

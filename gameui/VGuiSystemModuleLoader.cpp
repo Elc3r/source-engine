@@ -66,7 +66,12 @@ CVGuiSystemModuleLoader::~CVGuiSystemModuleLoader()
 //-----------------------------------------------------------------------------
 bool CVGuiSystemModuleLoader::IsPlatformReady()
 {
+#if defined(IOS)
+    // The mobile host has no desktop Steam platform modules to load.
+    return true;
+#else
 	return m_bModulesInitialized;
+#endif
 }
 
 //-----------------------------------------------------------------------------

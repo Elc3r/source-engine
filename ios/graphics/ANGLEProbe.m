@@ -91,7 +91,7 @@ static void SaveResult(BOOL passed, NSString *detail, NSDictionary *extra)
 #ifdef SOURCE_TOGLES_PROBE
     if (IsSourceWorldMapLoaded()) {
         BOOL live = getenv("SOURCE_IOS_GAME_STARTUP") &&
-            strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "play") == 0;
+            (strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "play") == 0 || strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "menu") == 0);
         if (live && passed) {
             label.text = [NSString stringWithFormat:@"Portal • LIVE  %.1f FPS\nFrames: %u", fps, frames];
             label.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
@@ -345,7 +345,7 @@ static void DrawFrame(void *unused)
             fps=fpsFrames/(presentTime-fpsStart);
             fpsStart=presentTime; fpsFrames=0;
             if (IsSourceWorldMapLoaded() && getenv("SOURCE_IOS_GAME_STARTUP") &&
-                !strcmp(getenv("SOURCE_IOS_GAME_STARTUP"),"play"))
+                (!strcmp(getenv("SOURCE_IOS_GAME_STARTUP"),"play") || !strcmp(getenv("SOURCE_IOS_GAME_STARTUP"),"menu")))
                 label.text=[NSString stringWithFormat:@"Portal • LIVE  %.1f FPS\nFrames: %u",fps,frames];
         }
         if (frames%120==0) SaveResult(YES,@(detail),

@@ -1852,7 +1852,7 @@ Documents/Portal-arm64/platform/...
 Keep all multipart VPK files with their directory VPKs. Mac game binaries are
 not needed. `@documents/Portal-arm64` in ios-launch.plist resolves at launch
 against the current application's data container; no Mac absolute path is used.
-The app starts the first chamber automatically. Diagnostic output is available
+The app opens the original Portal main menu; New Game starts the first chamber. Diagnostic output is available
 in Documents/togles.json; writable configuration and saves are under Library/
 Application Support/SourceEngine/Portal. Use a local device data container.
 
@@ -2095,3 +2095,22 @@ A fresh save in the second map also reloads with signon FULL, the same player
 position, visible rendering and 17 active audio channels. Earlier simulator
 .sav containers remain preserved in the backup and are copied back into the
 save list without restoring old temporary sidecars.
+
+
+### Original startup menu (v12)
+
+Home-screen and LiveContainer launches now select `menu` startup mode. The host
+initializes the native audio, networking, save/restore and renderer services
+without spawning a map. Original GameUI paints the Portal background and menu,
+and New Game / Load Game drive the existing host state machine. Disconnected
+frames keep the menu running without the reconnect timeout; loading frames paint
+the native progress dialog. The iOS platform-module readiness check does not wait
+for unavailable desktop Steam modules. `--game-startup play` remains available
+for immediate-map regression runs.
+
+Simulator verification: a normal launch displayed the original menu; touch
+New Game → Start new game loaded testchmb_a_00 with visible gameplay. After
+restarting into the menu, touch Load Game restored an existing save in
+testchmb_a_01 with visible rendering and approximately 60 FPS. Desktop dialogs
+retain their original compact layout. Device ARM64 v12 packaging passes;
+physical-device menu interaction still needs confirmation.

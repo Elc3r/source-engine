@@ -124,6 +124,24 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
     Msg("iOS Portal audio: %s; %d Hz; %d channels; %d bits\n",
         g_AudioDevice->DeviceName(),g_AudioDevice->DeviceDmaSpeed(),
         g_AudioDevice->DeviceChannels(),g_AudioDevice->DeviceSampleBits());
+    const char *mode=getenv("SOURCE_IOS_GAME_STARTUP");
+    if (mode && !strcmp(mode,"menu")) {
+        g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
+        InitStudioRender(); renderStarted=true;
+        materials->AddReleaseFunc(ReleaseMaterialSystemObjects);
+        materials->AddRestoreFunc(RestoreMaterialSystemObjects);
+        R_InitStudio();
+        SCR_Init();
+        NET_Init(false); networkStarted=true;
+        CL_Init();
+        HostState_Init();
+        Host_AllowQueuedMaterialSystem(false);
+        host_initialized=true;
+        playing=true; playerReader=readPlayer; lastFrame=Plat_FloatTime(); tickRemainder=0;
+        EngineVGui()->ActivateGameUI();
+        snprintf(detail,capacity,"Portal main menu: PASS; waiting for New Game or Load Game");
+        return true;
+    }
     Msg("iOS Portal GameInit: begin\n");
     gameStarted=serverGameDLL->GameInit();
     if (!gameStarted) { snprintf(detail,capacity,"Portal GameInit: FAIL"); SourceIOSShutdownPortalLevel(); return false; }
@@ -143,7 +161,6 @@ extern "C" bool SourceIOSCheckPortalLevel(char *detail,size_t capacity,IOSReadPo
     passed=passed && sv.IsActive() && entities>1 && sv.edicts && !sv.edicts[0].IsFree();
     snprintf(detail,capacity,"Portal GameInit/SpawnServer/LevelInit/ServerActivate: %s; %d live edicts (player not connected)",passed?"PASS":"FAIL",entities);
     Msg("%s\n",detail);
-    const char *mode=getenv("SOURCE_IOS_GAME_STARTUP");
     if (passed && mode && (!strcmp(mode,"player-cycle") || !strcmp(mode,"play"))) {
         Msg("iOS Portal localhost connection: begin\n");
         g_pMaterialSystemConfig=&materials->GetCurrentConfigForVideoCard();
@@ -241,6 +258,14 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     // state machine before treating that temporary disconnect as a failure.
     HostState_FrameTransitions(host_frametime);
     Cbuf_Execute();
+    if (!sv.IsActive() && cl.m_nSignonState==SIGNONSTATE_NONE) {
+        reconnectStarted=0; tickRemainder=0;
+        NET_RunFrame(now);
+        cl.RunFrame();
+        if (!EngineVGui()->IsGameUIVisible()) EngineVGui()->ActivateGameUI();
+        snprintf(detail,capacity,"Portal main menu; no active game");
+        return true;
+    }
     if (!cl.IsActive() || !entitylist || !entitylist->GetClientEntity(cl.m_nPlayerSlot+1)) {
         if (!reconnectStarted) reconnectStarted=now;
         if (now-reconnectStarted>30.0) {
@@ -293,10 +318,15 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
 }
 extern "C" bool SourceIOSDrawPortalGame(int width,int height,char *detail,size_t capacity) {
     if (!playing || !g_ClientDLL || width<1 || height<1) return false;
-    if (!cl.IsActive() || !clientFrameReady) { EngineVGui()->Simulate(); Host_UpdateSounds(); return true; }
     if (videomode->GetModeWidth()!=width || videomode->GetModeHeight()!=height)
         SourceIOSUpdateVideoMode();
     EngineVGui()->Simulate();
+    if (!cl.IsActive() || !clientFrameReady) {
+        EngineVGui()->Paint(PAINT_UIPANELS);
+        Host_UpdateSounds();
+        saverestore->OnFrameRendered();
+        return true;
+    }
     ClientDLL_FrameStageNotify(FRAME_RENDER_START);
     g_EngineRenderer->FrameBegin();
     cl.UpdateAreaBits_BackwardsCompatible();

@@ -393,7 +393,7 @@ bool CheckToGLESMaterial(const GLMContextHost *host, const char *modules, char *
                 }
                 if (valid) valid=InitializeMapServices(modules,ApplicationFactory,detail,capacity);
                 const char *startupMode=getenv("SOURCE_IOS_GAME_STARTUP");
-                bool levelCycle=startupMode && (!strcmp(startupMode,"level-cycle") || !strcmp(startupMode,"player-cycle") || !strcmp(startupMode,"play"));
+                bool levelCycle=startupMode && (!strcmp(startupMode,"level-cycle") || !strcmp(startupMode,"player-cycle") || (!strcmp(startupMode,"play") || !strcmp(startupMode,"menu")));
                 if (valid && retain && !levelCycle) valid=LoadRequestedWorldMap(detail,capacity);
                 if (valid && retain) valid=InitializePortalGame(modules,ApplicationFactory,detail,capacity);
                 if (valid && retain && levelCycle) valid=LoadRequestedWorldMap(detail,capacity);
