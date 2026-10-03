@@ -6,6 +6,7 @@
 #include <EGL/eglext.h>
 #include <EGL/eglext_angle.h>
 #include <GLES3/gl3.h>
+#include <unistd.h>
 #import <UIKit/UIKit.h>
 #import <QuartzCore/CAMetalLayer.h>
 
@@ -291,5 +292,17 @@ static void StartGraphics(UIWindowScene *scene)
 
 int main(int argc, char **argv)
 {
-    @autoreleasepool { return UIApplicationMain(argc, argv, nil, NSStringFromClass(ANGLEApp.class)); }
+    @autoreleasepool {
+        NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
+        NSString *logPath = [documents stringByAppendingPathComponent:@"Portal.log"];
+        FILE *log = fopen(logPath.fileSystemRepresentation, "w");
+        if (log) {
+            dup2(fileno(log), STDOUT_FILENO);
+            dup2(fileno(log), STDERR_FILENO);
+            fclose(log);
+            setvbuf(stdout, NULL, _IONBF, 0);
+            setvbuf(stderr, NULL, _IONBF, 0);
+        }
+        return UIApplicationMain(argc, argv, nil, NSStringFromClass(ANGLEApp.class));
+    }
 }

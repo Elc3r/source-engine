@@ -38,7 +38,7 @@ python3 scripts/build-ios.py --game portal --target device \
 
 The application is named **Portal** with bundle identifier
 **org.sourceengine.portal**. The script creates an ad-hoc signed IPA; deployment
-uses the user's chosen signing/container workflow. Simulator and device builds
+requires a compatible signing or container setup. Simulator and device builds
 use separate `build-ios-*` directories. `--build-dir`, `--min-version`, and
 `--shader-cache` override the defaults.
 
@@ -46,7 +46,10 @@ On a device, put the game data in `Documents/Portal-arm64`. The application expo
 its Documents directory through file sharing. Saves and settings use writable
 paths separate from imported desktop saves. Changing from an older bootstrap
 bundle identifier creates a new application/container: copy the game data to the
-new Portal container or configure it through the deployment workflow.
+new Portal container or configure it through the deployment workflow. The root
+shown by file sharing is already Documents; place `Portal-arm64` directly there,
+without creating another Documents directory. Startup output is written to
+`Documents/Portal.log` and replaced on each launch.
 
 For a booted Simulator with existing local data:
 
@@ -55,8 +58,7 @@ python3 scripts/build-ios.py --game portal --target simulator \
   --game-root /absolute/path/to/Portal-arm64 --simulator SIMULATOR-UDID
 ```
 
-The simulator build reads that directory directly. The build command compiles,
-packages and launches; runtime verification is performed separately.
+The simulator build reads that directory directly. With `--simulator`, the build command installs and launches the application.
 
 ## Runtime
 
@@ -76,13 +78,16 @@ simulator keyboard input supports gameplay. Orientation changes resize the
 native drawable, renderer and VGUI font/layout state. Quit waits for pending save
 writes and exits through the UIKit host.
 
-The runtime no longer packages synthetic material/BSP fixtures, standalone GPU
-probe apps or automatic startup test suites.
+## Compatibility
 
-## Validation and limitations
+Requires iOS or iPadOS 16.0 or later on ARM64. Tested devices:
 
-Before publishing changes, build Simulator and device targets, verify the IPA
-signature/archive, and check menu navigation, Quit/Cancel, gameplay, orientation,
-audio, saves and level transitions. Other Source games remain unverified. Device
-behavior, including LiveContainer integration, needs validation on real hardware
-when the host, signing or container configuration changes.
+| Device | OS |
+| --- | --- |
+| iPhone X | iOS 16.7.14 |
+| iPhone 15 Pro | iOS 27.0.1 |
+
+Simulator and device builds are supported. iPhone X is the oldest tested device;
+performance on older hardware and compatibility with other Source games have
+not been established. Signing and container requirements depend on the deployment
+setup, including LiveContainer.
