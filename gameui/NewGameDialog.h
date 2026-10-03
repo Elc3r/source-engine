@@ -77,6 +77,10 @@ public:
 	~CNewGameDialog();
 
 	virtual void	Activate( void );
+#ifdef IOS
+	virtual void OnScreenSizeChanged(int oldWide, int oldTall);
+#endif
+	void LayoutChapterPanels();
 
 	virtual void	ApplySettings( KeyValues *inResourceData );
 	virtual void	ApplySchemeSettings( vgui::IScheme *pScheme );

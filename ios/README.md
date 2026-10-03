@@ -78,7 +78,9 @@ simulator keyboard input supports gameplay. Orientation changes resize the
 native drawable, renderer and VGUI font/layout state. Quit waits for pending save
 writes and exits through the UIKit host.
 
-Options dialogs scale to the available display area in both orientations.
+Game dialogs scale to the available display area in both orientations,
+including chapter selection, saved games and confirmation prompts. The console
+uses the current safe workspace when opened and after rotation.
 The main menu, dialogs and startup/frame counter respect UIKit safe-area insets
 to avoid the camera cutout and home indicator.
 

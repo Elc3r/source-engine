@@ -101,6 +101,9 @@ void QueryBox::PerformLayout()
 		surface()->GetProportionalBase(proW, proH);
 
 		scale = ((float)(screenH) / (float)(proH));
+#ifdef IOS
+			scale = scheme()->GetProportionalScaledValueEx(GetScheme(), 10000) / 10000.0f;
+#endif
 	}
 
 	int btnWide, btnTall;

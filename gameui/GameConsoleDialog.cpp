@@ -29,6 +29,28 @@ CGameConsoleDialog::CGameConsoleDialog() : BaseClass( NULL, "GameConsole", false
 	AddActionSignalTarget( this );
 }
 
+#ifdef IOS
+void CGameConsoleDialog::Activate()
+{
+	LayoutForDisplay();
+	BaseClass::Activate();
+}
+
+void CGameConsoleDialog::OnScreenSizeChanged(int oldWide, int oldTall)
+{
+	BaseClass::OnScreenSizeChanged(oldWide, oldTall);
+	LayoutForDisplay();
+}
+
+void CGameConsoleDialog::LayoutForDisplay()
+{
+	int x, y, width, height;
+	surface()->GetWorkspaceBounds(x, y, width, height);
+	int margin = scheme()->GetProportionalScaledValueEx(GetScheme(), 16);
+	SetBounds(x + margin, y + margin, width - 2 * margin, height - 2 * margin);
+}
+#endif
+
 
 //-----------------------------------------------------------------------------
 // Purpose: generic vgui command handler

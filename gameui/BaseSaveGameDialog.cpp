@@ -19,6 +19,9 @@
 
 #include "MouseMessageForwardingPanel.h"
 #include "TGAImagePanel.h"
+#ifdef IOS
+#include "vgui_controls/BuildGroup.h"
+#endif
 
 #include <time.h>
 
@@ -41,6 +44,7 @@ class CSaveGamePanel : public vgui::EditablePanel
 public:
 	CSaveGamePanel( PanelListPanel *parent, const char *name, int saveGameListItemID ) : BaseClass( parent, name )
 	{
+		m_bHasScreenshot = false;
 		m_iSaveGameListItemID = saveGameListItemID;
 		m_pParent = parent;
 		m_pSaveGameImage = new CTGAImagePanel( this, "SaveGameImage" );
@@ -73,7 +77,8 @@ public:
 		}
 
 		// If a TGA file exists then it is a user created savegame
-		if ( g_pFullFileSystem->FileExists( tga ) )
+		m_bHasScreenshot = g_pFullFileSystem->FileExists(tga);
+		if ( m_bHasScreenshot )
 		{
 			m_pSaveGameImage->SetTGA( tga );
 		}
@@ -93,6 +98,18 @@ public:
 		SetControlString( "ElapsedTimeLabel", save.szElapsedTime );
 		SetControlString( "FileTimeLabel", save.szFileTime );
 	}
+
+#ifdef IOS
+	virtual void OnScreenSizeChanged(int oldWide, int oldTall)
+	{
+		BaseClass::OnScreenSizeChanged(oldWide, oldTall);
+		GetBuildGroup()->ReapplyControlSettings();
+		m_pSaveGameImage->SetVisible(m_bHasScreenshot);
+		m_pAutoSaveImage->SetVisible(!m_bHasScreenshot);
+		if (!m_bHasScreenshot) m_pAutoSaveImage->SetImage("resource\\autosave");
+		m_pParent->InvalidateLayout();
+	}
+#endif
 
 	MESSAGE_FUNC_INT( OnPanelSelected, "PanelSelected", state )
 	{
@@ -143,6 +160,7 @@ public:
 	}
 
 private:
+	bool m_bHasScreenshot;
 	vgui::PanelListPanel *m_pParent;
 	vgui::Label *m_pChapterLabel;
 	CTGAImagePanel *m_pSaveGameImage;
@@ -671,5 +689,3 @@ void CBaseSaveGameDialog::OnPanelSelected()
 	SetControlEnabled( "loadsave", true );
 	SetControlEnabled( "delete", true );
 }
-
-

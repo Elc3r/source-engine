@@ -27,8 +27,15 @@ class CGameConsoleDialog : public vgui::CConsoleDialog
 
 public:
 	CGameConsoleDialog();
+#ifdef IOS
+	MESSAGE_FUNC(Activate, "Activate");
+	virtual void OnScreenSizeChanged(int oldWide, int oldTall);
+#endif
 
 private:
+#ifdef IOS
+	void LayoutForDisplay();
+#endif
 	MESSAGE_FUNC( OnClosedByHittingTilde, "ClosedByHittingTilde" );
 	MESSAGE_FUNC_CHARPTR( OnCommandSubmitted, "CommandSubmitted", command );
 

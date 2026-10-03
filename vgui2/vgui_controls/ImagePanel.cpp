@@ -101,6 +101,9 @@ void ImagePanel::SetImage(const char *imageName)
 		surface()->GetProportionalBase(proW, proH);
 
 		scale = ((float)(screenH) / (float)(proH));
+#ifdef IOS
+		scale = scheme()->GetProportionalScaledValueEx(GetScheme(), 10000) / 10000.0f;
+#endif
 
 		m_fScaleAmount = scale;
 		m_bScaleImage = true;

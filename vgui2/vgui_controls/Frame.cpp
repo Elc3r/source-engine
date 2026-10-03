@@ -755,6 +755,10 @@ public:
 //-----------------------------------------------------------------------------
 Frame::Frame(Panel *parent, const char *panelName, bool showTaskbarIcon /*=true*/, bool bPopup /*=true*/ ) : EditablePanel(parent, panelName)
 {
+#ifdef IOS
+	// Dialog children must inherit proportional layout before they are created.
+	SetProportional(true);
+#endif
 	// frames start invisible, to avoid having window flicker in on taskbar
 	SetVisible(false);
 	if ( bPopup )

@@ -33,6 +33,10 @@
 #include <stdio.h>
 
 // memdbgon must be the last include file in a .cpp file!!!
+#ifdef IOS
+#include "vgui_controls/BuildGroup.h"
+#endif
+
 #include "tier0/memdbgon.h"
 
 using namespace vgui;
@@ -271,6 +275,26 @@ public:
 	{
 		return m_bHasBonus;
 	}
+
+#ifdef IOS
+	virtual void PerformLayout()
+	{
+		BaseClass::PerformLayout();
+		m_pLevelPic->SetShouldScaleImage(true);
+		m_pLevelPic->SetScaleAmount(scheme()->GetProportionalScaledValueEx(GetScheme(), 10000) / 10000.0f);
+	}
+
+	void RescaleForDisplay()
+	{
+		GetBuildGroup()->ReapplyControlSettings();
+		int x, y;
+		m_pLevelPicBorder->GetPos(x, y);
+		SetSize(m_pLevelPicBorder->GetWide(), y + m_pLevelPicBorder->GetTall());
+		for (int i = 0; i < GetChildCount(); ++i)
+			if (dynamic_cast<CSelectionOverlayPanel *>(GetChild(i)))
+				GetChild(i)->SetBounds(0, 0, GetWide(), GetTall());
+	}
+#endif
 
 	void SetCommentaryMode( bool bCommentaryMode )
 	{
@@ -525,6 +549,14 @@ CNewGameDialog::CNewGameDialog(vgui::Panel *parent, bool bCommentaryMode) : Base
 		return;
 	}
 
+	LayoutChapterPanels();
+
+	// start the first item selected
+	SetSelectedChapterIndex( 0 );
+}
+
+void CNewGameDialog::LayoutChapterPanels()
+{
 	int indent = 8;
 	if ( IsProportional() )
 	{
@@ -569,9 +601,20 @@ CNewGameDialog::CNewGameDialog(vgui::Panel *parent, bool bCommentaryMode) : Base
 	m_pCenterBg->SetPos( m_PanelXPos[2] - indent, m_PanelYPos[2] - (m_pCenterBg->GetTall() - panelHeight) + indent );
 	m_pCenterBg->SetBgColor( Color( 190, 115, 0, 255 ) );
 
-	// start the first item selected
-	SetSelectedChapterIndex( 0 );
 }
+
+#ifdef IOS
+void CNewGameDialog::OnScreenSizeChanged(int oldWide, int oldTall)
+{
+	BaseClass::OnScreenSizeChanged(oldWide, oldTall);
+	if (!m_ChapterPanels.Count()) return;
+	for (int i = 0; i < m_ChapterPanels.Count(); ++i)
+		m_ChapterPanels[i]->RescaleForDisplay();
+	LayoutChapterPanels();
+	m_bScrolling = false;
+	SetSelectedChapterIndex(MAX(0, m_iSelectedChapter));
+}
+#endif
 
 CNewGameDialog::~CNewGameDialog()
 {

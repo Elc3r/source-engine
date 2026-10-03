@@ -178,6 +178,9 @@ void MessageBox::ApplySchemeSettings(IScheme *pScheme)
 		surface()->GetScreenSize(swide, stall);
 		// put the dialog in the middle of the screen
 		SetPos((swide - wide) / 2, (stall - tall) / 2);
+#ifdef IOS
+		MoveToCenterOfScreen();
+#endif
 	}
 }
 
@@ -211,6 +214,9 @@ void MessageBox::DoModal(Frame* pFrameOver)
 		surface()->GetScreenSize(swide, stall);
 		// put the dialog in the middle of the screen
 		SetPos((swide - wide) / 2, (stall - tall) / 2);
+#ifdef IOS
+		MoveToCenterOfScreen();
+#endif
 	}
 
 	SetVisible( true );
@@ -272,6 +278,9 @@ void MessageBox::PerformLayout()
 		surface()->GetProportionalBase(proW, proH);
 
 		scale = ((float)(screenH) / (float)(proH));
+#ifdef IOS
+			scale = scheme()->GetProportionalScaledValueEx(GetScheme(), 10000) / 10000.0f;
+#endif
 	}
 
 	int btnWide, btnTall;
