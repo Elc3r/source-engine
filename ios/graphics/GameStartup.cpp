@@ -30,12 +30,17 @@
 extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
 extern IClientRenderTargets *g_pClientRenderTargets;
+extern void InitWellKnownRenderTargets();
+extern void ShutdownWellKnownRenderTargets();
+extern void SourceIOSInitRenderMaterials();
+extern void SourceIOSShutdownRenderMaterials();
 extern CSysModule *g_ClientDLLModule;
 extern void Con_ColorPrintf(const Color &color,const char *format,...);
 extern "C" void SourceIOSShutdownPortalLevel();
 namespace {
 bool initialized=false,clientInitialized=false,uiInitialized=false,eventsInitialized=false,clientTargetsInitialized=false,toolsInitialized=false;
 ConVar *engineCheats=NULL;
+const char *gameCvarName=!strcmp(SOURCE_IOS_GAME,"portal") ? "sv_portal_placement_never_fail" : "sk_plr_dmg_pistol";
 CreateInterfaceFn applicationFactory=NULL;
 CMaterialProxyFactory portalProxyFactory;
 IMaterialProxyFactory *previousProxyFactory=NULL;
@@ -69,7 +74,7 @@ extern "C" bool SourceIOSInitializePortalServer(CreateInterfaceFn gameFactory,ch
     g_ServerGlobalVariables.interval_per_tick=serverGameDLL->GetTickInterval();
     engineCheats=g_pCVar->FindVar("sv_cheats");
     const char *root=getenv("SOURCE_IOS_GAME_ROOT");
-    if (root) Q_snprintf(com_gamedir,sizeof(com_gamedir),"%s/portal",root);
+    if (root) Q_snprintf(com_gamedir,sizeof(com_gamedir),"%s/%s",root,SOURCE_IOS_GAME);
     eventsInitialized=g_GameEventManager.Init();
     if (!eventsInitialized) { snprintf(detail,capacity,"Portal server: game events unavailable"); return false; }
     initialized=serverGameDLL->DLLInit(StartupFactory,StartupFactory,StartupFactory,&g_ServerGlobalVariables);
@@ -77,10 +82,10 @@ extern "C" bool SourceIOSInitializePortalServer(CreateInterfaceFn gameFactory,ch
         !initialized && !lastAvailable?"; unavailable interface ":"",
         !initialized && !lastAvailable?lastInterface:"");
     if (initialized) {
-        ConVar *portal=g_pCVar->FindVar("sv_portal_placement_never_fail");
+        ConVar *gameCvar=g_pCVar->FindVar(gameCvarName);
         int classes=0;
         for (ServerClass *type=serverGameDLL->GetAllServerClasses();type;type=type->m_pNext) ++classes;
-        bool valid=portal && portal->IsFlagSet(FCVAR_GAMEDLL) && engineCheats &&
+        bool valid=gameCvar && gameCvar->IsFlagSet(FCVAR_GAMEDLL) && engineCheats &&
             g_pCVar->FindVar("sv_cheats")==engineCheats && classes>0;
         snprintf(detail,capacity,"Portal server DLLInit: %s; %d server classes; game cvar ownership %s",
             valid?"PASS":"FAIL",classes,valid?"PASS":"FAIL");
@@ -97,7 +102,11 @@ extern "C" bool SourceIOSShutdownPortalServer() {
         Con_Shutdown();
     }
     SourceIOSShutdownPortalLevel();
-    if (clientTargetsInitialized && g_pClientRenderTargets) g_pClientRenderTargets->ShutdownClientRenderTargets();
+    if (clientTargetsInitialized) {
+        SourceIOSShutdownRenderMaterials();
+        if (g_pClientRenderTargets) g_pClientRenderTargets->ShutdownClientRenderTargets();
+        else ShutdownWellKnownRenderTargets();
+    }
     clientTargetsInitialized=false; g_pClientRenderTargets=NULL;
     if (clientInitialized && g_ClientDLL) {
         Msg("iOS Portal client Shutdown: begin\n");
@@ -121,7 +130,7 @@ extern "C" bool SourceIOSShutdownPortalServer() {
     VideoMode_Destroy();
     if (initialized && serverGameDLL) {
         serverGameDLL->DLLShutdown();
-        valid=valid && !g_pCVar->FindVar("sv_portal_placement_never_fail") &&
+        valid=valid && !g_pCVar->FindVar(gameCvarName) &&
             engineCheats && g_pCVar->FindVar("sv_cheats")==engineCheats;
     }
     if (eventsInitialized) g_GameEventManager.Shutdown();
@@ -158,9 +167,11 @@ extern "C" bool SourceIOSInitializePortalClient(CSysModule *module,char *detail,
     for (const auto &binding : bindings)
         if (!Key_BindingForKey(binding.key) || !*Key_BindingForKey(binding.key))
             Key_SetBinding(binding.key,binding.command);
-    IMaterialProxy *openProxy=portalProxyFactory.CreateProxy("PortalOpenAmount");
-    if (!openProxy) { snprintf(detail,capacity,"Portal material proxy factory unavailable"); return false; }
-    portalProxyFactory.DeleteProxy(openProxy);
+    if (!strcmp(SOURCE_IOS_GAME,"portal")) {
+        IMaterialProxy *openProxy=portalProxyFactory.CreateProxy("PortalOpenAmount");
+        if (!openProxy) { snprintf(detail,capacity,"Portal material proxy factory unavailable"); return false; }
+        portalProxyFactory.DeleteProxy(openProxy);
+    }
     if (!uiInitialized) {
         // Map loading connected tier 3 before the optional UI services existed.
         // Refresh those bindings now that the full real service group is loaded.
@@ -203,11 +214,16 @@ extern "C" bool SourceIOSInitializePortalClient(CSysModule *module,char *detail,
         const char *mode=getenv("SOURCE_IOS_GAME_STARTUP");
         if (mode && (!strcmp(mode,"play") || !strcmp(mode,"menu"))) {
             g_pClientRenderTargets=static_cast<IClientRenderTargets *>(gameFactory(CLIENTRENDERTARGETS_INTERFACE_VERSION,NULL));
-            if (!g_pClientRenderTargets) { snprintf(detail,capacity,"Portal client render targets unavailable"); return false; }
-            materials->BeginRenderTargetAllocation();
-            g_pClientRenderTargets->InitClientRenderTargets(materials,g_pMaterialSystemHardwareConfig);
-            materials->EndRenderTargetAllocation();
+            if (!g_pClientRenderTargets && !strcmp(SOURCE_IOS_GAME,"portal")) { snprintf(detail,capacity,"Portal client render targets unavailable"); return false; }
+            if (g_pClientRenderTargets) {
+                materials->BeginRenderTargetAllocation();
+                g_pClientRenderTargets->InitClientRenderTargets(materials,g_pMaterialSystemHardwareConfig);
+                materials->EndRenderTargetAllocation();
+            } else {
+                InitWellKnownRenderTargets();
+            }
             clientTargetsInitialized=true;
+            SourceIOSInitRenderMaterials();
         }
         g_ClientDLL->PostInit();
         EngineVGui()->Connect(); EngineVGui()->PostInit();

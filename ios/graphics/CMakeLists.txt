@@ -1,5 +1,14 @@
 cmake_minimum_required(VERSION 3.20)
 project(SourceIOS LANGUAGES C OBJC)
+set(SOURCE_IOS_GAME "portal" CACHE STRING "Source game to build (portal or hl2)")
+if(SOURCE_IOS_GAME STREQUAL "portal")
+    set(IOS_GAME_EXECUTABLE Portal)
+elseif(SOURCE_IOS_GAME STREQUAL "hl2")
+    set(IOS_GAME_EXECUTABLE HalfLife2)
+else()
+    message(FATAL_ERROR "Unsupported iOS game: ${SOURCE_IOS_GAME}")
+endif()
+add_compile_definitions(SOURCE_IOS_GAME="${SOURCE_IOS_GAME}")
 
 if(NOT CMAKE_SYSTEM_NAME STREQUAL "iOS")
     message(FATAL_ERROR "This build requires an iOS toolchain")
@@ -623,19 +632,19 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_include_directories(stdshader_dbg PRIVATE ../../materialsystem/stdshaders
         ../../materialsystem/stdshaders/fxctmp9 ../../materialsystem/stdshaders/vshtmp9)
     set_target_properties(stdshader_dbg PROPERTIES PREFIX "")
-    add_executable(Portal IOSApp.m)
-    add_dependencies(Portal materialsystem shaderapidx9 stdshader_dx9 stdshader_dbg EngineMapModules EngineRuntime)
-    set_target_properties(Portal PROPERTIES MACOSX_BUNDLE TRUE
+    add_executable(${IOS_GAME_EXECUTABLE} IOSApp.m)
+    add_dependencies(${IOS_GAME_EXECUTABLE} materialsystem shaderapidx9 stdshader_dx9 stdshader_dbg EngineMapModules EngineRuntime)
+    set_target_properties(${IOS_GAME_EXECUTABLE} PROPERTIES MACOSX_BUNDLE TRUE
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@executable_path/Frameworks")
-    target_compile_options(Portal PRIVATE -fobjc-arc)
-    target_include_directories(Portal PRIVATE "${ANGLE_ROOT}/include")
-    target_link_options(Portal PRIVATE -Wl,-dead_strip)
-    target_link_libraries(Portal PRIVATE ToGLESRuntime
+    target_compile_options(${IOS_GAME_EXECUTABLE} PRIVATE -fobjc-arc)
+    target_include_directories(${IOS_GAME_EXECUTABLE} PRIVATE "${ANGLE_ROOT}/include")
+    target_link_options(${IOS_GAME_EXECUTABLE} PRIVATE -Wl,-dead_strip)
+    target_link_libraries(${IOS_GAME_EXECUTABLE} PRIVATE ToGLESRuntime
         "${ENGINE_BUILD}/mathlib/libmathlib.a" "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib"
         ${IOS_SDL_TARGET} libEGL libGLESv2 "-framework UIKit" "-framework Foundation" "-framework CoreGraphics"
         "-framework Metal" "-framework QuartzCore" iconv)
 endif()
 
 if(ENGINE_BUILD AND ANGLE_ROOT)
-    include(PortalGame.cmake)
+    include(Game.cmake)
 endif()

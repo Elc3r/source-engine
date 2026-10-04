@@ -136,27 +136,30 @@ bool MountRequestedWorldData(char *detail, size_t capacity)
     // Simulator integration reads the user's existing game data. Native device
     // packaging and general gameinfo search-path handling are separate work.
     char path[MAX_PATH];
-    const char *archives[]={"hl2/hl2_misc_dir.vpk","hl2/hl2_textures_dir.vpk",
+    // Retail HL2 includes empty loose placeholders for some archived models.
+    // Match gameinfo.txt: VPK content must take precedence over loose files.
+    Q_snprintf(path,sizeof(path),"%s/hl2",root);
+    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    const char *archives[]={"hl2/hl2_pak_dir.vpk","hl2/hl2_misc_dir.vpk","hl2/hl2_textures_dir.vpk",
         "hl2/hl2_sound_misc_dir.vpk","hl2/hl2_sound_vo_english_dir.vpk"};
     for (const char *archive : archives) {
         Q_snprintf(path,sizeof(path),"%s/%s",root,archive);
         g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
     }
-    Q_snprintf(path,sizeof(path),"%s/hl2",root);
-    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
-    // Complete the base-game group before adding Portal overrides. A loose
-    // HL2 manifest must not shadow the Portal manifest inside its VPK.
-    Q_snprintf(path,sizeof(path),"%s/portal/portal_pak_dir.vpk",root);
-    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
-    Q_snprintf(path,sizeof(path),"%s/portal",root);
-    g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    // Add Portal overrides only when building Portal.
+    if (!strcmp(SOURCE_IOS_GAME,"portal")) {
+        Q_snprintf(path,sizeof(path),"%s/portal/portal_pak_dir.vpk",root);
+        g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+        Q_snprintf(path,sizeof(path),"%s/%s",root,SOURCE_IOS_GAME);
+        g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_HEAD);
+    }
     Q_snprintf(path,sizeof(path),"%s/platform/platform_misc_dir.vpk",root);
     g_pFullFileSystem->AddSearchPath(path,"PLATFORM",PATH_ADD_TO_TAIL);
     g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_TAIL);
     Q_snprintf(path,sizeof(path),"%s/platform",root);
     g_pFullFileSystem->AddSearchPath(path,"PLATFORM",PATH_ADD_TO_HEAD);
     g_pFullFileSystem->AddSearchPath(path,"GAME",PATH_ADD_TO_TAIL);
-    Q_snprintf(path,sizeof(path),"%s/portal",root);
+    Q_snprintf(path,sizeof(path),"%s/%s",root,SOURCE_IOS_GAME);
     g_pFullFileSystem->AddSearchPath(path,"MOD",PATH_ADD_TO_TAIL);
     return true;
 }
@@ -180,7 +183,7 @@ extern "C" const char *SourceWorldMapDetail() { return worldDetail; }
 bool InitializeGameServices(const char *directory,CreateInterfaceFn factory,char *detail,size_t capacity)
 {
     g_pFullFileSystem->AddSearchPath(directory,"EXECUTABLE_PATH",PATH_ADD_TO_HEAD);
-    char *writePath=SDL_GetPrefPath("SourceEngine","Portal");
+    char *writePath=SDL_GetPrefPath("SourceEngine",!strcmp(SOURCE_IOS_GAME,"portal") ? "Portal" : "HalfLife2");
     if (!writePath) { snprintf(detail,capacity,"Portal writable sandbox path unavailable"); return false; }
     g_pFullFileSystem->AddSearchPath(writePath,"DEFAULT_WRITE_PATH",PATH_ADD_TO_HEAD);
     g_pFullFileSystem->AddSearchPath(writePath,"MOD",PATH_ADD_TO_HEAD);

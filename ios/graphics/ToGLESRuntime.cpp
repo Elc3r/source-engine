@@ -15,6 +15,6 @@ int InitializeToGLESRuntime(char *detail, size_t capacity)
         !eglMakeCurrent(display,draw,read,context) || eglGetCurrentContext()!=context) {
         snprintf(detail,capacity,"EGL context release/rebind failed"); return 0;
     }
-    CommandLine()->CreateCmdLine("source-ios -game portal");
+    CommandLine()->CreateCmdLine("source-ios -game " SOURCE_IOS_GAME);
     return InitializeEngineServices(detail,capacity) && InitializeToGLESBackend(detail,capacity);
 }

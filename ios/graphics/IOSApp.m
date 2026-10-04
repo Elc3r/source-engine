@@ -136,7 +136,7 @@ static void UpdateStatus(BOOL passed, NSString *detail, NSDictionary *extra)
         BOOL live = getenv("SOURCE_IOS_GAME_STARTUP") &&
             (strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "play") == 0 || strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "menu") == 0);
         if (live && passed) {
-            label.text = [NSString stringWithFormat:@"Portal • LIVE  %.1f FPS\nFrames: %u", fps, frames];
+            label.text = [NSString stringWithFormat:@"%@ • LIVE  %.1f FPS\nFrames: %u", NSBundle.mainBundle.infoDictionary[@"CFBundleDisplayName"], fps, frames];
             label.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
             compactStatus = YES;
         }
@@ -223,7 +223,7 @@ static void DrawFrame(void *unused)
             fpsStart=presentTime; fpsFrames=0;
             if (IsSourceWorldMapLoaded() && getenv("SOURCE_IOS_GAME_STARTUP") &&
                 (!strcmp(getenv("SOURCE_IOS_GAME_STARTUP"),"play") || !strcmp(getenv("SOURCE_IOS_GAME_STARTUP"),"menu")))
-                label.text=[NSString stringWithFormat:@"Portal • LIVE  %.1f FPS\nFrames: %u",fps,frames];
+                label.text=[NSString stringWithFormat:@"%@ • LIVE  %.1f FPS\nFrames: %u",NSBundle.mainBundle.infoDictionary[@"CFBundleDisplayName"],fps,frames];
         }
         if (frames%120==0) UpdateStatus(YES,@(detail),
             @{@"pixel_width": @(width), @"pixel_height": @(height), @"gl_error": @0, @"fps": @(fps),
@@ -279,7 +279,7 @@ static void StartGraphics(UIWindowScene *scene)
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
         UpdateStatus(NO, @(SDL_GetError()), @{}); return;
     }
-    window = SDL_CreateWindow("Portal", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+    window = SDL_CreateWindow([NSBundle.mainBundle.infoDictionary[@"CFBundleDisplayName"] UTF8String], SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         640, 480, SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_FULLSCREEN_DESKTOP);
     if (!window) { UpdateStatus(NO, @(SDL_GetError()), @{}); return; }
     SDL_SysWMinfo native = {0};
@@ -354,7 +354,7 @@ int main(int argc, char **argv)
 {
     @autoreleasepool {
         NSString *documents = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES).firstObject;
-        NSString *logPath = [documents stringByAppendingPathComponent:@"Portal.log"];
+        NSString *logPath = [documents stringByAppendingPathComponent:[NSBundle.mainBundle.infoDictionary[@"CFBundleExecutable"] stringByAppendingString:@".log"]];
         FILE *log = fopen(logPath.fileSystemRepresentation, "w");
         if (log) {
             dup2(fileno(log), STDOUT_FILENO);

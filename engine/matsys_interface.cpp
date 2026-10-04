@@ -1578,6 +1578,18 @@ CON_COMMAND( mat_info, "Shows material system info" )
 	materials->SpewDriverInfo();
 }
 
+#if defined(IOS)
+void SourceIOSInitRenderMaterials()
+{
+	InitDebugMaterials();
+}
+
+void SourceIOSShutdownRenderMaterials()
+{
+	ShutdownDebugMaterials();
+}
+#endif
+
 void InitMaterialSystem( void )
 {
 	materials->AddReleaseFunc( ReleaseMaterialSystemObjects );

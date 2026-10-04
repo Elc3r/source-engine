@@ -1,16 +1,16 @@
 # Source Engine on iOS
 
 The iOS application hosts the original Source client/server and GameUI with
-SDL, ANGLE's Metal backend, and the existing ToGLES renderer. Portal is currently
-the only configured and verified game. Other games require their own client/server
-build configuration and per-game application identity.
+SDL, ANGLE's Metal backend, and the existing ToGLES renderer. Portal and
+Half-Life 2 have separate client/server builds and application identities.
 
 ## Requirements
 
 - macOS with Xcode, its command-line tools and the iOS SDK.
 - Python 3, CMake, and the repository's initialized dependencies/submodules.
-- Legally obtained Portal game data, including the `portal`, `hl2`, and `platform`
-  directories. Game assets are not included in the application.
+- Legally obtained game data: `portal`, `hl2`, and `platform` for Portal, or
+  `hl2` and `platform` for Half-Life 2. Use the Half-Life 2 Steam beta
+  `steam_legacy` (Pre-20th Anniversary Build). Game assets are not included in the application.
 - A shader cache built with the repository's FXC compiler. On macOS FXC runs
   through Wine/CrossOver; neither component is shipped in the app.
 
@@ -36,11 +36,18 @@ python3 scripts/build-ios.py --game portal --target device \
   --ipa ~/Downloads/Portal-iOS.ipa
 ```
 
-The application is named **Portal** with bundle identifier
-**org.sourceengine.portal**. The script creates an ad-hoc signed IPA; deployment
+For Half-Life 2, use `--game hl2` and a separate IPA filename:
+
+```sh
+python3 scripts/build-ios.py --game hl2 --target device \
+  --ipa ~/Downloads/Half-Life-2-iOS.ipa
+```
+
+Portal uses **org.sourceengine.portal**; Half-Life 2 uses **org.sourceengine.hl2**.
+The script creates an ad-hoc signed IPA; deployment
 requires a compatible signing or container setup. Simulator and device builds
-use separate `build-ios-*` directories. `--build-dir`, `--min-version`, and
-`--shader-cache` override the defaults.
+use separate `build-ios-*` directories; HL2 builds add a `-hl2` suffix.
+`--build-dir`, `--min-version`, and `--shader-cache` override the defaults.
 
 Builds use an original neutral application icon by default. To use the icon from
 your own Portal installation, pass `--game-root` for either build target:
@@ -50,7 +57,7 @@ python3 scripts/build-ios.py --game portal --target device \
   --game-root /absolute/path/to/Portal-arm64 --ipa ~/Downloads/Portal-iOS.ipa
 ```
 
-The build reads `portal/resource/game.icns` (or `game.ico`), generates opaque
+The build reads `<game>/resource/game.icns` (or `game.ico`), generates opaque
 iPhone/iPad icons in the ignored build directory, and includes them in the app.
 If neither source file exists, it uses the neutral icon. Game artwork is not
 stored in the repository, and game data is not copied into the app. Device
@@ -58,14 +65,16 @@ builds still read game data from Documents at runtime; the Mac's `--game-root`
 path is used only to generate the icon. For an IPA with no imported game artwork,
 omit `--game-root` when building for a device.
 
-On a device, put the game data in `Documents/Portal-arm64`. The application exposes
-its Documents directory through file sharing. Saves and settings use writable
+On a device, put the game data in `Documents/data` in either application.
+This directory contains `hl2` and `platform`, plus `portal` for Portal.
+The application exposes its Documents directory through file sharing. Saves and settings use writable
 paths separate from imported desktop saves. Changing from an older bootstrap
 bundle identifier creates a new application/container: copy the game data to the
-new Portal container or configure it through the deployment workflow. The root
-shown by file sharing is already Documents; place `Portal-arm64` directly there,
-without creating another Documents directory. Startup output is written to
-`Documents/Portal.log` and replaced on each launch.
+new application container. The root shown by file sharing is already Documents;
+place `data` directly there, without creating another Documents directory.
+For an existing installation, rename `Portal-arm64` or `HL2-arm64` to `data`.
+Startup output is written to `Documents/Portal.log` or `Documents/HalfLife2.log`
+and replaced on each launch.
 
 For a booted Simulator with existing local data:
 
@@ -88,7 +97,7 @@ materials. The original icons are available in
 3. Quit Portal and copy the extracted folder into the game data:
 
    ```text
-   Documents/Portal-arm64/portal/materials/vgui/touch/
+   Documents/data/portal/materials/vgui/touch/
    ```
 
    The file-sharing root is already Documents. For the Simulator, use
@@ -110,7 +119,7 @@ components and are not included in this touch icon pack.
   `MapServices.cpp`: original engine services, memory, filesystem and module wiring.
 - `GameModules.cpp`, `GameStartup.cpp`, `PortalLevelStartup.cpp`: game module
   initialization, native startup menu, host ticks, audio and level transitions.
-- `CMakeLists.txt`, `Physics.cmake`, `PortalGame.cmake`: original engine/game
+- `CMakeLists.txt`, `Physics.cmake`, `Game.cmake`: original engine/game
   sources and dependencies. `scripts/ios-game-sources.py` reads the original VPCs.
 
 Startup uses the original animated menu background and sound. The FPS/frame
@@ -138,7 +147,7 @@ supported by the hosted ToGLES device.
 
 ## Compatibility
 
-Requires iOS or iPadOS 16.0 or later on ARM64. Tested devices:
+Requires iOS or iPadOS 16.0 or later on ARM64. Portal tested devices:
 
 | Device | OS |
 | --- | --- |

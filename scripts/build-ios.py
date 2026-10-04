@@ -9,7 +9,10 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-GAMES = {'portal': {'name': 'Portal', 'bundle_id': 'org.sourceengine.portal', 'data': 'Portal-arm64'}}
+GAMES = {
+    'portal': {'name': 'Portal', 'executable': 'Portal', 'bundle_id': 'org.sourceengine.portal', 'map': 'testchmb_a_00'},
+    'hl2': {'name': 'Half-Life 2', 'executable': 'HalfLife2', 'bundle_id': 'org.sourceengine.hl2', 'map': 'd1_trainstation_01'},
+}
 
 
 def run(*args, capture=False):
@@ -31,9 +34,9 @@ def main():
     if args.game_root and not args.game_root.is_dir():
         parser.error('--game-root must be an existing game data directory')
     game = GAMES[args.game]
-    executable = game['name']
+    executable = game['executable']
     bundle_id = game['bundle_id']
-    build = (args.build_dir or ROOT / ('build-ios-' + args.target)).resolve()
+    build = (args.build_dir or ROOT / ('build-ios-' + args.target + ('-hl2' if args.game == 'hl2' else ''))).resolve()
     graphics_build = build / 'togles'
     sdk = 'iphonesimulator' if args.target == 'simulator' else 'iphoneos'
     sdk_path = run('xcrun', '--sdk', sdk, '--show-sdk-path', capture=True).strip()
@@ -47,16 +50,16 @@ def main():
         '-DCMAKE_SYSTEM_NAME=iOS', '-DCMAKE_OSX_SYSROOT=' + sdk_path,
         '-DCMAKE_OSX_ARCHITECTURES=arm64', '-DCMAKE_OSX_DEPLOYMENT_TARGET=' + args.min_version,
         '-DCMAKE_BUILD_TYPE=Debug', '-DANGLE_ROOT=' + str(angle_root),
-        '-DANGLE_SLICE=' + angle_slice, '-DENGINE_BUILD=' + str(build))
-    run('cmake', '--build', graphics_build, '--parallel', '8', '--target', executable, 'PortalGameModules')
+        '-DANGLE_SLICE=' + angle_slice, '-DENGINE_BUILD=' + str(build), '-DSOURCE_IOS_GAME=' + args.game)
+    run('cmake', '--build', graphics_build, '--parallel', '8', '--target', executable, 'IOSGameModules')
     app = build / (executable + '.app')
     if app.exists():
         shutil.rmtree(app)
     app.mkdir(parents=True)
     with (app / 'ios-launch.plist').open('wb') as stream:
         plistlib.dump({'SOURCE_IOS_GAME_STARTUP': 'menu',
-                      'SOURCE_IOS_GAME_ROOT': str(args.game_root.resolve()) if args.game_root and args.target == 'simulator' else '@documents/' + game['data'],
-                      'SOURCE_IOS_WORLD_MAP': 'maps/testchmb_a_00.bsp'}, stream)
+                      'SOURCE_IOS_GAME_ROOT': str(args.game_root.resolve()) if args.game_root and args.target == 'simulator' else '@documents/data',
+                      'SOURCE_IOS_WORLD_MAP': 'maps/' + game['map'] + '.bsp'}, stream)
     libraries = []
     shutil.copy2(graphics_build / (executable + '.app') / executable, app / executable)
     run(sys.executable, ROOT / 'scripts/ios-compile-shaders.py',
@@ -108,7 +111,7 @@ def main():
             'CFBundleVersion': '1', 'CFBundleShortVersionString': '0.1',
             'MinimumOSVersion': args.min_version, 'UIDeviceFamily': [1, 2],
             'CFBundleSupportedPlatforms': ['iPhoneSimulator' if args.target == 'simulator' else 'iPhoneOS'],
-            'NSBluetoothAlwaysUsageDescription': 'Portal uses Bluetooth to discover and connect compatible game controllers.',
+            'NSBluetoothAlwaysUsageDescription': game['name'] + ' uses Bluetooth to discover and connect compatible game controllers.',
             'CADisableMinimumFrameDurationOnPhone': True,
             'UILaunchScreen': {},
             'UIApplicationSceneManifest': {'UIApplicationSupportsMultipleScenes': False},

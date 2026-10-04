@@ -1,38 +1,38 @@
-# Compile the actual Portal DLL sources independently of the inspection adapter.
+# Compile the selected game DLL sources independently of the inspection adapter.
 # Source archives feed strict dylib links; UIKit still owns process startup.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 execute_process(COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../scripts/ios-game-sources.py"
-    --output "${CMAKE_CURRENT_BINARY_DIR}/PortalSources.cmake"
+    --game "${SOURCE_IOS_GAME}" --output "${CMAKE_CURRENT_BINARY_DIR}/IOSGameSources.cmake"
     COMMAND_ERROR_IS_FATAL ANY)
-include("${CMAKE_CURRENT_BINARY_DIR}/PortalSources.cmake")
+include("${CMAKE_CURRENT_BINARY_DIR}/IOSGameSources.cmake")
 foreach(side IN ITEMS client server)
     string(TOUPPER "${side}" upper)
-    add_library(Portal${upper} STATIC EXCLUDE_FROM_ALL ${PORTAL_${upper}_SOURCES})
-    target_compile_features(Portal${upper} PRIVATE cxx_std_11)
-    target_compile_options(Portal${upper} PRIVATE -fsigned-char)
-    target_compile_definitions(Portal${upper} PRIVATE
+    add_library(IOSGame${upper} STATIC EXCLUDE_FROM_ALL ${IOS_GAME_${upper}_SOURCES})
+    target_compile_features(IOSGame${upper} PRIVATE cxx_std_11)
+    target_compile_options(IOSGame${upper} PRIVATE -fsigned-char)
+    target_compile_definitions(IOSGame${upper} PRIVATE
         IOS=1 POSIX=1 _POSIX=1 PLATFORM_POSIX=1 PLATFORM_64BITS=1 GNUC NDEBUG
         NO_HOOK_MALLOC NO_MEMOVERRIDE_NEW_DELETE TIER1_STATIC_LIB=1
         DISABLE_STEAM=1 NO_STEAM=1 USE_SDL=1 _DLL_EXT=.dylib
-        ${PORTAL_${upper}_DEFINES})
-    target_include_directories(Portal${upper} PRIVATE
+        ${IOS_GAME_${upper}_DEFINES})
+    target_include_directories(IOSGame${upper} PRIVATE
         ../../game/${side} ../../game/shared ../../common ../../public
         ../../public/tier0 ../../public/tier1 ../../vgui2/include
         ../../vgui2/controls ../../thirdparty/SDL-src/include
-        ${PORTAL_${upper}_INCLUDES})
+        ${IOS_GAME_${upper}_INCLUDES})
 endforeach()
-target_compile_definitions(PortalCLIENT PRIVATE DX_TO_GL_ABSTRACTION=1 TOGLES=1)
-add_custom_target(PortalGameCompile DEPENDS PortalCLIENT PortalSERVER)
+target_compile_definitions(IOSGameCLIENT PRIVATE DX_TO_GL_ABSTRACTION=1 TOGLES=1)
+add_custom_target(IOSGameCompile DEPENDS IOSGameCLIENT IOSGameSERVER)
 
-add_library(PortalSupport STATIC EXCLUDE_FROM_ALL ${PORTAL_SUPPORT_SOURCES})
-target_compile_features(PortalSupport PRIVATE cxx_std_11)
-target_compile_options(PortalSupport PRIVATE -fsigned-char)
-target_compile_definitions(PortalSupport PRIVATE
+add_library(IOSGameSupport STATIC EXCLUDE_FROM_ALL ${IOS_GAME_SUPPORT_SOURCES})
+target_compile_features(IOSGameSupport PRIVATE cxx_std_11)
+target_compile_options(IOSGameSupport PRIVATE -fsigned-char)
+target_compile_definitions(IOSGameSupport PRIVATE
     IOS=1 POSIX=1 _POSIX=1 PLATFORM_POSIX=1 PLATFORM_64BITS=1 GNUC NDEBUG
     NO_HOOK_MALLOC NO_MEMOVERRIDE_NEW_DELETE TIER1_STATIC_LIB=1
     DISABLE_STEAM=1 NO_STEAM=1 USE_SDL=1 _DLL_EXT=.dylib)
-target_include_directories(PortalSupport PRIVATE
+target_include_directories(IOSGameSupport PRIVATE
     ../../public ../../public/tier0 ../../public/tier1 ../../public/tier2
     ../../public/tier3 ../../common ../../game/shared ../../utils/common
     ../../thirdparty/SDL-src/include ../../vgui2/matsys_controls)
@@ -40,26 +40,26 @@ foreach(side IN ITEMS client server)
     string(TOUPPER "${side}" upper)
     # A force-loaded archive retains the real interface registry and entity
     # factories. Unresolved dependencies are errors; never dynamic lookup.
-    add_library(Portal${upper}Module SHARED EXCLUDE_FROM_ALL PortalModule.cpp)
-    target_compile_definitions(Portal${upper}Module PRIVATE
-        $<TARGET_PROPERTY:Portal${upper},COMPILE_DEFINITIONS>)
-    target_include_directories(Portal${upper}Module PRIVATE
-        $<TARGET_PROPERTY:Portal${upper},INCLUDE_DIRECTORIES>)
-    target_link_options(Portal${upper}Module PRIVATE
-        "-Wl,-force_load,$<TARGET_FILE:Portal${upper}>"
+    add_library(IOSGame${upper}Module SHARED EXCLUDE_FROM_ALL PortalModule.cpp)
+    target_compile_definitions(IOSGame${upper}Module PRIVATE
+        $<TARGET_PROPERTY:IOSGame${upper},COMPILE_DEFINITIONS>)
+    target_include_directories(IOSGame${upper}Module PRIVATE
+        $<TARGET_PROPERTY:IOSGame${upper},INCLUDE_DIRECTORIES>)
+    target_link_options(IOSGame${upper}Module PRIVATE
+        "-Wl,-force_load,$<TARGET_FILE:IOSGame${upper}>"
         "-Wl,-force_load,${ENGINE_BUILD}/tier1/libtier1.a"
         # Keep module-local allocator/template code out of Mach-O weak-symbol
         # coalescing with the renderer and the other game DLL.
         "-Wl,-exported_symbol,_CreateInterface")
-    target_link_libraries(Portal${upper}Module PRIVATE Portal${upper}
-        PortalSupport EngineMapSupport EngineVGUIControls IOSImage EngineBZip2
+    target_link_libraries(IOSGame${upper}Module PRIVATE IOSGame${upper}
+        IOSGameSupport EngineMapSupport EngineVGUIControls IOSImage EngineBZip2
         libcurl ToGLESRuntime ${IOS_SDL_TARGET} iconv
         "${ENGINE_BUILD}/mathlib/libmathlib.a"
         "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib")
-    set_target_properties(Portal${upper}Module PROPERTIES OUTPUT_NAME "${side}"
+    set_target_properties(IOSGame${upper}Module PROPERTIES OUTPUT_NAME "${side}"
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
 endforeach()
-add_custom_target(PortalGameModules DEPENDS PortalCLIENTModule PortalSERVERModule)
+add_custom_target(IOSGameModules DEPENDS IOSGameCLIENTModule IOSGameSERVERModule)
 
 add_library(soundemittersystem SHARED EXCLUDE_FROM_ALL
     ../../soundemittersystem/soundemittersystembase.cpp
@@ -77,9 +77,9 @@ add_library(inputsystem SHARED EXCLUDE_FROM_ALL
 foreach(module IN ITEMS soundemittersystem scenefilecache inputsystem vaudio_minimp3)
     target_compile_features(${module} PRIVATE cxx_std_11)
     target_compile_definitions(${module} PRIVATE
-        $<TARGET_PROPERTY:PortalSupport,COMPILE_DEFINITIONS>)
+        $<TARGET_PROPERTY:IOSGameSupport,COMPILE_DEFINITIONS>)
     target_include_directories(${module} PRIVATE
-        $<TARGET_PROPERTY:PortalSupport,INCLUDE_DIRECTORIES>)
+        $<TARGET_PROPERTY:IOSGameSupport,INCLUDE_DIRECTORIES>)
     target_link_libraries(${module} PRIVATE ToGLESRuntime
         "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/mathlib/libmathlib.a"
         "${ENGINE_BUILD}/tier0/libtier0.dylib")
@@ -88,10 +88,10 @@ foreach(module IN ITEMS soundemittersystem scenefilecache inputsystem vaudio_min
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
 endforeach()
 target_compile_definitions(soundemittersystem PRIVATE SOUNDEMITTERSYSTEM_EXPORTS=1 SOUNDEMITTERSYSTEM_DLL=1)
-target_link_libraries(inputsystem PRIVATE PortalSupport ${IOS_SDL_TARGET})
+target_link_libraries(inputsystem PRIVATE IOSGameSupport ${IOS_SDL_TARGET})
 target_include_directories(inputsystem PRIVATE ../../inputsystem)
 target_compile_definitions(inputsystem PRIVATE VERSION_SAFE_STEAM_API_INTERFACES=1)
-add_dependencies(PortalGameModules soundemittersystem scenefilecache inputsystem vaudio_minimp3)
+add_dependencies(IOSGameModules soundemittersystem scenefilecache inputsystem vaudio_minimp3)
 
 # Reuse the repository's FreeType and original VGUI implementation.
 set(FT_DISABLE_ZLIB OFF CACHE BOOL "" FORCE)
@@ -117,16 +117,16 @@ foreach(module IN ITEMS IOSVGUISurfaceLib vgui2 vguimatsurface)
     target_compile_features(${module} PRIVATE cxx_std_11)
     target_compile_options(${module} PRIVATE -fsigned-char)
     target_compile_definitions(${module} PRIVATE
-        $<TARGET_PROPERTY:PortalSupport,COMPILE_DEFINITIONS>
+        $<TARGET_PROPERTY:IOSGameSupport,COMPILE_DEFINITIONS>
         DONT_PROTECT_FILEIO_FUNCTIONS=1 DX_TO_GL_ABSTRACTION=1 TOGLES=1)
     target_include_directories(${module} PRIVATE
-        $<TARGET_PROPERTY:PortalSupport,INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:IOSGameSupport,INCLUDE_DIRECTORIES>
         ../../vgui2/src ../../vgui2/vgui_surfacelib ../../vguimatsurface
         ../../thirdparty/freetype/include)
     target_link_libraries(${module} PRIVATE freetype)
 endforeach()
 foreach(module IN ITEMS vgui2 vguimatsurface)
-    target_link_libraries(${module} PRIVATE PortalSupport EngineVGUIControls
+    target_link_libraries(${module} PRIVATE IOSGameSupport EngineVGUIControls
         IOSVGUISurfaceLib IOSImage ToGLESRuntime ${IOS_SDL_TARGET}
         "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/mathlib/libmathlib.a"
         "${ENGINE_BUILD}/tier0/libtier0.dylib" "-framework CoreText" "-framework CoreFoundation")
@@ -135,7 +135,7 @@ foreach(module IN ITEMS vgui2 vguimatsurface)
         BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
 endforeach()
 target_compile_definitions(vguimatsurface PRIVATE VGUIMATSURFACE_DLL_EXPORT=1 GAMEUI_EXPORTS=1)
-add_dependencies(PortalGameModules vgui2 vguimatsurface)
+add_dependencies(IOSGameModules vgui2 vguimatsurface)
 
 # Build the repository JPEG codec without desktop utilities or tests.
 set(BUILD_STATIC ON CACHE BOOL "" FORCE)
@@ -149,18 +149,18 @@ add_library(GameUI SHARED EXCLUDE_FROM_ALL ${IOS_GAMEUI_SOURCES} ../../tier1/int
 target_compile_features(GameUI PRIVATE cxx_std_11)
 target_compile_options(GameUI PRIVATE -fsigned-char)
 target_compile_definitions(GameUI PRIVATE
-    $<TARGET_PROPERTY:PortalSupport,COMPILE_DEFINITIONS>
+    $<TARGET_PROPERTY:IOSGameSupport,COMPILE_DEFINITIONS>
     GAMEUI_EXPORTS=1 VERSION_SAFE_STEAM_API_INTERFACES=1
     DX_TO_GL_ABSTRACTION=1 TOGLES=1)
 target_include_directories(GameUI PRIVATE
-    $<TARGET_PROPERTY:PortalSupport,INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:IOSGameSupport,INCLUDE_DIRECTORIES>
     ../../gameui ../../common/GameUI ../../thirdparty
     ../../thirdparty/libjpeg "${CMAKE_CURRENT_BINARY_DIR}/jpeg")
-target_link_libraries(GameUI PRIVATE jpeg PortalSupport EngineVGUIControls IOSImage
+target_link_libraries(GameUI PRIVATE jpeg IOSGameSupport EngineVGUIControls IOSImage
     ToGLESRuntime ${IOS_SDL_TARGET}
     "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/mathlib/libmathlib.a"
     "${ENGINE_BUILD}/tier0/libtier0.dylib")
 target_link_options(GameUI PRIVATE "-Wl,-exported_symbol,_CreateInterface")
 set_target_properties(GameUI PROPERTIES
     BUILD_WITH_INSTALL_RPATH TRUE INSTALL_RPATH "@loader_path" INSTALL_NAME_DIR "@rpath")
-add_dependencies(PortalGameModules GameUI)
+add_dependencies(IOSGameModules GameUI)
