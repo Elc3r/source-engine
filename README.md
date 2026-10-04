@@ -15,7 +15,7 @@ Source code is based on TF2 2018 leak. Don't use it for commercial purposes.
 This project is using waf buildsystem. If you have waf-related questions look https://waf.io/book
 
 # Features:
-- Android, OSX, FreeBSD, Windows, Linux( glibc, musl ) support
+- Android, iOS, OSX, FreeBSD, Windows, Linux( glibc, musl ) support
 - Arm support( except windows )
 - 64bit support
 - Modern toolchains support
@@ -39,6 +39,7 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 # How to Build?
 - [Building instructions(EN)](https://github.com/nillerusr/source-engine/wiki/Source-Engine-(EN))
 - [Building instructions(RU)](https://github.com/nillerusr/source-engine/wiki/Source-Engine-(RU))
+- [iOS building instructions(EN)](ios/README.md)
 
 # Support me
 BTC: `bc1qnjq92jj9uqjtafcx2zvnwd48q89hgtd6w8a6na`
