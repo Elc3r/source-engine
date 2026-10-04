@@ -15,6 +15,7 @@
 #if defined(IOS)
 #include "inputsystem/iinputsystem.h"
 #include "cdll_client_int.h"
+#include "weapon_selection.h"
 #endif
 
 #define STB_RECT_PACK_IMPLEMENTATION
@@ -655,8 +656,18 @@ void CTouchControls::UpdateIOSLayout()
 	float unit = min(screen_w, screen_h), radius = unit * .14f;
 	float margin = unit * (screen_w > screen_h ? .15f : .08f), button = unit * .13f, gap = unit * .035f;
 	float bottom = screen_h - margin - radius;
+	float actionBottom = screen_h - margin - button;
+	float utilityTop = screen_w > screen_h ? unit * .06f : unit * .18f;
 	for (auto it = btns.begin(); it != btns.end(); ++it) {
 		CTouchButton *btn = *it;
+#if defined(PORTAL)
+		if (!Q_strcmp(btn->command, "+reload") || !Q_strcmp(btn->command, "+speed") ||
+		    !Q_strcmp(btn->command, "invprev") || !Q_strcmp(btn->command, "invnext") ||
+		    !Q_strcmp(btn->command, "impulse 100")) {
+			btn->flags |= TOUCH_FL_HIDE;
+			continue;
+		}
+#endif
 		float x, y, w = button, h = button;
 		if (btn->type == touch_look) {
 			x = y = 0; w = screen_w; h = screen_h;
@@ -664,7 +675,7 @@ void CTouchControls::UpdateIOSLayout()
 			x = margin;
 			y = bottom - radius; w = h = radius * 2;
 		} else if (!Q_strcmp(btn->command, "gameui_activate")) {
-			x = margin; y = screen_w > screen_h ? margin : unit * .18f;
+			x = margin; y = utilityTop;
 		} else if (!Q_strcmp(btn->command, "+jump") || !Q_strcmp(btn->command, "+use") ||
 		           !Q_strcmp(btn->command, "+attack") || !Q_strcmp(btn->command, "+attack2") ||
 		           !Q_strcmp(btn->command, "+duck")) {
@@ -672,7 +683,23 @@ void CTouchControls::UpdateIOSLayout()
 			int row = !Q_strcmp(btn->command, "+jump") || !Q_strcmp(btn->command, "+use") ? 0 :
 			          !Q_strcmp(btn->command, "+duck") ? 2 : 1;
 			x = screen_w - margin - button - (left ? button + gap : 0);
-			y = bottom - radius - gap - button - row * (button + gap);
+			y = actionBottom - row * (button + gap);
+		} else if (!Q_strcmp(btn->command, "+reload") || !Q_strcmp(btn->command, ";+duck")) {
+			x = screen_w - margin - 2 * button - gap;
+			y = actionBottom - (!Q_strcmp(btn->command, "+reload") ? 2 : 3) * (button + gap);
+		} else if (!Q_strcmp(btn->command, "+speed")) {
+			x = margin; y = bottom - radius - button - gap;
+		} else if (!Q_strcmp(btn->command, "invprev") || !Q_strcmp(btn->command, "invnext")) {
+			x = margin + 2 * radius + gap + (!Q_strcmp(btn->command, "invnext") ? button + gap : 0);
+			y = screen_h - margin - button;
+		} else if (!Q_strcmp(btn->command, "+zoom")) {
+			x = screen_w - margin - button; y = actionBottom - 3 * (button + gap);
+		} else if (!Q_strcmp(btn->command, "save quick") || !Q_strcmp(btn->command, "load quick") ||
+		           !Q_strcmp(btn->command, "touch_enableedit") || !Q_strcmp(btn->command, "impulse 100")) {
+			int column = !Q_strcmp(btn->command, "save quick") ? 1 : !Q_strcmp(btn->command, "load quick") ? 2 :
+			             !Q_strcmp(btn->command, "touch_enableedit") ? 3 : 4;
+			x = margin + column * (button + gap);
+			y = utilityTop;
 		} else { btn->flags |= TOUCH_FL_HIDE; continue; }
 		btn->flags &= ~TOUCH_FL_HIDE;
 		btn->x1 = x / screen_w; btn->x2 = (x + w) / screen_w;
@@ -805,7 +832,8 @@ void CTouchControls::Paint()
 		const char *caption = btn->name;
 		if (!Q_strcmp(btn->command, "+attack")) caption = "FIRE";
 		else if (!Q_strcmp(btn->command, "+attack2")) caption = "ALT";
-		else if (!Q_strcmp(btn->command, ";+duck")) caption = "DUCK";
+		else if (!Q_strcmp(btn->command, ";+duck")) caption = "LOCK";
+		else if (!Q_strcmp(btn->command, "+reload")) caption = "RLD";
 		else if (!Q_strcmp(btn->command, "+speed")) caption = "RUN";
 		else if (!Q_strcmp(btn->command, "load quick")) caption = "LOAD";
 		else if (!Q_strcmp(btn->command, "save quick")) caption = "SAVE";
@@ -1233,8 +1261,19 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 					else
 						btn->finger = look_finger;
 				}
-				else
-					engine->ClientCmd_Unrestricted( btn->command );
+				else {
+#if defined(IOS)
+					if (!Q_strcmp(btn->command, "invprev") || !Q_strcmp(btn->command, "invnext")) {
+						CBaseHudWeaponSelection *selection = GetHudWeaponSelection();
+						if (selection) {
+							if (!Q_strcmp(btn->command, "invnext")) selection->UserCmd_NextWeapon();
+							else selection->UserCmd_PrevWeapon();
+							if (selection->GetSelectedWeapon()) selection->SelectWeapon();
+						}
+					} else
+#endif
+						engine->ClientCmd_Unrestricted( btn->command );
+				}
 			}
 		}
 	}
