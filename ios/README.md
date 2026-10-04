@@ -42,6 +42,22 @@ requires a compatible signing or container setup. Simulator and device builds
 use separate `build-ios-*` directories. `--build-dir`, `--min-version`, and
 `--shader-cache` override the defaults.
 
+Builds use an original neutral application icon by default. To use the icon from
+your own Portal installation, pass `--game-root` for either build target:
+
+```sh
+python3 scripts/build-ios.py --game portal --target device \
+  --game-root /absolute/path/to/Portal-arm64 --ipa ~/Downloads/Portal-iOS.ipa
+```
+
+The build reads `portal/resource/game.icns` (or `game.ico`), generates opaque
+iPhone/iPad icons in the ignored build directory, and includes them in the app.
+If neither source file exists, it uses the neutral icon. Game artwork is not
+stored in the repository, and game data is not copied into the app. Device
+builds still read game data from Documents at runtime; the Mac's `--game-root`
+path is used only to generate the icon. For an IPA with no imported game artwork,
+omit `--game-root` when building for a device.
+
 On a device, put the game data in `Documents/Portal-arm64`. The application exposes
 its Documents directory through file sharing. Saves and settings use writable
 paths separate from imported desktop saves. Changing from an older bootstrap

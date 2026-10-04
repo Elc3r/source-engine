@@ -24,12 +24,12 @@ def main():
     parser.add_argument('--min-version', default='16.0')
     parser.add_argument('--build-dir', type=Path)
     parser.add_argument('--shader-cache', type=Path, default=ROOT / 'build-ios-shaders/compiled')
-    parser.add_argument('--game-root', type=Path, help='Existing game data for Simulator')
+    parser.add_argument('--game-root', type=Path, help='Game data for the application icon and Simulator runtime')
     parser.add_argument('--simulator', help='Install and launch on this Simulator UDID')
     parser.add_argument('--ipa', type=Path)
     args = parser.parse_args()
-    if args.game_root and (args.target != 'simulator' or not args.simulator):
-        parser.error('--game-root requires a Simulator launch')
+    if args.game_root and not args.game_root.is_dir():
+        parser.error('--game-root must be an existing game data directory')
     game = GAMES[args.game]
     executable = game['name']
     bundle_id = game['bundle_id']
@@ -55,7 +55,7 @@ def main():
     app.mkdir(parents=True)
     with (app / 'ios-launch.plist').open('wb') as stream:
         plistlib.dump({'SOURCE_IOS_GAME_STARTUP': 'menu',
-                      'SOURCE_IOS_GAME_ROOT': str(args.game_root.resolve()) if args.game_root else '@documents/' + game['data'],
+                      'SOURCE_IOS_GAME_ROOT': str(args.game_root.resolve()) if args.game_root and args.target == 'simulator' else '@documents/' + game['data'],
                       'SOURCE_IOS_WORLD_MAP': 'maps/testchmb_a_00.bsp'}, stream)
     libraries = []
     shutil.copy2(graphics_build / (executable + '.app') / executable, app / executable)
@@ -99,6 +99,8 @@ def main():
         run('xcrun', 'install_name_tool', '-change', build / 'tier0/libtier0.dylib',
             '@rpath/libtier0.dylib', module)
         libraries.append(module)
+    from ios_icons import stage_icons
+    icon_info = stage_icons(build, app, args.game, args.game_root, args.target, args.min_version)
     with (app / 'Info.plist').open('wb') as stream:
         plistlib.dump({
             'CFBundleIdentifier': bundle_id, 'CFBundleExecutable': executable,
@@ -112,6 +114,7 @@ def main():
             'UIApplicationSceneManifest': {'UIApplicationSupportsMultipleScenes': False},
             'UIFileSharingEnabled': True, 'LSSupportsOpeningDocumentsInPlace': True,
             'UISupportedInterfaceOrientations': ['UIInterfaceOrientationPortrait', 'UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'],
+            **icon_info,
         }, stream)
     for library in libraries:
         run('codesign', '--force', '--sign', '-', library)
