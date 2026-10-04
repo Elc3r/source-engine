@@ -109,7 +109,11 @@ static void WriteAchievementGlobalState( KeyValues *pKV, bool bPersistToSteamClo
 	// Save to a buffer instead.
 	CUtlBuffer buf( 0, 0, CUtlBuffer::TEXT_BUFFER );
 	pKV->RecursiveSaveToFile( buf, 0 );
+#if defined(IOS)
+	filesystem->WriteFile( szFilename, "DEFAULT_WRITE_PATH", buf );
+#else
 	filesystem->WriteFile( szFilename, NULL, buf );
+#endif
 	pKV->deleteThis();
 
     //=============================================================================
@@ -481,6 +485,10 @@ void CAchievementMgr::Update( float frametime )
 	{
 		UploadUserData();
 	}
+#if defined(IOS)
+	if ( m_bGlobalStateDirty && Plat_FloatTime() - m_flTimeLastSaved >= 5.0 )
+		SaveGlobalState( false );
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -810,7 +818,12 @@ void CAchievementMgr::LoadGlobalState()
     //=============================================================================
 
 	KeyValues *pKV = new KeyValues("GameState" );
-	if ( pKV->LoadFromFile( filesystem, szFilename, "MOD" ) )
+#if defined(IOS)
+	const char *statePath = "DEFAULT_WRITE_PATH";
+#else
+	const char *statePath = "MOD";
+#endif
+	if ( pKV->LoadFromFile( filesystem, szFilename, statePath ) )
 	{
 		KeyValues *pNode = pKV->GetFirstSubKey();
 		while ( pNode )
@@ -840,6 +853,10 @@ void CAchievementMgr::LoadGlobalState()
 void CAchievementMgr::SaveGlobalState( bool bAsync )
 {
 	VPROF_BUDGET( "CAchievementMgr::SaveGlobalState", "Achievements" );
+#if defined(IOS)
+	// Finish sandbox writes before UIKit can suspend the process.
+	bAsync = false;
+#endif
 
 	KeyValues *pKV = new KeyValues("GameState" );
 	FOR_EACH_MAP( m_mapAchievement, i )
@@ -948,6 +965,10 @@ void CAchievementMgr::AwardAchievement( int iAchievementID )
 
 	// save state at next good opportunity.  (Don't do it immediately, may hitch at bad time.)
 	SetDirty( true );
+#if defined(IOS)
+	CheckMetaAchievements();
+	SaveGlobalState( false );
+#endif
 
 	if ( IsPC() )
 	{

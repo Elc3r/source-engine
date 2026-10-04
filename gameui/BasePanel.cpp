@@ -1626,6 +1626,9 @@ CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 		menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this);
 
 	bool bFoundServerBrowser = false;
+#if defined(IOS)
+	bool bFoundAchievements = false;
+#endif
 
 	for (KeyValues *dat = datafile->GetFirstSubKey(); dat != NULL; dat = dat->GetNextKey())
 	{
@@ -1635,6 +1638,10 @@ CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 
 		if( cmd && Q_strcmp(cmd, "OpenServerBrowser") == 0 )
 			bFoundServerBrowser = true;
+#if defined(IOS)
+		if (cmd && !Q_stricmp(cmd, "OpenAchievementsDialog"))
+			bFoundAchievements = true;
+#endif
 	}
 
 	if( !bFoundServerBrowser && !ModInfo().IsSinglePlayerOnly() )
@@ -1651,6 +1658,12 @@ CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 			|| !Q_stricmp( cmd, "engine bug" )) )
 			continue;
 
+#if defined(IOS)
+		if (!bFoundAchievements && cmd && !Q_stricmp(cmd, "OpenOptionsDialog")) {
+			menu->AddMenuItem("Achievements", "#GameUI_GameMenu_Achievements", "OpenAchievementsDialog", this);
+			bFoundAchievements = true;
+		}
+#endif
 		menu->AddMenuItem(name, label, cmd, this, dat);
 	}
 

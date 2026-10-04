@@ -35,9 +35,11 @@
 #include "engine/audio/sound.h"
 #include "engine/audio/snd_device.h"
 #include "engine/audio/soundservice.h"
+#include "iachievementmgr.h"
 
 extern IClientEntityList *entitylist;
 extern IAudioDevice *g_AudioDevice;
+extern IAchievementMgr *g_pAchievementMgr;
 
 extern CGlobalVars g_ServerGlobalVariables;
 extern void _Host_SetGlobalTime();
@@ -57,6 +59,7 @@ bool audioStarted=false,audioPaused=false,quitRequested=false;
 }
 
 extern "C" void SourceIOSSetPortalAudioActive(bool active) {
+    if (!active && g_pAchievementMgr) g_pAchievementMgr->SaveGlobalStateIfDirty(false);
     SourceIOSSetSoundFocus(active);
     if (!audioStarted || audioPaused==!active) return;
     if (active) S_UnblockSound(); else S_BlockSound();

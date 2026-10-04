@@ -226,6 +226,7 @@ extern "C" bool SourceIOSInitializePortalClient(CSysModule *module,char *detail,
             SourceIOSInitRenderMaterials();
         }
         g_ClientDLL->PostInit();
+        serverGameDLL->PostInit();
         EngineVGui()->Connect(); EngineVGui()->PostInit();
         // The standalone host also needs the engine's console output path.
         Con_Init();
