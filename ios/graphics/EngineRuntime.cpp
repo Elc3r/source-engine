@@ -42,6 +42,7 @@ extern CMemoryStack g_HunkMemoryStack;
 namespace {
 bool loaderStarted=false, librariesConnected=false, memoryStarted=false;
 int savedMemoryBudget=0;
+char *savedMod=NULL;
 unsigned savedCacheLimit=0;
 
 }
@@ -60,6 +61,7 @@ extern "C" void SourceIOSShutdownMapLoader()
         g_HunkMemoryStack.Term();
         g_pDataCache->SetSize(savedCacheLimit);
         host_parms.memsize=savedMemoryBudget;
+        host_parms.mod=savedMod;
         memoryStarted=false;
     }
     physprop=NULL; physcollision=NULL;
@@ -100,6 +102,8 @@ extern "C" bool SourceIOSInitializeMapLoader(CreateInterfaceFn factory, char *de
     savedCacheLimit=cacheLimits.nMaxBytes;
     savedMemoryBudget=host_parms.memsize;
     host_parms.memsize=256*1024*1024;
+    savedMod=host_parms.mod;
+    host_parms.mod=const_cast<char *>(COM_GetModDirectory());
     // Host_Init normally initializes the shared token parser before sound
     // scripts/DSP presets or game modules parse engine-format files.
     COM_Init();
