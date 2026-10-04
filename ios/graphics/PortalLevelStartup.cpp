@@ -149,6 +149,7 @@ extern "C" bool SourceIOSStartGameSession(char *detail,size_t capacity) {
 }
 
 extern "C" bool SourceIOSIsPortalGameLive() { return playing; }
+extern "C" bool SourceIOSIsGameLoading() { return playing && scr_disabled_for_loading; }
 extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     clientFrameReady=false;
     if (!playing) { snprintf(detail,capacity,"Portal game not running"); return false; }
@@ -187,6 +188,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
         }
         NET_RunFrame(now);
         host_frametime=host_state.interval_per_tick;
+        ++host_tickcount;
         cl.RunFrame();
         cl.CheckUpdatingSteamResources();
         CL_Move(0,true);
@@ -209,6 +211,7 @@ extern "C" bool SourceIOSAdvancePortalGame(char *detail,size_t capacity) {
     ClientDLL_FrameStageNotify(FRAME_START);
     while (tickRemainder>=host_state.interval_per_tick) {
         host_frametime=host_state.interval_per_tick;
+        ++host_tickcount;
         g_ServerGlobalVariables.realtime=now;
         NET_RunFrame(now);
         cl.SetFrameTime(host_state.interval_per_tick);

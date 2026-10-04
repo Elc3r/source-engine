@@ -21,5 +21,6 @@ void PollGameInput();
 bool StartGameSession(char *detail,size_t capacity);
 
 bool HasLivePortalGame();
+bool IsGameLoading();
 bool AdvancePortalGame(char *detail,size_t capacity);
 bool DrawPortalGame(int width,int height,char *detail,size_t capacity);

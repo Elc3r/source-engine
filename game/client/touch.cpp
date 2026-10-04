@@ -738,6 +738,8 @@ void CTouchControls::Frame()
 void CTouchControls::Paint()
 {
 #if defined(IOS)
+	if (engine->IsDrawingLoadingImage())
+		return;
 	// Keep the touch profile intact so hot-unplug restores the overlay.
 	if (inputsystem && inputsystem->GetJoystickCount() > 0)
 		return;

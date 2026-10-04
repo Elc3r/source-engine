@@ -276,6 +276,11 @@ bool AdvancePortalGame(char *detail,size_t capacity) {
     Advance advance=loaderModule?reinterpret_cast<Advance>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSAdvancePortalGame")):NULL;
     return advance && advance(detail,capacity);
 }
+bool IsGameLoading() {
+    typedef bool (*Query)();
+    Query query=loaderModule?reinterpret_cast<Query>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSIsGameLoading")):NULL;
+    return query && query();
+}
 bool DrawPortalGame(int width,int height,char *detail,size_t capacity) {
     typedef bool (*Draw)(int,int,char *,size_t);
     Draw draw=loaderModule?reinterpret_cast<Draw>(GetProcAddress(reinterpret_cast<void *>(loaderModule),"SourceIOSDrawPortalGame")):NULL;

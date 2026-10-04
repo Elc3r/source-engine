@@ -134,6 +134,9 @@ bool DrawToGLESLiveMaterial(char *detail, size_t capacity)
     if (!liveMaterial) { snprintf(detail,capacity,"No live material system"); return false; }
     const bool playing=HasLivePortalGame();
     if (playing && !AdvancePortalGame(detail,capacity)) return false;
+    // SCR_BeginLoadingPlaque presents the original scene and loading dialog.
+    // Keep that image while the host finishes loading and client signon.
+    if (playing && IsGameLoading()) return true;
     uint targetWidth=0,targetHeight=0;
     applicationHost->displayedSize(applicationHost->userData,targetWidth,targetHeight);
     int width=0,height=0;
