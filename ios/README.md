@@ -60,6 +60,31 @@ python3 scripts/build-ios.py --game portal --target simulator \
 
 The simulator build reads that directory directly. With `--simulator`, the build command installs and launches the application.
 
+## Optional touch icons
+
+Desktop Portal data does not include the Android port's touch icons. Without
+them, the iOS port draws fallback controls and logs missing `vgui/touch/*`
+materials. The original icons are available in
+[`extras_dir.vpk` from nillerusr's Android launcher](https://github.com/nillerusr/srceng-android/blob/android-fixes/assets/extras_dir.vpk).
+
+1. Download the archive and open it with a VPK extraction tool.
+2. Extract only `materials/vgui/touch/`, keeping both `.vmt` and `.vtf` files.
+3. Quit Portal and copy the extracted folder into the game data:
+
+   ```text
+   Documents/Portal-arm64/portal/materials/vgui/touch/
+   ```
+
+   The file-sharing root is already Documents. For the Simulator, use
+   `<game-root>/portal/materials/vgui/touch/` in the directory passed to
+   `--game-root`.
+4. Launch Portal again. Rebuilding or reinstalling the IPA is not required.
+
+For example, the destination should contain both `jump.vmt` and `jump.vtf`.
+These files resolve the touch icon warnings; `TitleBarIcon`,
+`TitleBarDisabledIcon`, and `vgui/servers/icon_replay*` belong to other UI
+components and are not included in this touch icon pack.
+
 ## Runtime
 
 - `ios/graphics/IOSApp.m`: UIKit lifecycle, SDL window/input and EGL surface.
