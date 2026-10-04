@@ -80,7 +80,9 @@ writes and exits through the UIKit host.
 
 Game dialogs scale to the available display area in both orientations,
 including chapter selection, saved games and confirmation prompts. The console
-uses the current safe workspace when opened and after rotation.
+uses the current safe workspace when opened and after rotation, and shrinks
+above the keyboard. Console text input and command output are supported;
+the keyboard's Done button or closing the console dismisses text input.
 The main menu, dialogs and startup/frame counter respect UIKit safe-area insets
 to avoid the camera cutout and home indicator.
 

@@ -699,11 +699,20 @@ bool MapCocoaVirtualKeyToButtonCode( int nCocoaVirtualKeyCode, ButtonCode_t *pOu
 #if defined(IOS)
 void CInputSystem::SDLKeyboardEvent(int scancode, bool pressed, bool repeat)
 {
-	if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES || repeat) return;
+	if (scancode <= 0 || scancode >= SDL_NUM_SCANCODES) return;
 	ButtonCode_t code = (ButtonCode_t)scantokey[scancode];
 	if (code == BUTTON_CODE_NONE) return;
-	if (pressed) PostButtonPressedEvent(IE_ButtonPressed, m_nLastSampleTick, code, code);
-	else PostButtonReleasedEvent(IE_ButtonReleased, m_nLastSampleTick, code, code);
+	if (pressed && !repeat) PostButtonPressedEvent(IE_ButtonPressed, m_nLastSampleTick, code, code);
+	else if (!pressed) PostButtonReleasedEvent(IE_ButtonReleased, m_nLastSampleTick, code, code);
+	if (pressed) PostEvent(IE_FirstVguiEvent + 4, m_nLastSampleTick, code);
+}
+
+void CInputSystem::SDLTextInputEvent(const char *text)
+{
+	wchar_t characters[SDL_TEXTINPUTEVENT_TEXT_SIZE];
+	V_UTF8ToUnicode(text, characters, sizeof(characters));
+	for (int i = 0; characters[i]; ++i)
+		PostEvent(IE_FirstVguiEvent + 3, m_nLastSampleTick, characters[i]);
 }
 #endif
 
@@ -1579,6 +1588,12 @@ ISteamController* CInputSystem::SteamControllerInterface()
 void CInputSystem::StartTextInput()
 {
 #ifdef USE_SDL
+#ifdef IOS
+	// VGUI handles the keyboard's available area; keep SDL from translating
+	// the entire Metal view to reveal its hidden native text field.
+	SDL_Rect rect = {0, 0, 1, 1};
+	SDL_SetTextInputRect(&rect);
+#endif
 	SDL_StartTextInput();
 #endif
 }

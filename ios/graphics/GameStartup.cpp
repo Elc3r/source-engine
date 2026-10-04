@@ -16,9 +16,11 @@
 #include "vgui/IPanel.h"
 #include "vgui/IScheme.h"
 #include "vgui/ISurface.h"
+#include "VGuiMatSurface/IMatSystemSurface.h"
 #include "igame.h"
 #include "inputsystem/iinputsystem.h"
 #include "cmd.h"
+#include "console.h"
 #include "keys.h"
 #include "GameEventManager.h"
 #include "game/client/iclientrendertargets.h"
@@ -29,6 +31,7 @@ extern CGlobalVars g_ServerGlobalVariables;
 extern CreateInterfaceFn g_ClientFactory;
 extern IClientRenderTargets *g_pClientRenderTargets;
 extern CSysModule *g_ClientDLLModule;
+extern void Con_ColorPrintf(const Color &color,const char *format,...);
 extern "C" void SourceIOSShutdownPortalLevel();
 namespace {
 bool initialized=false,clientInitialized=false,uiInitialized=false,eventsInitialized=false,clientTargetsInitialized=false,toolsInitialized=false;
@@ -37,6 +40,11 @@ CreateInterfaceFn applicationFactory=NULL;
 CMaterialProxyFactory portalProxyFactory;
 IMaterialProxyFactory *previousProxyFactory=NULL;
 bool proxyFactoryInstalled=false;
+SpewOutputFunc_t previousSpewOutput=NULL;
+SpewRetval_t ConsoleSpew(SpewType_t type,const char *message) {
+    Con_ColorPrintf(*GetSpewOutputColor(),"%s",message);
+    return previousSpewOutput(type,message);
+}
 char lastInterface[128]={};
 bool lastAvailable=false;
 void *StartupFactory(const char *name,int *status) {
@@ -83,6 +91,11 @@ extern "C" bool SourceIOSInitializePortalServer(CreateInterfaceFn gameFactory,ch
 }
 extern "C" bool SourceIOSShutdownPortalServer() {
     bool valid=true;
+    if (previousSpewOutput) {
+        SpewOutputFunc(previousSpewOutput);
+        previousSpewOutput=NULL;
+        Con_Shutdown();
+    }
     SourceIOSShutdownPortalLevel();
     if (clientTargetsInitialized && g_pClientRenderTargets) g_pClientRenderTargets->ShutdownClientRenderTargets();
     clientTargetsInitialized=false; g_pClientRenderTargets=NULL;
@@ -198,6 +211,14 @@ extern "C" bool SourceIOSInitializePortalClient(CSysModule *module,char *detail,
         }
         g_ClientDLL->PostInit();
         EngineVGui()->Connect(); EngineVGui()->PostInit();
+        // The standalone host also needs the engine's console output path.
+        Con_Init();
+        SpewActivate("console",1);
+        previousSpewOutput=GetSpewOutputFunc();
+        SpewOutputFunc(ConsoleSpew);
+        // The host dispatches input through the engine before VGUI simulates.
+        // Prevent the surface from consuming the same events a second time.
+        g_pMatSystemSurface->AttachToWindow(NULL);
         // Schemes can load before their sizing panels have drawable bounds.
         // Rebuild proportional fonts once the complete UI hierarchy exists.
         int previousWidth, previousHeight;

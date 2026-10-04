@@ -339,6 +339,7 @@ public:
 	void CancelTouch();
 #if defined(IOS)
 	void SDLKeyboardEvent(int scancode, bool pressed, bool repeat);
+	void SDLTextInputEvent(const char *text);
 #endif
 	void FingerEvent( int eventType, int fingerId, float x, float y, float dx, float dy );	
 	

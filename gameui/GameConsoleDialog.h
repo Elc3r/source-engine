@@ -30,6 +30,8 @@ public:
 #ifdef IOS
 	MESSAGE_FUNC(Activate, "Activate");
 	virtual void OnScreenSizeChanged(int oldWide, int oldTall);
+	virtual void OnThink();
+	virtual void OnClose();
 #endif
 
 private:

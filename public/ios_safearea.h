@@ -7,6 +7,7 @@
 // UIKit publishes normalized insets so every drawable resolution uses the
 // same safe area, including after a landscape rotation.
 #define SOURCE_IOS_SAFE_AREA_HINT "SourceIOSSafeArea"
+#define SOURCE_IOS_KEYBOARD_TOP_HINT "SourceIOSKeyboardTop"
 
 #ifdef __cplusplus
 inline void SourceIOSGetSafeArea(int width, int height, int &left, int &top, int &right, int &bottom)

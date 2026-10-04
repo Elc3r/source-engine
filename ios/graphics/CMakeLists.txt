@@ -632,7 +632,7 @@ if(ENGINE_BUILD AND ANGLE_ROOT)
     target_link_options(Portal PRIVATE -Wl,-dead_strip)
     target_link_libraries(Portal PRIVATE ToGLESRuntime
         "${ENGINE_BUILD}/mathlib/libmathlib.a" "${ENGINE_BUILD}/tier1/libtier1.a" "${ENGINE_BUILD}/tier0/libtier0.dylib"
-        ${IOS_SDL_TARGET} libEGL libGLESv2 "-framework UIKit" "-framework Foundation"
+        ${IOS_SDL_TARGET} libEGL libGLESv2 "-framework UIKit" "-framework Foundation" "-framework CoreGraphics"
         "-framework Metal" "-framework QuartzCore" iconv)
 endif()
 

@@ -13,6 +13,10 @@
 #include "LoadingDialog.h"
 #include "IGameUIFuncs.h"
 #include "tier0/icommandline.h"
+#ifdef IOS
+#include "ios_safearea.h"
+#include <SDL.h>
+#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -46,8 +50,28 @@ void CGameConsoleDialog::LayoutForDisplay()
 {
 	int x, y, width, height;
 	surface()->GetWorkspaceBounds(x, y, width, height);
+	int screenWidth, screenHeight;
+	surface()->GetScreenSize(screenWidth, screenHeight);
+	const char *keyboard = SDL_GetHint(SOURCE_IOS_KEYBOARD_TOP_HINT);
+	if (keyboard) height = MIN(height, int(SDL_atof(keyboard) * screenHeight) - y);
 	int margin = scheme()->GetProportionalScaledValueEx(GetScheme(), 16);
-	SetBounds(x + margin, y + margin, width - 2 * margin, height - 2 * margin);
+	int oldX, oldY, oldWidth, oldHeight;
+	GetBounds(oldX, oldY, oldWidth, oldHeight);
+	if (oldX != x + margin || oldY != y + margin ||
+		oldWidth != width - 2 * margin || oldHeight != height - 2 * margin)
+		SetBounds(x + margin, y + margin, width - 2 * margin, height - 2 * margin);
+}
+
+void CGameConsoleDialog::OnThink()
+{
+	BaseClass::OnThink();
+	LayoutForDisplay();
+}
+
+void CGameConsoleDialog::OnClose()
+{
+	SDL_StopTextInput();
+	BaseClass::OnClose();
 }
 #endif
 

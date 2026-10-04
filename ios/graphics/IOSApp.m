@@ -70,10 +70,39 @@ static unsigned fpsFrames;
 static NSString *renderer = @"unavailable", *version = @"unavailable";
 static BOOL compactStatus;
 
+@interface SourceKeyboardActions : NSObject
+- (void)dismissKeyboard;
+@end
+@implementation SourceKeyboardActions
+- (void)dismissKeyboard { SDL_StopTextInput(); }
+@end
+static SourceKeyboardActions *keyboardActions;
+
+static void ConfigureTextInput(UIView *view)
+{
+    if ([view isKindOfClass:UITextField.class]) {
+        UITextField *field = (UITextField *)view;
+        UIToolbar *toolbar = [[UIToolbar alloc] initWithFrame:CGRectMake(0, 0, view.window.bounds.size.width, 44)];
+        toolbar.autoresizingMask = UIViewAutoresizingFlexibleWidth;
+        toolbar.items = @[
+            [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemFlexibleSpace target:nil action:nil],
+            [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:keyboardActions action:@selector(dismissKeyboard)]];
+        field.inputAccessoryView = toolbar;
+    }
+    for (UIView *child in view.subviews) ConfigureTextInput(child);
+}
+
 static void LayoutStatus(void)
 {
     UIView *view = label.superview;
     if (!view) return;
+    // SDL's keyboard callbacks can restore a screen-sized frame in the wrong
+    // orientation. The renderer stays full-screen while VGUI fits above IME.
+    UIView *root = view.window.rootViewController.view;
+    if (root && !CGRectEqualToRect(root.frame, view.window.bounds)) {
+        root.frame = view.window.bounds;
+        [root layoutIfNeeded];
+    }
     UIEdgeInsets insets = view.safeAreaInsets;
     CGRect safe = UIEdgeInsetsInsetRect(view.bounds, insets);
     CGFloat margin = 10;
@@ -88,6 +117,14 @@ static void LayoutStatus(void)
             insets.right / view.bounds.size.width, insets.bottom / view.bounds.size.height);
         const char *previous = SDL_GetHint(SOURCE_IOS_SAFE_AREA_HINT);
         if (!previous || strcmp(previous, value)) SDL_SetHint(SOURCE_IOS_SAFE_AREA_HINT, value);
+        CGFloat keyboardTop = 1;
+        CGRect keyboardFrame = view.keyboardLayoutGuide.layoutFrame;
+        if (SDL_IsTextInputActive() && SDL_IsScreenKeyboardShown(window) &&
+            keyboardFrame.size.height > insets.bottom + 1)
+            keyboardTop = MAX(0, keyboardFrame.origin.y / view.bounds.size.height);
+        snprintf(value, sizeof(value), "%f", keyboardTop);
+        previous = SDL_GetHint(SOURCE_IOS_KEYBOARD_TOP_HINT);
+        if (!previous || strcmp(previous, value)) SDL_SetHint(SOURCE_IOS_KEYBOARD_TOP_HINT, value);
     }
 }
 
@@ -237,6 +274,7 @@ static void StartGraphics(UIWindowScene *scene)
     // The engine routes native fingers to VGUI itself. SDL mouse emulation
     // would deliver a second press/release for the same menu interaction.
     SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
+    SDL_SetHint(SDL_HINT_RETURN_KEY_HIDES_IME, "1");
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "Portrait LandscapeLeft LandscapeRight");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
         UpdateStatus(NO, @(SDL_GetError()), @{}); return;
@@ -254,6 +292,8 @@ static void StartGraphics(UIWindowScene *scene)
     metalView = SDL_Metal_CreateView(window);
     if (!metalView) { UpdateStatus(NO, @(SDL_GetError()), @{}); return; }
     UIView *view = (__bridge UIView *)metalView;
+    keyboardActions = [SourceKeyboardActions new];
+    ConfigureTextInput(native.info.uikit.window);
     label = [[UILabel alloc] initWithFrame:CGRectMake(20, 60, view.bounds.size.width - 40, 140)];
     label.numberOfLines = 0;
     label.textColor = UIColor.whiteColor;

@@ -28,6 +28,9 @@ int TouchSDLWatcher( void *userInfo, SDL_Event *event )
 	case SDL_KEYUP:
 		pInputSystem->SDLKeyboardEvent(event->key.keysym.scancode, event->type == SDL_KEYDOWN, event->key.repeat != 0);
 		break;
+	case SDL_TEXTINPUT:
+		pInputSystem->SDLTextInputEvent(event->text.text);
+		break;
 #endif
 	case SDL_APP_WILLENTERBACKGROUND:
 	case SDL_APP_TERMINATING:
