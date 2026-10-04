@@ -63,12 +63,8 @@ static EGLContext context = EGL_NO_CONTEXT;
 static EGLSurface surface = EGL_NO_SURFACE;
 static UILabel *label;
 static BOOL paused, renderFailed;
-static unsigned suspends, resumes;
 static unsigned frames;
-static double fps, fpsStart;
-static unsigned fpsFrames;
-static NSString *renderer = @"unavailable", *version = @"unavailable";
-static BOOL compactStatus;
+static NSString *renderer = @"unavailable";
 
 @interface SourceKeyboardActions : NSObject
 - (void)dismissKeyboard;
@@ -106,9 +102,8 @@ static void LayoutStatus(void)
     UIEdgeInsets insets = view.safeAreaInsets;
     CGRect safe = UIEdgeInsetsInsetRect(view.bounds, insets);
     CGFloat margin = 10;
-    CGFloat width = compactStatus ? MIN(180, safe.size.width - 2 * margin) : safe.size.width - 2 * margin;
-    CGFloat height = compactStatus ? 36 : MIN(140, safe.size.height - 2 * margin);
-    if (renderFailed) height = MIN(240, safe.size.height - 2 * margin);
+    CGFloat width = safe.size.width - 2 * margin;
+    CGFloat height = MIN(240, safe.size.height - 2 * margin);
     label.frame = CGRectMake(safe.origin.x + (safe.size.width - width) / 2, safe.origin.y + margin, width, height);
     if (view.bounds.size.width > 0 && view.bounds.size.height > 0) {
         char value[128];
@@ -128,26 +123,18 @@ static void LayoutStatus(void)
     }
 }
 
-static void UpdateStatus(BOOL passed, NSString *detail, NSDictionary *extra)
+static void UpdateStatus(BOOL passed, NSString *detail)
 {
-    label.text = [NSString stringWithFormat:@"ToGLES + ANGLE: %@\n%@\nFrames: %u", passed ? @"PASS" : @"FAIL", detail, frames];
-    compactStatus = NO;
-    if (IsSourceWorldMapLoaded()) {
-        BOOL live = getenv("SOURCE_IOS_GAME_STARTUP") &&
-            (strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "play") == 0 || strcmp(getenv("SOURCE_IOS_GAME_STARTUP"), "menu") == 0);
-        if (live && passed) {
-            label.text = [NSString stringWithFormat:@"%@ • LIVE  %.1f FPS\nFrames: %u", NSBundle.mainBundle.infoDictionary[@"CFBundleDisplayName"], fps, frames];
-            label.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
-            compactStatus = YES;
-        }
-    }
+    label.hidden = passed;
+    if (!passed)
+        label.text = [NSString stringWithFormat:@"Source iOS error\n%@\nFrames: %u", detail, frames];
     LayoutStatus();
     if (!passed) NSLog(@"Source iOS: %@", detail);
 }
 
 static BOOL EGLFailure(NSString *operation)
 {
-    UpdateStatus(NO, [NSString stringWithFormat:@"%@: EGL error 0x%x", operation, eglGetError()], @{});
+    UpdateStatus(NO, [NSString stringWithFormat:@"%@: EGL error 0x%x", operation, eglGetError()]);
     return NO;
 }
 
@@ -171,16 +158,15 @@ static BOOL StartRenderer(void)
     surface = eglCreateWindowSurface(display, config, (EGLNativeWindowType)SDL_Metal_GetLayer(metalView), NULL);
     if (surface == EGL_NO_SURFACE || !eglMakeCurrent(display, surface, surface, context)) return EGLFailure(@"eglMakeCurrent/window surface");
     renderer = @((const char *)glGetString(GL_RENDERER));
-    version = @((const char *)glGetString(GL_VERSION));
     if (![renderer containsString:@"ANGLE"] || ![renderer containsString:@"Metal"]) {
-        UpdateStatus(NO, @"Expected ANGLE Metal renderer", @{});
+        UpdateStatus(NO, @"Expected ANGLE Metal renderer");
         return NO;
     }
     char detail[4096]={0};
     if (!InitializeToGLESRuntime(detail,sizeof(detail)) ||
         !InitializeIOSFilesystem([NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"engine-assets"].fileSystemRepresentation,detail,sizeof(detail)) ||
         !StartToGLESMaterialLoop([NSBundle.mainBundle.bundlePath stringByAppendingPathComponent:@"Frameworks"].fileSystemRepresentation,detail,sizeof(detail))) {
-        UpdateStatus(NO,@(detail),@{}); return NO;
+        UpdateStatus(NO,@(detail)); return NO;
     }
     return YES;
 }
@@ -211,23 +197,10 @@ static void DrawFrame(void *unused)
         char detail[4096]={0};
         if (!DrawToGLESMaterialLoop(detail,sizeof(detail))) {
             renderFailed=YES;
-            UpdateStatus(NO,@(detail),@{});
+            UpdateStatus(NO,@(detail));
             return;
         }
         ++frames;
-        double presentTime=SDL_GetPerformanceCounter()/(double)SDL_GetPerformanceFrequency();
-        if (!fpsStart) { fpsStart=presentTime; fpsFrames=0; }
-        else ++fpsFrames;
-        if (presentTime-fpsStart>=.5) {
-            fps=fpsFrames/(presentTime-fpsStart);
-            fpsStart=presentTime; fpsFrames=0;
-            if (IsSourceWorldMapLoaded() && getenv("SOURCE_IOS_GAME_STARTUP") &&
-                (!strcmp(getenv("SOURCE_IOS_GAME_STARTUP"),"play") || !strcmp(getenv("SOURCE_IOS_GAME_STARTUP"),"menu")))
-                label.text=[NSString stringWithFormat:@"%@ • LIVE  %.1f FPS\nFrames: %u",NSBundle.mainBundle.infoDictionary[@"CFBundleDisplayName"],fps,frames];
-        }
-        if (frames%120==0) UpdateStatus(YES,@(detail),
-            @{@"pixel_width": @(width), @"pixel_height": @(height), @"gl_error": @0, @"fps": @(fps),
-              @"swap_succeeded": @YES, @"material_loop": @YES, @"suspends": @(suspends), @"resumes": @(resumes)});
         return;
 
     }
@@ -253,7 +226,6 @@ static void StopGraphics(void)
     window = NULL; metalView = NULL; label = nil;
     display = EGL_NO_DISPLAY; context = EGL_NO_CONTEXT; surface = EGL_NO_SURFACE;
     paused = renderFailed = NO;
-    suspends = resumes = 0; fps=fpsStart=0; fpsFrames=0;
 
 }
 
@@ -277,20 +249,20 @@ static void StartGraphics(UIWindowScene *scene)
     SDL_SetHint(SDL_HINT_RETURN_KEY_HIDES_IME, "1");
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "Portrait LandscapeLeft LandscapeRight");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
-        UpdateStatus(NO, @(SDL_GetError()), @{}); return;
+        UpdateStatus(NO, @(SDL_GetError())); return;
     }
     window = SDL_CreateWindow([NSBundle.mainBundle.infoDictionary[@"CFBundleDisplayName"] UTF8String], SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
         640, 480, SDL_WINDOW_METAL | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_FULLSCREEN_DESKTOP);
-    if (!window) { UpdateStatus(NO, @(SDL_GetError()), @{}); return; }
+    if (!window) { UpdateStatus(NO, @(SDL_GetError())); return; }
     SDL_SysWMinfo native = {0};
     SDL_VERSION(&native.version);
     if (!SDL_GetWindowWMInfo(window, &native) || native.subsystem != SDL_SYSWM_UIKIT) {
-        UpdateStatus(NO, @"SDL did not expose a UIKit window", @{}); return;
+        UpdateStatus(NO, @"SDL did not expose a UIKit window"); return;
     }
     native.info.uikit.window.windowScene = scene;
     [native.info.uikit.window makeKeyAndVisible];
     metalView = SDL_Metal_CreateView(window);
-    if (!metalView) { UpdateStatus(NO, @(SDL_GetError()), @{}); return; }
+    if (!metalView) { UpdateStatus(NO, @(SDL_GetError())); return; }
     UIView *view = (__bridge UIView *)metalView;
     keyboardActions = [SourceKeyboardActions new];
     ConfigureTextInput(native.info.uikit.window);
@@ -299,7 +271,8 @@ static void StartGraphics(UIWindowScene *scene)
     label.textColor = UIColor.whiteColor;
     label.backgroundColor = [UIColor.blackColor colorWithAlphaComponent:0.7];
     label.font = [UIFont monospacedSystemFontOfSize:15 weight:UIFontWeightMedium];
-    label.text = @"SDL + ANGLE / Metal\nVerifying textured GLES output…";
+    label.hidden = YES;
+    label.userInteractionEnabled = NO;
     [view addSubview:label];
     [view layoutIfNeeded];
     LayoutStatus();
@@ -309,9 +282,9 @@ static void StartGraphics(UIWindowScene *scene)
     [keyboardInput becomeFirstResponder];
 #endif
     if (!StartRenderer()) return;
-    UpdateStatus(YES, @"Renderer initialized", @{});
+    UpdateStatus(YES, @"Renderer initialized");
     if (SDL_iPhoneSetAnimationCallback(window, 1, DrawFrame, NULL) != 0)
-        UpdateStatus(NO, @(SDL_GetError()), @{});
+        UpdateStatus(NO, @(SDL_GetError()));
 }
 
 @interface SourceScene : UIResponder <UIWindowSceneDelegate>
@@ -320,7 +293,7 @@ static void StartGraphics(UIWindowScene *scene)
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)options
 { StartGraphics((UIWindowScene *)scene); }
 - (void)sceneWillResignActive:(UIScene *)scene {
-    paused = YES; ++suspends; fpsStart=0; fpsFrames=0;
+    paused = YES;
     SetSourceGameAudioActive(0);
 #if TARGET_OS_SIMULATOR
     [keyboardInput releaseKeys];
@@ -330,7 +303,7 @@ static void StartGraphics(UIWindowScene *scene)
 - (void)sceneDidBecomeActive:(UIScene *)scene {
     if (display != EGL_NO_DISPLAY && context != EGL_NO_CONTEXT)
         eglMakeCurrent(display,surface,surface,context);
-    paused = NO; ++resumes;
+    paused = NO;
     SetSourceGameAudioActive(1);
 #if TARGET_OS_SIMULATOR
     [keyboardInput becomeFirstResponder];

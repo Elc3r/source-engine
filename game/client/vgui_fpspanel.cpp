@@ -16,6 +16,9 @@
 #include <vgui/IPanel.h>
 #include "materialsystem/imaterialsystemhardwareconfig.h"
 #include "filesystem.h"
+#if defined(IOS)
+#include "ios_safearea.h"
+#endif
 #include "../common/xbox/xboxstubs.h"
 #include "steam/steam_api.h"
 
@@ -61,6 +64,9 @@ private:
 	}
 
 	vgui::HFont		m_hFont;
+#if defined(IOS)
+	vgui::HFont		m_iosFont;
+#endif
 	float			m_AverageFPS;
 	float			m_lastRealTime;
 	int				m_high;
@@ -86,6 +92,9 @@ CFPSPanel::CFPSPanel( vgui::VPANEL parent ) : BaseClass( NULL, "CFPSPanel" )
 	SetPaintBackgroundEnabled( false );
 
 	m_hFont = 0;
+#if defined(IOS)
+	m_iosFont = 0;
+#endif
 	m_BatteryPercent = -1;
 	m_lastBatteryPercent = -1.0f;
 
@@ -126,8 +135,23 @@ void CFPSPanel::ComputeSize( void )
 		x -= XBOX_MINBORDERSAFE * wide;
 		y += XBOX_MINBORDERSAFE * tall;
 	}
-	SetPos( x, y );
+#if defined(IOS)
+	int left, top, right, bottom;
+	SourceIOSGetSafeArea( wide, tall, left, top, right, bottom );
+	int margin = MAX( 8, MIN( wide, tall ) / 100 );
+	int panelWidth = MAX( 1, wide - left - right - 2 * margin );
+	if ( !m_iosFont ) m_iosFont = vgui::surface()->CreateFont();
+	if ( vgui::surface()->SetFontGlyphSet( m_iosFont, "Menlo",
+		MAX( 24, int( MIN( wide, tall ) * .04f ) ), 600, 0, 0,
+		vgui::ISurface::FONTFLAG_ANTIALIAS | vgui::ISurface::FONTFLAG_OUTLINE ) )
+		m_hFont = m_iosFont;
+	x = left + margin;
+	y = top + margin;
+	SetSize( panelWidth, 4 * vgui::surface()->GetFontTall( m_hFont ) + 8 );
+#else
 	SetSize( FPS_PANEL_WIDTH, 4 * vgui::surface()->GetFontTall( m_hFont ) + 8 );
+#endif
+	SetPos( x, y );
 }
 
 void CFPSPanel::ApplySchemeSettings(vgui::IScheme *pScheme)
