@@ -552,7 +552,7 @@ DBG_INTERFACE bool DoNewAssertDialog( const tchar *pFilename, int line, const tc
 		_snprintf( text, sizeof( text ), "File: %s\nLine: %i\nExpr: %s\n", pFilename, line, pExpression );
 		text[ sizeof( text ) - 1 ] = 0;
 
-		messageboxdata.window = g_SDLWindow;
+		messageboxdata.window = GetAssertDialogParent();
 		messageboxdata.title = "Assertion Failed";
 		messageboxdata.message = text;
 		messageboxdata.numbuttons = ARRAYSIZE( buttondata );
