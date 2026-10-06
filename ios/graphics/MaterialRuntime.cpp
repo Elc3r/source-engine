@@ -86,8 +86,12 @@ bool InitializeIOSMaterial(const GLMContextHost *host, const char *modules, char
                 if (!valid) snprintf(detail,capacity,"Required standard shaders missing");
                 material->ModInit();
                 MaterialSystem_Config_t config=material->GetCurrentConfigForVideoCard();
-                config.m_VideoMode.m_Width=8;
-                config.m_VideoMode.m_Height=8;
+                uint width=0,height=0;
+                host->displayedSize(host->userData,width,height);
+                // Client initialization allocates render targets against this size.
+                // A placeholder back buffer permanently shrinks flashlight shadows.
+                config.m_VideoMode.m_Width=width;
+                config.m_VideoMode.m_Height=height;
                 config.m_VideoMode.m_Format=IMAGE_FORMAT_BGRA8888;
                 config.dxSupportLevel=90;
                 config.m_nAASamples=0;
