@@ -270,7 +270,7 @@ FORCEINLINE void GLMContext::FlushDrawStates( uint nStartIndex, uint nEndIndex, 
 
 			GL_BATCH_PERF( m_FlushStats.m_nNumSamplingParamsChanged++ );
 
-#if defined( OSX ) // valid for OSX only if using GL 3.3 context 
+#if defined(OSX) // Emulate per-sampler sRGB decoding when the extension is absent.
 			CGLMTex *pTex = m_samplers[nSamplerIndex].m_pBoundTex;
 
 			if( pTex && !( gGL->m_bHave_GL_EXT_texture_sRGB_decode ) )
@@ -307,7 +307,7 @@ FORCEINLINE void GLMContext::FlushDrawStates( uint nStartIndex, uint nEndIndex, 
 
 				pTex->m_SamplingParams = m_samplers[nSamplerIndex].m_samp;
 
-#if defined( OSX )
+#if defined(OSX)
 				if( pTex && !( gGL->m_bHave_GL_EXT_texture_sRGB_decode ) )
 				{
 					// see if requested SRGB state differs from the known one
@@ -483,7 +483,7 @@ FORCEINLINE void GLMContext::FlushDrawStates( uint nStartIndex, uint nEndIndex, 
 	if ( !m_caps.m_hasGammaWrites && m_pBoundPair->m_locFragmentFakeSRGBEnable >= 0 )
 	{
 		float enabled = m_FakeBlendEnableSRGB ? 1.0f : 0.0f;
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 		const CGLMTex *target = m_drawingFBO ? m_drawingFBO->m_attach[kAttColor0].m_tex : NULL;
 		if ( target && (target->m_layout->m_key.m_texFlags & kGLMTexSRGB) )
 			// Hardware encodes after linear-space blending. For raw D3D

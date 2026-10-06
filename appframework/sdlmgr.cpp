@@ -21,6 +21,7 @@
 #include "tier1/convar.h"
 #ifdef TOGLES
 #include <EGL/egl.h>
+#include <dlfcn.h>
 #endif
 
 // NOTE: This has to be the last file included! (turned off below, since this is included like a header)
@@ -204,6 +205,11 @@ void *VoidFnPtrLookup_GlMgr(const char *fn, bool &okay, const bool bRequired, vo
 	// SDL does the right thing, so we never need to use tier0 in this case.
 	if( _glGetProcAddress )
 	{
+#if defined(OSX) && defined(TOGLES)
+        if (!strcmp(fn, "glDrawRangeElementsBaseVertex")) fn = "glDrawRangeElementsBaseVertexEXT";
+        else if (!strcmp(fn, "glDebugMessageCallback")) fn = "glDebugMessageCallbackKHR";
+        else if (!strcmp(fn, "glDebugMessageControl")) fn = "glDebugMessageControlKHR";
+#endif
 		retval = _glGetProcAddress(fn);
 
 		if( !retval && l_gles )
@@ -525,7 +531,12 @@ InitReturnVal_t CSDLMgr::Init()
 		}
 
 #if defined( TOGLES )
+#ifdef OSX
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+		if (SDL_GL_LoadLibrary("libGLESv2.dylib") == -1)
+#else
 		if (SDL_GL_LoadLibrary("libGLESv3.so") == -1)
+#endif
 #else
 		if (SDL_GL_LoadLibrary(NULL) == -1)
 #endif
@@ -602,8 +613,13 @@ InitReturnVal_t CSDLMgr::Init()
 
 
 #ifdef TOGLES
+#ifdef OSX
+	l_egl = dlopen("libEGL.dylib", RTLD_LAZY);
+	l_gles = dlopen("libGLESv2.dylib", RTLD_LAZY);
+#else
 	l_egl = dlopen("libEGL.so", RTLD_LAZY);
 	l_gles = dlopen("libGLESv3.so", RTLD_LAZY);
+#endif
 
 	if( l_egl )
 	{
@@ -618,12 +634,17 @@ InitReturnVal_t CSDLMgr::Init()
 	_eglGetDisplay = (t_eglGetDisplay)dlsym(l_egl, "eglGetDisplay");
 	_eglQueryString = (t_eglQueryString)dlsym(l_egl, "eglQueryString");
 
-	if( _eglInitialize && _eglInitialize && _eglQueryString )
+	if( _eglInitialize && _eglGetDisplay && _eglQueryString )
 	{
 		EGLDisplay display = _eglGetDisplay(EGL_DEFAULT_DISPLAY);
-		if( _eglInitialize(display, NULL, NULL) != -1
-			&& strstr(_eglQueryString(display, EGL_EXTENSIONS) ,"EGL_KHR_gl_colorspace") )
-				SET_GL_ATTR(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1)
+		if( _eglInitialize(display, NULL, NULL) == EGL_TRUE )
+		{
+			const char *extensions = _eglQueryString(display, EGL_EXTENSIONS);
+			if ( extensions && strstr(extensions, "EGL_KHR_gl_colorspace") )
+			{
+				SET_GL_ATTR(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
+			}
+		}
 	}
 #elif ANDROID
 	bool m_bOGL = false;

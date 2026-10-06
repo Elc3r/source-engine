@@ -1997,23 +1997,19 @@ HRESULT IDirect3DQuery9::GetData(void* pData,DWORD dwSize,DWORD dwGetDataFlags)
 		{
 			// Detect cases that are actually just not supported with the way we're using GL queries. (For example, beginning a query, then creating/deleting any query, the ending the same query is not supported.)
 			// Also extra paranoid to detect/work around various NV/AMD driver issues.
-			if ( ( ( m_nIssueStartThreadID != nCurThreadId ) || ( m_nIssueEndThreadID != nCurThreadId ) ) ||
-				 ( m_nIssueStartDrawCallIndex == m_nIssueEndDrawCallIndex ) || ( m_nIssueStartFrameIndex != m_nIssueEndFrameIndex ) ||
+			// Queries belong to the GLES context, which queued rendering may move
+			// between worker threads. The current-owner assertion above is enough;
+			// the old desktop-driver thread check discarded valid completed queries.
+			if ( ( m_nIssueStartDrawCallIndex == m_nIssueEndDrawCallIndex ) || ( m_nIssueStartFrameIndex != m_nIssueEndFrameIndex ) ||
 				 ( m_nIssueStartQueryCreationCounter != m_nIssueEndQueryCreationCounter ) )
 			{
-				// The thread Issue() was called on differs from GetData() - NV's driver doesn't like this, not sure about AMD. Just fake the results if a flush is requested.
-				// There are various ways to properly handle this scenario, but in practice it only seems to occur in non-critical times (during shutdown or when mat_queue_mode is changed in L4D2).
+				// Reject queries whose drawing interval was empty or interrupted,
+				// for example during shutdown or a render queue mode change.
 				if ( flush )
 				{
 					gGL->glFlush();
 				}
 
-#if 0
-				if ( ( m_nIssueStartThreadID != nCurThreadId ) || ( m_nIssueEndThreadID != nCurThreadId ) )
-				{
-					GLMDebugPrintf( "IDirect3DQuery9::GetData: GetData() called from different thread verses the issueing thread()!\n" );
-				}
-#endif
 				if ( m_nIssueStartQueryCreationCounter != m_nIssueEndQueryCreationCounter )
 				{
 					GLMDebugPrintf( "IDirect3DQuery9::GetData: One or more queries have been created or released while this query was still issued! This scenario is not supported in GL.\n");
@@ -6964,8 +6960,12 @@ void toglGetClientRect( void *hWnd, RECT *destRect )
 	// dig in and find out its backbuffer size and use that.
 
 	uint width = 0, height = 0;
+	#ifdef IOS
 	GLMContext *context = gGL && GLMgr::aGLMgr() ? GLMgr::aGLMgr()->GetCurrentContext() : NULL;
 	if ( !( context && context->GetHostedBackBufferSize( width, height ) ) && g_pLauncherMgr )
+#else
+	if ( g_pLauncherMgr )
+#endif
 		g_pLauncherMgr->RenderedSize( width, height, false );
 	Assert( width!=0 && height!=0 );
 

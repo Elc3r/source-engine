@@ -329,11 +329,14 @@ GLMRendererInfo::GLMRendererInfo( GLMRendererInfoFields *info )
 	}
 	
 	//-------------------------------------------------------------------
+	// GLES 3 provides occlusion queries in core, without ARB_occlusion_query.
 	m_info.m_hasOcclusionQuery = true;
+#ifndef TOGLES
 	if (!strstr(gl_ext_string, "ARB_occlusion_query"))
 	{
 		m_info.m_hasOcclusionQuery = false;		// you don't got it!
 	}
+#endif
 	
 	//-------------------------------------------------------------------
 	m_info.m_hasFramebufferBlit = true;

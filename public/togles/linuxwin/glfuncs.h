@@ -26,7 +26,7 @@
 
 GL_FUNC(OpenGL,true,GLenum,glGetError,(void),())
 GL_FUNC_VOID(OpenGL,true,glActiveTexture,(GLenum a),(a))
-#ifndef IOS // Not part of GLES 3.0; unused by the programmable renderer.
+#if !defined(IOS) && !defined(OSX) // Not part of GLES 3.0; unused by the programmable renderer.
 GL_FUNC_VOID(OpenGL,true,glAlphaFunc,(GLenum a,GLclampf b),(a,b))
 #endif
 GL_FUNC_VOID(OpenGL,true,glAttachShader,(GLuint a, GLuint b),(a,b))
@@ -105,12 +105,12 @@ GL_FUNC(OpenGL,true,GLboolean,glUnmapBuffer,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,true,glUseProgram,(GLuint a),(a))
 GL_FUNC_VOID(OpenGL,true,glVertexAttribPointer,(GLuint a,GLint b,GLenum c,GLboolean d,GLsizei e,const GLvoid *f),(a,b,c,d,e,f))
 GL_FUNC_VOID(OpenGL,true,glViewport,(GLint a,GLint b,GLsizei c,GLsizei d),(a,b,c,d))
-#ifndef IOS // Not part of GLES 3.0; unused by the programmable renderer.
+#if !defined(IOS) && !defined(OSX) // Not part of GLES 3.0; unused by the programmable renderer.
 GL_FUNC_VOID(OpenGL,true,glClientActiveTexture,(GLenum a),(a))
 #endif
 GL_FUNC_VOID(OpenGL,true,glStencilOpSeparate,(GLenum a,GLenum b,GLenum c,GLenum d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,true,glStencilFuncSeparate,(GLenum a,GLenum b,GLint c,GLuint d),(a,b,c,d))
-#ifndef IOS // Not part of GLES 3.0; unused by the programmable renderer.
+#if !defined(IOS) && !defined(OSX) // Not part of GLES 3.0; unused by the programmable renderer.
 GL_FUNC_VOID(OpenGL,true,glGetTexLevelParameteriv,(GLenum a,GLint b,GLenum c,GLint *d),(a,b,c,d))
 #endif
 GL_EXT(GL_EXT_framebuffer_object,-1,-1)
@@ -173,7 +173,7 @@ GL_FUNC(OpenGL,false,GLenum,glCheckFramebufferStatus,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,false,glDeleteRenderbuffers,(GLsizei a,const GLuint *b),(a,b))
 GL_FUNC_VOID(OpenGL,false,glFramebufferRenderbuffer,(GLenum a,GLenum b,GLenum c,GLuint d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,false,glFramebufferTexture2D,(GLenum a,GLenum b,GLenum c,GLuint d,GLint e),(a,b,c,d,e))
-#ifndef IOS // GLES uses framebuffer texture layers instead; this entry is unused.
+#if !defined(IOS) && !defined(OSX) // GLES uses framebuffer texture layers instead; this entry is unused.
 GL_FUNC_VOID(OpenGL,false,glFramebufferTexture3D,(GLenum a,GLenum b,GLenum c,GLuint d,GLint e,GLint f),(a,b,c,d,e,f))
 #endif
 GL_FUNC_VOID(OpenGL,true,glGenFramebuffers,(GLsizei a,GLuint *b),(a,b))
@@ -192,7 +192,7 @@ GL_EXT(GL_EXT_direct_state_access,-1,-1)
 GL_FUNC_VOID(GL_EXT_direct_state_access,false,glBindMultiTextureEXT,(GLenum a,GLuint b, GLuint c),(a,b,c))
 GL_EXT(GL_NV_bindless_texture,-1,-1)
 
-#ifndef OSX
+#if !defined(OSX) || defined(TOGLES)
 GL_FUNC_VOID(OpenGL, true, glGenSamplers, (GLuint a, GLuint *b), (a, b))
 GL_FUNC_VOID(OpenGL, true, glDeleteSamplers, (GLsizei a, const GLuint *b), (a, b))
 GL_FUNC_VOID(OpenGL, true, glBindSampler, (GLuint a, GLuint b), (a, b))
@@ -215,7 +215,7 @@ GL_FUNC_VOID(OpenGL,true,glCopyBufferSubData,(GLenum readtarget, GLenum writetar
 
 GL_EXT(GL_AMD_pinned_memory,-1,-1)
 
-#ifndef OSX
+#if !defined(OSX) || defined(TOGLES)
 GL_FUNC_VOID(OpenGL,true,glGenVertexArrays,(GLsizei n, GLuint *arrays),(n, arrays))
 GL_FUNC_VOID(OpenGL,true,glDeleteVertexArrays,(GLsizei n, GLuint *arrays),(n, arrays))
 GL_FUNC_VOID(OpenGL,true,glBindVertexArray,(GLuint a),(a))
@@ -255,7 +255,7 @@ GL_FUNC_VOID(OpenGL,true,glPolygonOffset,(GLfloat a,GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glTexParameterfv,(GLenum a,GLenum b,const GLfloat *c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glUniform1f,(GLint a,GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glUniform4fv,(GLint a,GLsizei b,const GLfloat *c),(a,b,c))
-#ifndef IOS // Not part of GLES 3.0; unused by the programmable renderer.
+#if !defined(IOS) && !defined(OSX) // Not part of GLES 3.0; unused by the programmable renderer.
 GL_FUNC_VOID(OpenGL,true,glColor4f,(GLfloat a,GLfloat b,GLfloat c,GLfloat d),(a,b,c,d))
 #endif
 GL_FUNC_VOID(OpenGL,true,glSamplerParameterf,(GLuint a, GLenum b, GLfloat c), (a, b, c))

@@ -33,7 +33,7 @@
 
 #undef HAVE_GL_ARB_SYNC
 
-#ifndef OSX
+#if !defined(OSX) || defined(TOGLES)
 #define HAVE_GL_ARB_SYNC 1
 #endif
 

@@ -248,7 +248,7 @@ static int GetOpenGLVersionPatch()
 static bool CheckBaseOpenGLVersion()
 {
 	const int NEED_MAJOR = 3;
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 	const int NEED_MINOR = 0; // ANGLE Metal currently exposes GLES 3.0.
 #else
 	const int NEED_MINOR = 2;
@@ -271,7 +271,7 @@ static bool CheckBaseOpenGLVersion()
 
 static bool CheckOpenGLExtension_internal(const char *ext, const int coremajor, const int coreminor)
 {
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
     // Desktop GL version numbers do not describe the GLES feature set.
     if (!strcmp(ext, "GL_ARB_framebuffer_object") || !strcmp(ext, "GL_EXT_framebuffer_object") ||
         !strcmp(ext, "GL_EXT_framebuffer_blit") || !strcmp(ext, "GL_ARB_map_buffer_range") ||

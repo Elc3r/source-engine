@@ -1989,7 +1989,7 @@ void GLMContext::Clear( bool color, unsigned long colorValue, bool depth, float 
 			clearcol.b =	((colorValue      ) & 0xFF) / 255.0f;	//B
 			clearcol.a =	((colorValue >> 24) & 0xFF) / 255.0f;	//A
 
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 			const CGLMTex *target = m_drawingFBO ? m_drawingFBO->m_attach[kAttColor0].m_tex : NULL;
 			if ( !m_caps.m_hasGammaWrites && target && (target->m_layout->m_key.m_texFlags & kGLMTexSRGB) )
 			{
@@ -2241,7 +2241,7 @@ ConVar glm_literefresh_capslock( "glm_literefresh_capslock", "0" );
 
 extern ConVar gl_blitmode;
 
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 // Present linear-light rendering through the host's encoded-byte window surface.
 // Sampling decodes the sRGB color target; encode exactly once for the window.
 bool GLMContext::PresentSRGBTexture(CGLMTex *texture, uint width, uint height)
@@ -2302,6 +2302,7 @@ bool GLMContext::PresentSRGBTexture(CGLMTex *texture, uint width, uint height)
     gGL->glBindTexture(GL_TEXTURE_2D,texture->m_texName);
     gGL->glBindSampler(0,m_srgbPresentSampler);
     gGL->glDrawArrays(GL_TRIANGLES,0,3);
+
     gGL->glBindSampler(0,sampler);
     gGL->glBindTexture(GL_TEXTURE_2D,binding);
     gGL->glActiveTexture(active);
@@ -2398,8 +2399,8 @@ bool GLMContext::Present( CGLMTex *tex )
 				// do not ask for LINEAR if blit is unscaled
 				// NULL means targeting GL_BACK.  Blit2 will break it down into two steps if needed, and will handle resolve, scale, flip.
 				bool blitScales	=	(showparams.m_width != static_cast<int>(dstWidth)) || (showparams.m_height != static_cast<int>(dstHeight));
-#ifdef IOS
-                if (m_host && !m_caps.m_hasGammaWrites && (tex->m_layout->m_key.m_texFlags & kGLMTexSRGB)) {
+#if defined(IOS) || defined(OSX)
+                if (!m_caps.m_hasGammaWrites && (tex->m_layout->m_key.m_texFlags & kGLMTexSRGB)) {
                     ResolveTex(tex,true);
                     if (!PresentSRGBTexture(tex,dstWidth,dstHeight)) return false;
                 } else
@@ -2571,7 +2572,7 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, con
 	memset( &m_caps, 0, sizeof( m_caps ) );
 	if (m_host) m_caps = m_host->caps;
     else GetDesiredPixelFormatAttribsAndRendererInfo( (uint**)&selAttribs, &selWords, &m_caps );
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 	// ES3 supports sRGB attachments even without optional write control.
 	// Keep them so blending decodes the destination before combining colors.
 	// The shader suffix compensates for writes which D3D wants unencoded.
@@ -2596,6 +2597,7 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, con
 		// threads to see what call is currently being made.
 		// Note that if the driver is in multithreaded mode, you can put it back into singlethreaded mode
 		// and get a real stack for the offending gl call.
+		gGL->glEnable(0x92E0); // GL_DEBUG_OUTPUT (KHR_debug)
 		gGL->glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_ARB);
 
 #ifdef WIN32
@@ -2769,7 +2771,7 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, con
 	// Create a bunch of texture names for us to use forever and ever ramen.
 	FillTexCache( false, kGLMInitialTexCount );
 
-#ifdef OSX
+#if defined(OSX) && !defined(TOGLES)
 	bool new_mtgl = m_caps.m_hasPerfPackage1;	// i.e. 10.6.4 plus new driver
 	
 	if ( CommandLine()->FindParm("-glmenablemtgl2") )
@@ -2839,8 +2841,12 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params, con
 */
 
 #endif
-	// also, set the remote convar "gl_can_query_fast" to 1 if perf package present, else 0.
-	gl_can_query_fast.SetValue( m_caps.m_hasPerfPackage1?1:0 );
+	// GLES queries do not depend on Apple's legacy OpenGL performance package.
+#if defined(IOS) || defined(OSX)
+	gl_can_query_fast.SetValue( m_caps.m_hasOcclusionQuery ? 1 : 0 );
+#else
+	gl_can_query_fast.SetValue( m_caps.m_hasPerfPackage1 ? 1 : 0 );
+#endif
 
 #if GL_BATCH_PERF_ANALYSIS		
 	m_nTotalVSUniformCalls = 0;
@@ -2864,7 +2870,7 @@ void GLMContext::Reset()
 
 GLMContext::~GLMContext	()
 {
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
     if (m_srgbPresentProgram) gGL->glDeleteProgram(m_srgbPresentProgram);
     if (m_srgbPresentVAO) gGL->glDeleteVertexArrays(1,&m_srgbPresentVAO);
     if (m_srgbPresentSampler) gGL->glDeleteSamplers(1,&m_srgbPresentSampler);

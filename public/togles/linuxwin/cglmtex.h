@@ -314,7 +314,7 @@ struct GLMTexSamplingParams
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_WRAP_R, dxtogl_addressMode[m_packed.m_addressW] );
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_MIN_FILTER, dxtogl_minFilter[m_packed.m_minFilter][m_packed.m_mipFilter] );
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_MAG_FILTER, dxtogl_magFilter[m_packed.m_magFilter] );
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 		if ( gGL->m_bHave_GL_EXT_texture_filter_anisotropic )
 #endif
 		gGL->glSamplerParameteri( nSamplerObject, GL_TEXTURE_MAX_ANISOTROPY_EXT, m_packed.m_maxAniso );
@@ -327,7 +327,7 @@ struct GLMTexSamplingParams
 			flBorderColor[2] = ((m_borderColor      ) & 0xFF) * (1.0f/255.0f);	//B
 			flBorderColor[3] = ((m_borderColor >> 24) & 0xFF) * (1.0f/255.0f);	//A
 		}
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 		if ( gGL->m_bHave_GL_EXT_texture_border_clamp || gGL->m_bHave_GL_OES_texture_border_clamp )
 #endif
 		gGL->glSamplerParameterfv( nSamplerObject, GL_TEXTURE_BORDER_COLOR, flBorderColor ); // <-- this crashes ATI's driver, remark it out
@@ -380,7 +380,7 @@ struct GLMTexSamplingParams
 		{
 			gGL->glTexParameteri( target, GL_TEXTURE_MIN_FILTER, dxtogl_minFilter[m_packed.m_minFilter][m_packed.m_mipFilter] );
 			gGL->glTexParameteri( target, GL_TEXTURE_MAG_FILTER, dxtogl_magFilter[m_packed.m_magFilter] );
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 		if ( gGL->m_bHave_GL_EXT_texture_filter_anisotropic )
 #endif
 			gGL->glTexParameteri( target, GL_TEXTURE_MAX_ANISOTROPY_EXT, m_packed.m_maxAniso );
@@ -397,7 +397,7 @@ struct GLMTexSamplingParams
 				flBorderColor[3] = ((m_borderColor >> 24) & 0xFF) * (1.0f/255.0f);	//A
 			}
 		
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 		if ( gGL->m_bHave_GL_EXT_texture_border_clamp || gGL->m_bHave_GL_OES_texture_border_clamp )
 #endif
 			gGL->glTexParameterfv( target, GL_TEXTURE_BORDER_COLOR, flBorderColor ); // <-- this crashes ATI's driver, remark it out
@@ -446,7 +446,7 @@ struct GLMTexSamplingParams
 		gGL->glTexParameteri( target, GL_TEXTURE_WRAP_R, dxtogl_addressMode[m_packed.m_addressW] );
 		gGL->glTexParameteri( target, GL_TEXTURE_MIN_FILTER, dxtogl_minFilter[m_packed.m_minFilter][m_packed.m_mipFilter] );
 		gGL->glTexParameteri( target, GL_TEXTURE_MAG_FILTER, dxtogl_magFilter[m_packed.m_magFilter] );
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 		if ( gGL->m_bHave_GL_EXT_texture_filter_anisotropic )
 #endif
 		gGL->glTexParameteri( target, GL_TEXTURE_MAX_ANISOTROPY_EXT, m_packed.m_maxAniso );
@@ -459,7 +459,7 @@ struct GLMTexSamplingParams
 			flBorderColor[2] = ((m_borderColor      ) & 0xFF) * (1.0f/255.0f);	//B
 			flBorderColor[3] = ((m_borderColor >> 24) & 0xFF) * (1.0f/255.0f);	//A
 		}
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 		if ( gGL->m_bHave_GL_EXT_texture_border_clamp || gGL->m_bHave_GL_OES_texture_border_clamp )
 #endif
 		gGL->glTexParameterfv( target, GL_TEXTURE_BORDER_COLOR, flBorderColor ); // <-- this crashes ATI's driver, remark it out

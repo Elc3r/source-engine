@@ -34,7 +34,7 @@
 #pragma once
 
 #undef HAVE_GL_ARB_SYNC
-#ifndef OSX
+#if !defined(OSX) || defined(TOGLES)
 #define HAVE_GL_ARB_SYNC 1
 #endif
 
@@ -755,7 +755,7 @@ FORCEINLINE void GLContextSet( GLBlendEnableSRGB_t *src )
 //	GLint encoding = 0;
 //	gGL->glGetFramebufferAttachmentParameteriv( GL_DRAW_FRAMEBUFFER_EXT, GL_COLOR_ATTACHMENT0, GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING, &encoding );
 
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
 	// GLES converts sRGB attachments automatically; toggling requires this extension.
 	if ( gGL->m_bHave_GL_EXT_sRGB_write_control )
 #endif
@@ -1614,7 +1614,7 @@ class GLMContext
 		IDirect3DDevice9				*m_pDevice;
 		GLMRendererInfoFields			m_caps;
         const GLMContextHost *m_host;
-#ifdef IOS
+#if defined(IOS) || defined(OSX)
         GLuint m_srgbPresentProgram=0, m_srgbPresentVAO=0, m_srgbPresentSampler=0;
         bool PresentSRGBTexture(CGLMTex *texture, uint width, uint height);
 #endif

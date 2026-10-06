@@ -783,10 +783,10 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 	m_mapped = NULL;
 	m_pbo = 0;
 
-	// iOS uses CPU backing for dynamic textures too. The legacy PBO path
+	// Apple GLES uses CPU backing for dynamic textures too. The legacy PBO path
 	// uploads packed rows from offset zero and bypasses D3D-to-RGBA conversion;
 	// lightmap atlas subrectangles require the normal stride-aware upload path.
-#ifndef IOS
+#if !defined(IOS) && !defined(OSX)
 	if( m_layout->m_key.m_texFlags & kGLMTexDynamic )
 	{
 		gGL->glGenBuffers(1, &m_pbo);
@@ -4213,6 +4213,9 @@ void CGLMTex::ResetSRGB( bool srgb, bool noDataWrite )
 				desc.m_sliceBaseOffset = slice->m_storageOffset;	// doesn't really matter... we're just pushing zeroes..
 				desc.m_sliceRegionOffset = 0;
 
+				// A subimage upload preserves the old internal format. Reallocate
+				// each mip when switching between linear and sRGB storage.
+				m_sliceFlags[desc.m_sliceIndex] &= ~kSliceValid;
 				WriteTexels( &desc, true, noDataWrite );	// write whole slice. and avoid pushing real bits if the caller requests (RT's)
 			}
 		}

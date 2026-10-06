@@ -309,17 +309,11 @@ ImageFormat D3DFormatToImageFormat( D3DFORMAT format )
 
 	switch ( format )
 	{
-#ifdef TOGLES
-	case D3DFMT_R8G8B8:
-		return IMAGE_FORMAT_RGB888;
-	case D3DFMT_A8R8G8B8:
-		return IMAGE_FORMAT_RGBA8888;
-#else
+	// Surface locks retain D3D byte order; the GLES upload converts it to RGB.
 	case D3DFMT_R8G8B8:
 		return IMAGE_FORMAT_BGR888;
 	case D3DFMT_A8R8G8B8:
 		return IMAGE_FORMAT_BGRA8888;
-#endif
 	case D3DFMT_X8R8G8B8:
 		return IMAGE_FORMAT_BGRX8888;
 	case D3DFMT_R5G6B5:
