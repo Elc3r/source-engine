@@ -3679,6 +3679,12 @@ void CMaterialSystem::EndFrame( void )
 #endif
 
 	MaterialThreadMode_t nextThreadMode = ( iConVarThreadMode >= 0 ) ? (MaterialThreadMode_t)iConVarThreadMode : m_IdealThreadMode;
+#if defined(OSX) && !defined(TOGLES)
+	// Cocoa OpenGL updates after a window move synchronously dispatch to
+	// the main thread. Presenting on a worker deadlocks when EndFrame
+	// waits for that worker, so keep native OpenGL rendering on main.
+	nextThreadMode = MATERIAL_SINGLE_THREADED;
+#endif
 	// note: This is a hack because there is no explicit query for the device being deactivated due to device lost.
 	// however, that is all the current implementation of CanDownloadTextures actually does.
 	bool bDeviceReady = g_pShaderAPI->CanDownloadTextures();
